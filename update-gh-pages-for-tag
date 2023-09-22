@@ -1,0 +1,75 @@
+#!/bin/bash
+
+set -xeuo pipefail
+
+TMP=tmp
+NAME=picos
+MAIN=doc
+GIT="git@github.com:ocaml-multicore/$NAME.git"
+DOC="_build/default/_doc/_html"
+GH_PAGES=gh-pages
+
+TAG="$1"
+
+if ! [ -e $NAME.opam ] || [ $# -ne 1 ] || \
+     { [ "$TAG" != main ] && ! [ "$(git tag -l "$TAG")" ]; }; then
+  CMD="${0##*/}"
+  cat << EOF
+Usage: $CMD tag-name-or-main
+
+This script
+- clones the repository into a temporary directory ($TMP/$NAME),
+- builds the documentation for the specified tag or main,
+- updates $GH_PAGES branch with the documentation in directory for the tag,
+- prompts whether to also update the main documentation in $MAIN directory, and
+- prompts whether to push changes to $GH_PAGES.
+
+EOF
+  exit 1
+fi
+
+mkdir $TMP
+cd $TMP
+
+git clone $GIT
+cd $NAME
+
+git checkout "$TAG"
+dune build @doc --root=.
+
+git checkout $GH_PAGES
+if [ "$TAG" != main ]; then
+  echo "Updating the $TAG doc."
+  if [ -e "$TAG" ]; then
+    git rm -rf "$TAG"
+  fi
+  cp -r $DOC "$TAG"
+  git add "$TAG"
+fi
+
+read -p "Update the main doc? (y/N) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+  if [ -e $MAIN ]; then
+    git rm -rf $MAIN
+  fi
+  cp -r $DOC $MAIN
+  git add $MAIN
+else
+  echo "Skipped main doc update."
+fi
+
+git commit -m "Update $NAME doc for $TAG"
+
+read -p "Push changes to $GH_PAGES? (y/N) " -n 1 -r
+echo
+if ! [[ $REPLY =~ ^[Yy]$ ]]; then
+  echo "Leaving $TMP for you to examine."
+  exit 1
+fi
+
+git push
+
+cd ..
+cd ..
+rm -rf $TMP

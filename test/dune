@@ -1,0 +1,6 @@
+(include_subdirs unqualified)
+
+(tests
+ (names test_picos test_server_and_client bench_current)
+ (libraries picos backoff alcotest threads.posix unix)
+ (package picos))

@@ -1,0 +1,39 @@
+(library
+ (name picos)
+ (public_name picos)
+ (libraries
+  backoff
+  psq
+  mtime
+  mtime.clock.os
+  (select
+   TLS.ml
+   from
+   (threads.posix -> TLS.threads.ml)
+   (-> TLS.dls.ml))
+  (select
+   systhreads.ml
+   from
+   (threads.posix -> systhreads.posix.ml)
+   (-> systhreads.none.ml))
+  (select
+   select.ml
+   from
+   (unix -> select.unix.ml)
+   (-> select.none.ml))))
+
+(rule
+ (targets domain.ml)
+ (deps domain.ocaml4.ml)
+ (enabled_if
+  (< %{ocaml_version} 5.0.0))
+ (action
+  (progn
+   (copy domain.ocaml4.ml domain.ml))))
+
+(mdx
+ (package picos)
+ (deps
+  (package picos))
+ (libraries picos unix)
+ (files picos.mli))
