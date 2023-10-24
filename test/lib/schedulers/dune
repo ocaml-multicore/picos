@@ -1,0 +1,5 @@
+(library
+ (name schedulers)
+ (enabled_if
+  (>= %{ocaml_version} 5.0.0))
+ (libraries picos foundation))

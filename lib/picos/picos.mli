@@ -272,17 +272,7 @@ module Exn_bt : sig
   (** [raise exn_bt] is equivalent to
       [Printexc.raise_with_backtrace exn_bt.exn exn_bt.bt]. *)
 
-  val discontinue : ('a, 'b) Effect.Deep.continuation -> t -> 'b
-  (** [discontinue k exn_bt] is equivalent to
-      [Effect.Deep.discontinue_with_backtrace k exn_bt.exn exn_bt.bt]. *)
-
-  val discontinue_with :
-    ('a, 'b) Effect.Shallow.continuation ->
-    t ->
-    ('b, 'c) Effect.Shallow.handler ->
-    'c
-  (** [discontinue_with k exn_bt h] is equivalent to
-      [Effect.Shallow.discontinue_with_backtrace k exn_bt.exn exn_bt.bt h]. *)
+  include Effects_intf.Exn_bt with type t := t
 end
 
 (** {3 Core modules}
@@ -400,11 +390,8 @@ module Trigger : sig
         means that either the owner or creator of the trigger made concurrent
         calls to {!await} or the handler called [on_signal] more than once. *)
 
-  (** Schedulers may handle the {!Await} effect to customize the behavior of
-      {!await}. *)
-  type _ Effect.t +=
-    private
-    | Await : [ `On | `Signal ] t -> Exn_bt.t option Effect.t
+  include
+    Effects_intf.Trigger with type 'a t := 'a t with type exn_bt := Exn_bt.t
 
   (** {2 Design rationale}
 
@@ -650,16 +637,10 @@ module Computation : sig
 
   (** {2 Interface for schedulers} *)
 
-  (** Schedulers may handle the {!Cancel_after} effect to customize the behavior
-      of {!cancel_after}. *)
-  type _ Effect.t +=
-    private
-    | Cancel_after : {
-        seconds : float;
-        exn_bt : Exn_bt.t;
-        computation : 'a as_cancelable;
-      }
-        -> unit Effect.t
+  include
+    Effects_intf.Computation
+      with type 'a as_cancelable := 'a as_cancelable
+      with type exn_bt := Exn_bt.t
 
   (** {2 Design rationale}
 
@@ -872,24 +853,10 @@ module Fiber : sig
     [ `Sync | `Async ] t
   (** [create ~forbid computation] creates a new fiber. *)
 
-  (** Schedulers may handle the {!Current} effect to customize the behavior of
-      {!current}. *)
-  type _ Effect.t += private Current : [ `Sync | `Async ] t Effect.t
-
-  (** Schedulers may handle the {!Yield} effect to customize the behavior of
-      {!yield}. *)
-  type _ Effect.t += private Yield : unit Effect.t
-
-  (** Schedulers may handle the {!Spawn} effect to customize the behavior of
-      {!spawn}. *)
-  type _ Effect.t +=
-    private
-    | Spawn : {
-        forbid : bool;
-        computation : 'a Computation.as_cancelable;
-        mains : (unit -> unit) list;
-      }
-        -> unit Effect.t
+  include
+    Effects_intf.Fiber
+      with type 'a t := 'a t
+      with type 'a as_cancelable := 'a Computation.as_cancelable
 
   (** {2 Design rationale}
 

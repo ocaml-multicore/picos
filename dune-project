@@ -1,4 +1,4 @@
-(lang dune 3.8)
+(lang dune 3.9)
 
 (name picos)
 
@@ -37,5 +37,9 @@
    (and
     (>= 2.3.1)
     :with-test))
+  (domain_shims
+   (and
+    (>= 0.1.0)
+    :with-test))
   (ocaml
-   (>= 5.0.0))))
+   (>= 4.12.0))))

@@ -1,6 +1,18 @@
-(include_subdirs unqualified)
+(test
+ (name bench_current)
+ (modules bench_current)
+ (build_if
+  (>= %{ocaml_version} 5.0.0))
+ (libraries picos schedulers unix))
 
-(tests
- (names test_picos test_server_and_client bench_current)
- (libraries picos backoff alcotest threads.posix unix)
- (package picos))
+(test
+ (name test_picos)
+ (modules test_picos)
+ (libraries picos foundation alcotest domain_shims unix))
+
+(test
+ (name test_server_and_client)
+ (modules test_server_and_client)
+ (build_if
+  (>= %{ocaml_version} 5.0.0))
+ (libraries picos schedulers elements foundation))

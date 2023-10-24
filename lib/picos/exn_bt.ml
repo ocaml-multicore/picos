@@ -11,7 +11,3 @@ let[@inline] get_callstack n exn =
   { exn; bt }
 
 let raise { exn; bt } = Printexc.raise_with_backtrace exn bt
-let discontinue k { exn; bt } = Effect.Deep.discontinue_with_backtrace k exn bt
-
-let discontinue_with k { exn; bt } handler =
-  Effect.Shallow.discontinue_with_backtrace k exn bt handler

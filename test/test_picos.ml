@@ -1,5 +1,5 @@
 open Picos
-open Finally
+open Foundation.Finally
 
 let answer_key = Fiber.FLS.new_key (Constant 42)
 
@@ -47,6 +47,7 @@ let test_computation_basics () =
     Domain.spawn @@ fun () ->
     let rec fib i =
       Computation.check computation;
+      Fiber.yield ();
       if i <= 1 then i else fib (i - 1) + fib (i - 2)
     in
     Computation.capture computation fib 80

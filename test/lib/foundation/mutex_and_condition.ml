@@ -1,5 +1,4 @@
 open Picos
-open Stdlib
 
 type t = { mutex : Mutex.t; condition : Condition.t }
 

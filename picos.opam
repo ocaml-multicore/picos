@@ -7,13 +7,14 @@ license: "ISC"
 homepage: "https://github.com/ocaml-multicore/picos"
 bug-reports: "https://github.com/ocaml-multicore/picos/issues"
 depends: [
-  "dune" {>= "3.8"}
+  "dune" {>= "3.9"}
   "backoff" {>= "0.1.0"}
   "mtime" {>= "2.0.0"}
   "psq" {>= "0.2.1"}
   "alcotest" {>= "1.7.0" & with-test}
   "mdx" {>= "2.3.1" & with-test}
-  "ocaml" {>= "5.0.0"}
+  "domain_shims" {>= "0.1.0" & with-test}
+  "ocaml" {>= "4.12.0"}
   "odoc" {with-doc}
 ]
 build: [

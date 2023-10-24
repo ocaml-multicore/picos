@@ -1,7 +1,7 @@
 open Picos
 
 let () =
-  Fifos.run ~forbid:false @@ fun () ->
+  Schedulers.Fifos.run ~forbid:false @@ fun () ->
   let n = 10_000_000 in
 
   let start = Unix.gettimeofday () in

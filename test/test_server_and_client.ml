@@ -1,8 +1,9 @@
 open Picos
-open Finally
+open Foundation.Finally
+open Elements
 
 let () =
-  Fifos.run ~forbid:false @@ fun () ->
+  Schedulers.Fifos.run ~forbid:false @@ fun () ->
   Bundle.run @@ fun bundle ->
   let n = 100 in
   let port =

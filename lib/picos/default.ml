@@ -1,68 +1,45 @@
-include Bootstrap.Computation
-
-type 'a as_cancelable = ('a, [ `Await | `Cancel ]) t
-type -'allowed packed = Packed : ('a, 'allowed) t -> 'allowed packed
-type packed_as_cancelable = [ `Await | `Cancel ] packed
-
-let is_running t =
-  match Atomic.get t with
-  | Canceled _ | Returned _ -> false
-  | Continue _ -> true
-
 open struct
-  let rec terminate backoff t after =
-    match Atomic.get t with
-    | Returned _ | Canceled _ -> ()
-    | Continue r as before ->
-        if Atomic.compare_and_set t before after then
-          List.iter Trigger.signal r.triggers
-        else terminate (Backoff.once backoff) t after
+  let release _ _ (per_thread : Per_thread.t) =
+    Mutex.lock per_thread.mutex;
+    Mutex.unlock per_thread.mutex;
+    Condition.broadcast per_thread.condition
+
+  let block trigger (per_thread : Per_thread.t) =
+    Mutex.lock per_thread.mutex;
+    match
+      while Atomic.get trigger != Bootstrap.Trigger.Signaled do
+        Condition.wait per_thread.condition per_thread.mutex
+      done
+    with
+    | () ->
+        Mutex.unlock per_thread.mutex;
+        Bootstrap.Fiber.canceled per_thread.fiber
+    | exception exn ->
+        (* Condition.wait may be interrupted by asynchronous exceptions and we
+           must make sure to unlock even in that case. *)
+        Mutex.unlock per_thread.mutex;
+        raise exn
 end
 
-let returned_unit = Returned ()
-let finished = Atomic.make returned_unit
-let return t value = terminate Backoff.default t (Returned value)
-let finish t = terminate Backoff.default t returned_unit
-let cancel t exn_bt = terminate Backoff.default t (Canceled exn_bt)
+let await trigger =
+  let per_thread = Per_thread.get () in
+  if Bootstrap.Fiber.has_forbidden per_thread.fiber then
+    if Bootstrap.Trigger.on_signal trigger () per_thread release then
+      block trigger per_thread
+    else None
+  else if Bootstrap.Fiber.try_attach per_thread.fiber trigger then
+    if Bootstrap.Trigger.on_signal trigger () per_thread release then
+      block trigger per_thread
+    else begin
+      Bootstrap.Fiber.detach per_thread.fiber trigger;
+      Bootstrap.Fiber.canceled per_thread.fiber
+    end
+  else begin
+    Bootstrap.Trigger.signal trigger;
+    Bootstrap.Fiber.canceled per_thread.fiber
+  end
 
-let capture t fn x =
-  match fn x with y -> return t y | exception exn -> cancel t (Exn_bt.get exn)
-
-let rec await t =
-  match Atomic.get t with
-  | Returned value -> value
-  | Canceled exn_bt -> Exn_bt.raise exn_bt
-  | Continue _ ->
-      let trigger = Trigger.create () in
-      if try_attach t trigger then begin
-        match Trigger.await trigger with
-        | None -> await t
-        | Some exn_bt ->
-            detach t trigger;
-            Exn_bt.raise exn_bt
-      end
-      else await t
-
-let check t =
-  match Atomic.get t with
-  | Canceled exn_bt -> Exn_bt.raise exn_bt
-  | Returned _ | Continue _ -> ()
-
-open struct
-  let propagate _ from into =
-    match canceled from with None -> () | Some exn_bt -> cancel into exn_bt
-end
-
-let canceler ~from ~into =
-  Atomic.make (Trigger.Awaiting (propagate, from, into))
-
-type _ Effect.t +=
-  | Cancel_after : {
-      seconds : float;
-      exn_bt : Exn_bt.t;
-      computation : 'a as_cancelable;
-    }
-      -> unit Effect.t
+(* *)
 
 open struct
   module Entry = struct
@@ -70,7 +47,7 @@ open struct
       | Entry : {
           time : Mtime.span;
           exn_bt : Exn_bt.t;
-          computation : 'a as_cancelable;
+          computation : 'a Bootstrap.Computation.as_cancelable;
         }
           -> t
 
@@ -189,7 +166,8 @@ open struct
         | Some ((_, Entry e), after) ->
             let elapsed = Mtime_clock.elapsed () in
             if Mtime.Span.compare e.time elapsed <= 0 then begin
-              if cas_timeouts t before after then cancel e.computation e.exn_bt;
+              if cas_timeouts t before after then
+                Bootstrap.Computation.cancel e.computation e.exn_bt;
               timeout_thread_handle t
             end
             else
@@ -233,29 +211,41 @@ open struct
       if try_lock t then start t;
       wait t
   end
-
-  let cancel_after_default seconds exn_bt computation =
-    match Mtime.Span.of_float_ns (seconds *. 1_000_000_000.) with
-    | None ->
-        invalid_arg
-          "Computation: seconds should be between 0 to pow(2, 53) nanoseconds"
-    | Some span ->
-        let per_domain = Per_domain.get () in
-        if per_domain.state != `Alive then Per_domain.init per_domain;
-        let time = Mtime.Span.add (Mtime_clock.elapsed ()) span in
-        let entry = Entry.Entry { time; exn_bt; computation } in
-        let id = Per_domain.next_id per_domain in
-        Per_domain.add_timeout per_domain id entry;
-        let remover =
-          Atomic.make
-            (Trigger.Awaiting (Per_domain.remove_timeout, per_domain, id))
-        in
-        if not (try_attach computation remover) then Trigger.signal remover
 end
 
-let cancel_after computation ~seconds exn_bt =
-  if seconds < 0.0 then invalid_arg "Computation: negative seconds"
-  else
-    try Effect.perform (Cancel_after { seconds; exn_bt; computation })
-    with Effect.Unhandled (Cancel_after { seconds; exn_bt; computation }) ->
-      cancel_after_default seconds exn_bt computation
+let cancel_after seconds exn_bt computation =
+  match Mtime.Span.of_float_ns (seconds *. 1_000_000_000.) with
+  | None ->
+      invalid_arg
+        "Computation: seconds should be between 0 to pow(2, 53) nanoseconds"
+  | Some span ->
+      let per_domain = Per_domain.get () in
+      if per_domain.state != `Alive then Per_domain.init per_domain;
+      let time = Mtime.Span.add (Mtime_clock.elapsed ()) span in
+      let entry = Entry.Entry { time; exn_bt; computation } in
+      let id = Per_domain.next_id per_domain in
+      Per_domain.add_timeout per_domain id entry;
+      let remover =
+        Atomic.make
+          (Bootstrap.Trigger.Awaiting (Per_domain.remove_timeout, per_domain, id))
+      in
+      if not (Bootstrap.Computation.try_attach computation remover) then
+        Bootstrap.Trigger.signal remover
+
+(* *)
+
+let current () =
+  let fiber = (Per_thread.get ()).fiber in
+  Bootstrap.Fiber.check fiber;
+  fiber
+
+let spawn forbid computation mains =
+  mains
+  |> List.iter @@ fun main ->
+     Systhreads.create
+       (fun () ->
+         main (Per_thread.set (Bootstrap.Fiber.create ~forbid computation)))
+       ()
+     |> ignore
+
+let yield () = Systhreads.yield ()
