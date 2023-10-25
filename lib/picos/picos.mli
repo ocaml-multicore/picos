@@ -335,10 +335,7 @@ module Trigger : sig
       state. *)
 
   val await : [> `Await ] t -> Exn_bt.t option
-  (** [await trigger] waits for the trigger to be {!signal}ed.  Assuming the
-      trigger is in the initial state, [await] will first try to perform the
-      {!Await} effect and falls back to suspending the underlying [Thread] in
-      case the effect was [Unhandled].
+  (** [await trigger] waits for the trigger to be {!signal}ed.
 
       The return value is [None] in case the trigger was signaled before [await]
       or the {{!Fiber} fiber} was resumed normally.  Otherwise the return value
@@ -349,6 +346,11 @@ module Trigger : sig
 
       ⚠️ Only the owner or creator of a trigger may call [await] and it is
       considered an error to make multiple concurrent calls to [await].
+
+      On OCaml 5, [await] will first try to perform the {!Await} effect and
+      falls back to the OCaml 4 default implementation that suspends the
+      underlying system level thread using a per thread [Mutex] and [Condition]
+      variable.
 
       @raise Invalid_argument if the trigger was in the awaiting state, which
         means that multiple concurrent calls of [await] are being made. *)
@@ -568,8 +570,9 @@ module Computation : sig
       backtrace.  Completion of the computation before the specified time
       effectively cancels the timeout.
 
-      The implementation will first try to perform {!Cancel_after} and falls
-      back to a default implementation using [Thread]s if possible.
+      On OCaml 5, [cancel_after] will first try to perform the {!Cancel_after}
+      effect and falls back to the OCaml 4 default implementation using
+      [Unix.select] and a background [Thread] when available.
 
       @raise Invalid_argument if [seconds] is negative. *)
 
@@ -685,9 +688,11 @@ module Fiber : sig
   (** {2 Interface for rescheduling} *)
 
   val yield : unit -> unit
-  (** [yield ()] asks the current fiber to be re-scheduled.  This will first
-      attempt to perform the {!Yield} effect and falls back to calling
-      [Thread.yield ()] when available. *)
+  (** [yield ()] asks the current fiber to be re-scheduled.
+
+      On OCaml 5, [yield] will first attempt to perform the {!Yield} effect and
+      falls back to the OCaml 4 default implementation calling [Thread.yield ()]
+      when available. *)
 
   (** {2 Interface for spawning} *)
 
@@ -709,7 +714,11 @@ module Fiber : sig
       For example, raising an exception might terminate the whole application
       (recommended, but not required) or the exception might be ignored.  In
       other words, the caller {i must} arrange for the computation to be
-      completed and errors reported in a desired manner. *)
+      completed and errors reported in a desired manner.
+
+      On OCaml 5, [spawn] will first try to perform the {!Spawn} effect and
+      falls back to the OCaml 4 default implementation creating [Thread]s when
+      available. *)
 
   (** {2 Interface for current fiber} *)
 
@@ -717,7 +726,11 @@ module Fiber : sig
   (** Represents a fiber. *)
 
   val current : unit -> [ `Sync | `Async ] t
-  (** [current ()] returns the current fiber. *)
+  (** [current ()] returns the current fiber.
+
+      On OCaml 5, [current] will first try to perform the {!Current} effect and
+      falls back to the OCaml 4 default implementation using [Thread]-local
+      storage. *)
 
   (** ⚠️ Operations that require the fiber handle to be [[> `Sync]] can only be
       called safely from the fiber itself. *)
