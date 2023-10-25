@@ -25,53 +25,25 @@
 ;;
 
 (rule
- (targets picos.ml)
- (deps picos.ocaml4.ml)
+ (targets picos.ml effects_intf.ml domain.ml)
+ (deps picos.ocaml4.ml effects_intf.ocaml4.ml)
  (enabled_if
   (< %{ocaml_version} 5.0.0))
  (action
   (progn
-   (copy picos.ocaml4.ml picos.ml))))
-
-(rule
- (targets picos.ml)
- (deps picos.ocaml5.ml)
- (enabled_if
-  (>= %{ocaml_version} 5.0.0))
- (action
-  (progn
-   (copy picos.ocaml5.ml picos.ml))))
-
-;;
-
-(rule
- (targets effects_intf.ml)
- (deps effects_intf.ocaml4.ml)
- (enabled_if
-  (< %{ocaml_version} 5.0.0))
- (action
-  (progn
-   (copy effects_intf.ocaml4.ml effects_intf.ml))))
-
-(rule
- (targets effects_intf.ml)
- (deps effects_intf.ocaml5.ml)
- (enabled_if
-  (>= %{ocaml_version} 5.0.0))
- (action
-  (progn
-   (copy effects_intf.ocaml5.ml effects_intf.ml))))
-
-;;
-
-(rule
- (targets domain.ml)
- (deps domain.ocaml4.ml)
- (enabled_if
-  (< %{ocaml_version} 5.0.0))
- (action
-  (progn
+   (copy picos.ocaml4.ml picos.ml)
+   (copy effects_intf.ocaml4.ml effects_intf.ml)
    (copy domain.ocaml4.ml domain.ml))))
+
+(rule
+ (targets picos.ml effects_intf.ml)
+ (deps picos.ocaml5.ml effects_intf.ocaml5.ml)
+ (enabled_if
+  (>= %{ocaml_version} 5.0.0))
+ (action
+  (progn
+   (copy picos.ocaml5.ml picos.ml)
+   (copy effects_intf.ocaml5.ml effects_intf.ml))))
 
 ;;
 
