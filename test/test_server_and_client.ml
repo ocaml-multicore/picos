@@ -1,18 +1,14 @@
-open Picos
 open Foundation.Finally
 open Elements
 
-let () =
-  Schedulers.Fifos.run ~forbid:false @@ fun () ->
+let main () =
   Bundle.run @@ fun bundle ->
   let n = 100 in
   let port =
     Random.self_init ();
     Random.int 1000 + 3000
   in
-  let server_addr =
-    Async_unix.ADDR_INET (Async_unix.inet_addr_loopback, port)
-  in
+  let server_addr = Async_unix.(ADDR_INET (inet_addr_loopback, port)) in
 
   let server =
     Bundle.fork bundle @@ fun () ->
@@ -44,8 +40,16 @@ let () =
       finally Async_unix.close @@ fun () ->
       Async_unix.socket ~cloexec:true PF_INET SOCK_STREAM 0
     in
-    Fiber.yield ();
-    Async_unix.connect socket server_addr;
+    let retries = ref 10 in
+    while
+      match Async_unix.connect socket server_addr with
+      | () -> false
+      | exception Async_unix.Unix_error (ECONNREFUSED, _, _) ->
+          decr retries;
+          0 <= !retries
+    do
+      Sleep.sleepf 0.01
+    done;
     Printf.printf "  Client connected\n%!";
     let bytes = Bytes.create n in
     let n = Async_unix.write socket bytes 0 (Bytes.length bytes) in

@@ -10,9 +10,19 @@
  (modules test_picos)
  (libraries picos foundation alcotest domain_shims unix))
 
-(test
+(library
  (name test_server_and_client)
  (modules test_server_and_client)
+ (libraries elements foundation))
+
+(test
+ (name test_server_and_client_fibers)
+ (modules test_server_and_client_fibers)
  (build_if
   (>= %{ocaml_version} 5.0.0))
- (libraries picos schedulers elements foundation))
+ (libraries schedulers test_server_and_client))
+
+(test
+ (name test_server_and_client_threads)
+ (modules test_server_and_client_threads)
+ (libraries test_server_and_client))
