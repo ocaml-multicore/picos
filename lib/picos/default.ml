@@ -81,7 +81,8 @@ open struct
 
   module Per_domain = struct
     type t = {
-      mutable timeouts : Q.t;
+      timeouts : Q.t Atomic.t;
+          (** Must be atomic to allow removal from another domain. *)
       mutable next_id : int;
       mutable needs_wakeup : bool;
       mutable state : [ `Init | `Locked | `Alive | `Dead ];
@@ -96,7 +97,7 @@ open struct
       let key =
         Domain.DLS.new_key @@ fun () ->
         {
-          timeouts = Q.empty;
+          timeouts = Atomic.make Q.empty;
           next_id = 0;
           needs_wakeup = true;
           state = `Init;
@@ -135,26 +136,19 @@ open struct
         let n = Select.write pipe_out t.byte 0 1 in
         assert (n = 1)
 
-    let[@poll error] [@inline never] cas_timeouts t before after =
-      t.timeouts == before
-      && begin
-           t.timeouts <- after;
-           true
-         end
-
     let rec add_timeout t id entry =
-      let before = t.timeouts in
+      let before = Atomic.get t.timeouts in
       let after = Q.add id entry before in
-      if cas_timeouts t before after then
+      if Atomic.compare_and_set t.timeouts before after then
         match Q.min after with
         | Some (id', _) -> if id = id' then wakeup t
         | None -> ()
       else add_timeout t id entry
 
     let rec remove_timeout _trigger t id =
-      let before = t.timeouts in
+      let before = Atomic.get t.timeouts in
       let after = Q.remove id before in
-      if not (cas_timeouts t before after) then
+      if not (Atomic.compare_and_set t.timeouts before after) then
         remove_timeout (Obj.magic ()) t id
 
     let wait t =
@@ -165,7 +159,8 @@ open struct
         invalid_arg "Computation: domain has been terminated"
 
     let[@poll error] [@inline never] running_atomically t before =
-      t.state == `Alive && t.timeouts == before
+      t.state == `Alive
+      && Atomic.get t.timeouts == before
       && begin
            t.needs_wakeup <- true;
            true
@@ -183,13 +178,13 @@ open struct
 
     and timeout_thread_handle t =
       if t.state == `Alive then
-        let before = t.timeouts in
+        let before = Atomic.get t.timeouts in
         match Q.pop before with
         | None -> timeout_thread_sleep t before (-1.0)
         | Some ((_, Entry e), after) ->
             let elapsed = Mtime_clock.elapsed () in
             if Mtime.Span.compare e.time elapsed <= 0 then begin
-              if cas_timeouts t before after then
+              if Atomic.compare_and_set t.timeouts before after then
                 Bootstrap.Computation.cancel e.computation e.exn_bt;
               timeout_thread_handle t
             end
