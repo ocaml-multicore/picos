@@ -1,5 +1,8 @@
 # TODO
 
+- Make sure that when `unix` or `threads.posix` is not available the default
+  implementations report errors and do not put system in invalid state.
+
 - Consider interop between Picos and Lwt / Async in detail
 
 - JavaScript scheduler
