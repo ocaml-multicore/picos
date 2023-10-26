@@ -1,4 +1,5 @@
 module TLS = TLS
+module DLS = Domain.DLS
 module Exn_bt = Exn_bt
 
 module Trigger = struct

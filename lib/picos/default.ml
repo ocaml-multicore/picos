@@ -159,6 +159,9 @@ open struct
         invalid_arg "Computation: domain has been terminated"
 
     let[@poll error] [@inline never] running_atomically t before =
+      (* New timeouts may only be added from the same domain, which means that
+         [[@poll error]] is sufficient to ensure that the timeout before next
+         remains valid. *)
       t.state == `Alive
       && Atomic.get t.timeouts == before
       && begin

@@ -1,5 +1,11 @@
 module TLS = TLS
 
+module DLS = struct
+  include Domain.DLS
+
+  let new_key compute = new_key compute
+end
+
 module Exn_bt = struct
   include Exn_bt
 

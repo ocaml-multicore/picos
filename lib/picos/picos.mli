@@ -224,14 +224,38 @@
 
     {3 Auxiliary modules} *)
 
+module DLS : sig
+  (** Auxiliary module implementing domain-local storage.
+
+      On OCaml 4 there is always only a single domain. *)
+
+  type 'a key
+  (** Represents a key for storing values of type ['a] in storage associated
+      with domains. *)
+
+  val new_key : (unit -> 'a) -> 'a key
+  (** [new_key compute] allocates a new key for associating values in storage
+      associated with domains. The behavior depends on OCaml version:
+      - On OCaml 5 the initial value for each domain is [compute]d by calling
+        the given function if the [key] is {{!get}read} before it has been
+        {{!set}written}.
+      - On OCaml 4 the initial value is computed once immediately. *)
+
+  val get : 'a key -> 'a
+  (** [get key] returns the value associated with the [key] in the storage
+      associated with the current domain. *)
+
+  val set : 'a key -> 'a -> unit
+  (** [set key value] sets the [value] associated with the [key] in the storage
+      associated with the current domain. *)
+end
+
 module TLS : sig
   (** Auxiliary module implementing thread-local storage.
 
       Note that here "thread" refers to system level threads rather than fibers.
       In case system level thread implementation, i.e. the [threads.posix]
-      library, is not available, this will use [Domain.DLS].
-
-      ⚠️ This should really be part of the OCaml Stdlib. *)
+      library, is not available, this will use {!DLS}. *)
 
   type 'a key
   (** Represents a key for storing values of type ['a] in storage associated

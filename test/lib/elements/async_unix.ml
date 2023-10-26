@@ -33,7 +33,7 @@ module Async = struct
 
   let key =
     (* In this case we really want to use DLS rather than TLS. *)
-    Domain.DLS.new_key @@ fun () ->
+    DLS.new_key @@ fun () ->
     {
       state = `Init;
       pipe_out =
@@ -44,7 +44,7 @@ module Async = struct
       writing = Atomic.make [];
     }
 
-  let[@poll error] try_lock s =
+  let[@poll error] [@inline never] try_lock s =
     s.state == `Init
     && begin
          s.state <- `Locked;
@@ -53,7 +53,7 @@ module Async = struct
 
   let needs_init s = s.state != `Alive
 
-  let[@poll error] unlock s pipe_out =
+  let[@poll error] [@inline never] unlock s pipe_out =
     s.pipe_out <- pipe_out;
     s.state <- `Alive
 
@@ -103,7 +103,7 @@ module Async = struct
     end
 
   let get () =
-    let s = Domain.DLS.get key in
+    let s = DLS.get key in
     if needs_init s then init s;
     s
 

@@ -1,5 +1,7 @@
 # TODO
 
+- Reconsider use of domain_shims. Does it do the right thing in this context?
+
 - Change example scheduler to give priority to canceled fibers
 
 - Should cancelation exception be raised only once?
