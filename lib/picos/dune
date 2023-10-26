@@ -1,6 +1,8 @@
 (library
  (name picos)
  (public_name picos)
+ (js_of_ocaml
+  (javascript_files thread.js))
  (libraries
   backoff
   psq
@@ -25,25 +27,25 @@
 ;;
 
 (rule
- (targets picos.ml effects_intf.ml domain.ml)
- (deps picos.ocaml4.ml effects_intf.ocaml4.ml)
+ (targets picos.ml effects_intf.ml domain.ml thread.js)
  (enabled_if
   (< %{ocaml_version} 5.0.0))
  (action
   (progn
    (copy picos.ocaml4.ml picos.ml)
    (copy effects_intf.ocaml4.ml effects_intf.ml)
-   (copy domain.ocaml4.ml domain.ml))))
+   (copy domain.ocaml4.ml domain.ml)
+   (copy thread.ocaml4.js thread.js))))
 
 (rule
- (targets picos.ml effects_intf.ml)
- (deps picos.ocaml5.ml effects_intf.ocaml5.ml)
+ (targets picos.ml effects_intf.ml thread.js)
  (enabled_if
   (>= %{ocaml_version} 5.0.0))
  (action
   (progn
    (copy picos.ocaml5.ml picos.ml)
-   (copy effects_intf.ocaml5.ml effects_intf.ml))))
+   (copy effects_intf.ocaml5.ml effects_intf.ml)
+   (copy thread.ocaml5.js thread.js))))
 
 ;;
 

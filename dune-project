@@ -41,5 +41,10 @@
    (and
     (>= 0.1.0)
     :with-test))
+  (js_of_ocaml
+   (and
+    (>= 5.4.0)
+    :with-test))
+  (conf-npm :with-test)
   (ocaml
    (>= 4.12.0))))
