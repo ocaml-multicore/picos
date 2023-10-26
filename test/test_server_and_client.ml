@@ -40,13 +40,13 @@ let main () =
       finally Async_unix.close @@ fun () ->
       Async_unix.socket ~cloexec:true PF_INET SOCK_STREAM 0
     in
-    let retries = ref 10 in
+    let retries = ref 100 in
     while
       match Async_unix.connect socket server_addr with
       | () -> false
       | exception Async_unix.Unix_error (ECONNREFUSED, _, _) ->
           decr retries;
-          0 <= !retries
+          0 <= !retries || failwith "Could not connect to server"
     do
       Sleep.sleepf 0.01
     done;
