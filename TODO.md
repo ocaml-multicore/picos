@@ -2,14 +2,6 @@
 
 - Change example scheduler to give priority to canceled fibers
 
-- Add description of what the handlers must do
-
-  - `Await`
-  - `Cancel_after`
-  - `Current`
-  - `Yield`
-  - `Spawn`
-
 - Should cancelation exception be raised only once?
 
 - Test what performance of `Fiber.current` could be with TLS

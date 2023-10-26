@@ -148,10 +148,11 @@
 
     {3 Picos compatible}
 
-    While Picos provides default behavior for the effects, the idea is that
-    schedulers provide their own handlers for the effects.  By handling the
-    Picos effects a scheduler becomes Picos compatible and allows any libraries
-    built on top of Picos to be used with the scheduler.
+    While Picos provides OCaml 4 compatible default behavior for the effects,
+    the idea is that in OCaml 5 effects based schedulers provide their own
+    handlers for the effects.  By handling the Picos effects a scheduler becomes
+    Picos compatible and allows any libraries built on top of Picos to be used
+    with the scheduler.
 
     {3 Implemented in Picos}
 

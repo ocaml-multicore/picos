@@ -23,7 +23,16 @@ module type Trigger = sig
   (* *)
 
   (** Schedulers may handle the {!Await} effect to customize the behavior of
-      [await]. *)
+      [await].
+
+      In case the fiber permits propagation of cancelation, the trigger should
+      be attached to the computation of the fiber for the duration of suspending
+      the fiber.
+
+      Whether being resumed due to cancelation or not, the trigger should be
+      signaled before resuming the fiber.
+
+      The scheduler is free to choose which ready fiber to resume next. *)
   type _ Effect.t +=
     private
     | Await : [ `On | `Signal ] t -> exn_bt option Effect.t
@@ -36,11 +45,20 @@ module type Computation = sig
   (* *)
 
   (** Schedulers may handle the {!Cancel_after} effect to customize the behavior
-      of [cancel_after]. *)
+      of [cancel_after].
+
+      The scheduler should typically attach a trigger to the computation passed
+      with the effect and arrange the operation to be canceled upon signal.
+
+      The scheduler should measure time using a monotonic clock.
+
+      In case the fiber permits propagation of cancelation and the computation
+      associated with the fiber has been canceled the scheduler is free to
+      discontinue the fiber before setting up the timeout. *)
   type _ Effect.t +=
     private
     | Cancel_after : {
-        seconds : float;
+        seconds : float;  (** Guaranteed to be non-negative. *)
         exn_bt : exn_bt;
         computation : 'a as_cancelable;
       }
@@ -54,15 +72,30 @@ module type Fiber = sig
   (* *)
 
   (** Schedulers may handle the {!Current} effect to customize the behavior of
-      [current]. *)
+      [current].
+
+      A handler should eventually either continue the fiber or discontinue it in
+      case the fiber permits propagation of cancelation and the associated
+      computation has been canceled.
+
+      Note that in typical use cases of [current] it makes sense to give
+      priority to the fiber performing {!Current}, but this is not required. *)
   type _ Effect.t += private Current : [ `Sync | `Async ] t Effect.t
 
   (** Schedulers may handle the {!Yield} effect to customize the behavior of
-      [yield]. *)
+      [yield].
+
+      Just like with {!Current}, a handler should either continue or discontinue
+      the fiber, but, unlike with {!Current}, the scheduler should give priority
+      to running other ready fibers before resuming the fiber performing
+      {!Yield}. *)
   type _ Effect.t += private Yield : unit Effect.t
 
   (** Schedulers may handle the {!Spawn} effect to customize the behavior of
-      [spawn]. *)
+      [spawn].
+
+      The scheduler is free to run the newly created fibers on any domain and
+      decide which fiber to give priority to. *)
   type _ Effect.t +=
     private
     | Spawn : {
