@@ -2,6 +2,8 @@
 
 - Consider interop between Picos and Lwt / Async in detail
 
+- JavaScript scheduler
+
 - Reconsider use of domain_shims. Does it do the right thing in this context?
 
 - Change example scheduler to give priority to canceled fibers
