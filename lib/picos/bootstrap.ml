@@ -187,8 +187,16 @@ module Fiber = struct
       let counter = Atomic.make 0
       let[@inline] unique () = Obj.repr counter
 
+      let ceil_pow_2_minus_1 n =
+        let n = n lor (n lsr 1) in
+        let n = n lor (n lsr 2) in
+        let n = n lor (n lsr 4) in
+        let n = n lor (n lsr 8) in
+        let n = n lor (n lsr 16) in
+        if Sys.int_size > 32 then n lor (n lsr 32) else n
+
       let grow old_fls i =
-        let new_length = Bits.ceil_pow_2_minus_1 (i + 1) in
+        let new_length = ceil_pow_2_minus_1 (i + 1) in
         let new_fls = Array.make new_length (unique ()) in
         Array.blit old_fls 0 new_fls 0 (Array.length old_fls);
         new_fls

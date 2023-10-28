@@ -23,6 +23,8 @@
  (name picos)
  (synopsis "Pico scheduler framework")
  (depends
+  (thread-local-storage
+   (>= 0.1))
   (backoff
    (>= 0.1.0))
   (mtime
