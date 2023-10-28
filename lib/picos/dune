@@ -11,7 +11,7 @@
   (select
    TLS.ml
    from
-   (threads.posix -> TLS.threads.ml)
+   (thread-local-storage -> TLS.threads.ml)
    (-> TLS.dls.ml))
   (select
    systhreads.ml
