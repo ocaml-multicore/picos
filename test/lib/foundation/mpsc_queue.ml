@@ -20,11 +20,15 @@ let dequeue t =
   | x :: xs ->
       t.head := xs;
       x
-  | [] ->
-      if Atomic.get t.tail != [] then
-        match Atomic.exchange t.tail [] |> List.rev with
-        | x :: xs ->
-            t.head := xs;
-            x
-        | [] -> raise_notrace Empty
-      else raise_notrace Empty
+  | [] -> begin
+      match Atomic.exchange t.tail [] with
+      | [] -> raise_notrace Empty
+      | [ x ] -> x
+      | x :: xs -> begin
+          match List.rev_append [ x ] xs with
+          | x :: xs ->
+              t.head := xs;
+              x
+          | [] -> raise_notrace Empty
+        end
+    end
