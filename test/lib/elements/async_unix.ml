@@ -29,6 +29,7 @@ module Async = struct
     mutable pipe_inn : Unix.file_descr;
     mutable pipe_out : Unix.file_descr;
     mutable exn_bt : Exn_bt.t;
+    mutable needs_wakeup : bool;
     reading : Awaiter.t list ref;
     writing : Awaiter.t list ref;
   }
@@ -44,6 +45,7 @@ module Async = struct
       pipe_inn = dummy_pipe;
       pipe_out = dummy_pipe;
       exn_bt = Exn_bt.get_callstack 0 Exit;
+      needs_wakeup = true;
       reading = ref [];
       writing = ref [];
     }
@@ -57,9 +59,17 @@ module Async = struct
 
   let[@poll error] [@inline never] unlock s state = s.state <- state
 
+  let[@poll error] [@inline never] needs_wakeup s =
+    s.needs_wakeup
+    && begin
+         s.needs_wakeup <- false;
+         true
+       end
+
   let wakeup s =
-    let n = Unix.write s.pipe_out (Bytes.create 1) 0 1 in
-    assert (n = 1)
+    if needs_wakeup s then
+      let n = Unix.write s.pipe_out (Bytes.create 1) 0 1 in
+      assert (n = 1)
 
   let io_thread s =
     begin
@@ -82,10 +92,12 @@ module Async = struct
           List.iter (Awaiter.signal_or_wakeup s.pipe_inn !(s.reading)) rs;
           List.iter (Awaiter.signal !(s.writing)) ws;
           Thread_atomic.modify s.reading (List.fold_right Awaiter.reject rs);
-          Thread_atomic.modify s.writing (List.fold_right Awaiter.reject ws)
+          Thread_atomic.modify s.writing (List.fold_right Awaiter.reject ws);
+          s.needs_wakeup <- true
         done
       with exn -> s.exn_bt <- Exn_bt.get exn
     end;
+    s.needs_wakeup <- false;
     unlock s `Dead;
     if s.pipe_inn != Unix.stdin then Unix.close s.pipe_inn;
     if s.pipe_out != Unix.stdin then Unix.close s.pipe_out
