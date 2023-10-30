@@ -27,6 +27,8 @@
    (>= 0.1))
   (backoff
    (>= 0.1.0))
+  (multicore-magic
+   (>= 2.0.0))
   (mtime
    (>= 2.0.0))
   (psq

@@ -1,9 +1,9 @@
 type 'a t = { tail : 'a list Atomic.t; head : 'a list ref }
 
 let create () =
-  let tail = Atomic.make [] in
-  let head = ref [] in
-  { tail; head }
+  let tail = Multicore_magic.copy_as_padded @@ Atomic.make [] in
+  let head = Multicore_magic.copy_as_padded @@ ref [] in
+  Multicore_magic.copy_as_padded { tail; head }
 
 let rec enqueue backoff t x =
   let before = Atomic.get t.tail in
