@@ -61,5 +61,13 @@
    (and
     (<> :arch "x86_32")
     :with-test))
+  (saturn
+   (and
+    (>= 0.4.1)
+    :with-test))
+  (saturn_lockfree
+   (and
+    (>= 0.4.1)
+    :with-test))
   (ocaml
    (>= 4.12.0))))

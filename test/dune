@@ -6,9 +6,14 @@
  (libraries picos schedulers unix))
 
 (test
+ (name bench_mpsc_queue)
+ (modules bench_mpsc_queue)
+ (libraries foundation unix saturn saturn_lockfree domain_shims))
+
+(test
  (name test_picos)
  (modules test_picos)
- (libraries picos foundation alcotest domain_shims unix))
+ (libraries picos foundation alcotest unix domain_shims))
 
 (library
  (name test_server_and_client)
