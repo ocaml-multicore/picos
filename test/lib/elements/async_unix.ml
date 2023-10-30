@@ -2,6 +2,8 @@ open Picos
 open Foundation
 
 module Async = struct
+  (* TODO: Use better data structures for awaiters than lists. *)
+
   module Awaiter = struct
     type t = { file_descr : Unix.file_descr; trigger : Trigger.as_signal }
 
