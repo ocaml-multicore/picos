@@ -15,7 +15,9 @@ let rec next t =
       if !(t.num_alive_fibers) <> 0 then begin
         if Atomic.get t.needs_wakeup then begin
           Mutex_and_condition.lock t.mc;
-          match Mutex_and_condition.wait t.mc with
+          match
+            if Atomic.get t.needs_wakeup then Mutex_and_condition.wait t.mc
+          with
           | () -> Mutex_and_condition.unlock t.mc
           | exception exn ->
               Mutex_and_condition.unlock t.mc;
