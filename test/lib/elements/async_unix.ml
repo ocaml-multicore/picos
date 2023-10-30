@@ -29,8 +29,8 @@ module Async = struct
     mutable pipe_inn : Unix.file_descr;
     mutable pipe_out : Unix.file_descr;
     mutable exn_bt : Exn_bt.t;
-    reading : Awaiter.t list Atomic.t;
-    writing : Awaiter.t list Atomic.t;
+    reading : Awaiter.t list ref;
+    writing : Awaiter.t list ref;
   }
 
   let key =
@@ -44,8 +44,8 @@ module Async = struct
       pipe_inn = dummy_pipe;
       pipe_out = dummy_pipe;
       exn_bt = Exn_bt.get_callstack 0 Exit;
-      reading = Atomic.make [];
-      writing = Atomic.make [];
+      reading = ref [];
+      writing = ref [];
     }
 
   let[@poll error] [@inline never] try_lock s =
@@ -75,17 +75,14 @@ module Async = struct
         while s.state == `Alive do
           let rs, ws, _ =
             Unix.select
-              (s.pipe_inn
-              :: List.map Awaiter.file_descr_of (Atomic.get s.reading))
-              (List.map Awaiter.file_descr_of (Atomic.get s.writing))
+              (s.pipe_inn :: List.map Awaiter.file_descr_of !(s.reading))
+              (List.map Awaiter.file_descr_of !(s.writing))
               [] (-1.0)
           in
-          List.iter
-            (Awaiter.signal_or_wakeup s.pipe_inn (Atomic.get s.reading))
-            rs;
-          List.iter (Awaiter.signal (Atomic.get s.writing)) ws;
-          Atomic.modify s.reading (List.fold_right Awaiter.reject rs);
-          Atomic.modify s.writing (List.fold_right Awaiter.reject ws)
+          List.iter (Awaiter.signal_or_wakeup s.pipe_inn !(s.reading)) rs;
+          List.iter (Awaiter.signal !(s.writing)) ws;
+          Thread_atomic.modify s.reading (List.fold_right Awaiter.reject rs);
+          Thread_atomic.modify s.writing (List.fold_right Awaiter.reject ws)
         done
       with exn -> s.exn_bt <- Exn_bt.get exn
     end;
@@ -126,12 +123,12 @@ module Async = struct
   let await s r file_descr =
     let trigger = Trigger.create () in
     let awaiter = Awaiter.{ file_descr; trigger :> Trigger.as_signal } in
-    Atomic.modify r (List.cons awaiter);
+    Thread_atomic.modify r (List.cons awaiter);
     wakeup s;
     match Trigger.await trigger with
     | None -> ()
     | Some exn_bt ->
-        Atomic.modify r (List.drop_first awaiter);
+        Thread_atomic.modify r (List.drop_first awaiter);
         Exn_bt.raise exn_bt
 end
 
