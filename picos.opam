@@ -20,6 +20,8 @@ depends: [
   "domain_shims" {>= "0.1.0" & with-test}
   "js_of_ocaml" {>= "5.4.0" & with-test}
   "conf-npm" {arch != "x86_32" & with-test}
+  "saturn" {>= "0.4.1" & with-test}
+  "saturn_lockfree" {>= "0.4.1" & with-test}
   "ocaml" {>= "4.12.0"}
   "odoc" {with-doc}
 ]
