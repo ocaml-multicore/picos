@@ -86,8 +86,7 @@ open struct
       mutable next_id : int;
       mutable needs_wakeup : bool;
       mutable state : [ `Init | `Locked | `Alive | `Dead ];
-      mutable thread : Systhreads.t;
-      mutable exn : exn;
+      mutable exn_bt : Exn_bt.t;
       mutable pipe_inn : Select.file_descr list;
       mutable pipe_out : Select.file_descr;
       byte : Bytes.t;
@@ -101,8 +100,7 @@ open struct
           next_id = 0;
           needs_wakeup = true;
           state = `Init;
-          thread = Systhreads.self ();
-          exn = Exit;
+          exn_bt = Exn_bt.get_callstack 0 Exit;
           pipe_inn = [];
           pipe_out = Select.stdin;
           byte = Bytes.create 1;
@@ -117,6 +115,8 @@ open struct
            t.state <- `Locked;
            true
          end
+
+    let[@poll error] [@inline never] unlock t state = t.state <- state
 
     let[@poll error] [@inline never] next_id t =
       let id = t.next_id in
@@ -200,33 +200,30 @@ open struct
 
     let timeout_thread t =
       begin
-        match timeout_thread_handle t with
-        | () -> ()
-        | exception exn -> t.exn <- exn
+        try
+          let pipe_inn, pipe_out = Select.pipe () in
+          t.pipe_inn <- [ pipe_inn ];
+          t.pipe_out <- pipe_out;
+          unlock t `Alive;
+          timeout_thread_handle t
+        with exn -> t.exn_bt <- Exn_bt.get exn
       end;
       t.needs_wakeup <- false;
-      t.state <- `Dead;
-      let pipe_inn = t.pipe_inn in
-      t.pipe_inn <- [];
-      List.iter Select.close pipe_inn;
-      let pipe_out = t.pipe_out in
-      t.pipe_out <- Select.stdin;
-      Select.close pipe_out
-
-    let timeout_thread t =
-      t.state <- `Alive;
-      timeout_thread t
+      unlock t `Dead;
+      List.iter Select.close t.pipe_inn;
+      if t.pipe_out != Select.stdin then Select.close t.pipe_out
 
     let start t =
-      let pipe_inn, pipe_out = Select.pipe () in
-      t.pipe_inn <- [ pipe_inn ];
-      t.pipe_out <- pipe_out;
-      t.thread <- Thread.create timeout_thread t;
-      Domain.at_exit @@ fun () ->
-      t.state <- `Dead;
-      wakeup t;
-      Systhreads.join t.thread;
-      match t.exn with Exit -> () | exn -> raise exn
+      match Thread.create timeout_thread t with
+      | thread ->
+          Domain.at_exit @@ fun () ->
+          unlock t `Dead;
+          wakeup t;
+          Systhreads.join thread;
+          if t.exn_bt.exn != Exit then Exn_bt.raise t.exn_bt
+      | exception exn ->
+          unlock t `Dead;
+          raise exn
 
     let init t =
       if try_lock t then start t;
