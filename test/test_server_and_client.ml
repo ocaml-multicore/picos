@@ -51,6 +51,7 @@ let main () =
       Sleep.sleepf 0.01
     done;
     Printf.printf "  Client connected\n%!";
+    Async_unix.set_nonblock socket;
     let bytes = Bytes.create n in
     let n = Async_unix.write socket bytes 0 (Bytes.length bytes) in
     Printf.printf "  Client wrote %d\n%!" n;
