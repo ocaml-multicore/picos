@@ -26,7 +26,7 @@ module Async = struct
     let reject file_descr = List.filter (fun aw -> aw.file_descr != file_descr)
   end
 
-  type state = {
+  type per_domain = {
     mutable state : [ `Init | `Locked | `Alive | `Dead ];
     mutable pipe_inn : Unix.file_descr;
     mutable pipe_out : Unix.file_descr;
@@ -36,11 +36,13 @@ module Async = struct
     writing : Awaiter.t list ref;
   }
 
-  let key =
+  let per_domain_key =
+    let dummy_pipe =
+      (* Unfortunately we cannot safely allocate a pipe here, so we use stdin as
+         a dummy value. *)
+      Unix.stdin
+    in
     (* In this case we really want to use DLS rather than TLS. *)
-    (* Unfortunately we cannot safely allocate a pipe here, so we use stdin
-       as a dummy value. *)
-    let dummy_pipe = Unix.stdin in
     DLS.new_key @@ fun () ->
     {
       state = `Init;
@@ -130,7 +132,7 @@ module Async = struct
     wait s
 
   let get () =
-    let s = DLS.get key in
+    let s = DLS.get per_domain_key in
     if s.state != `Alive then init s;
     s
 
