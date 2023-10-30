@@ -138,16 +138,25 @@ end
 include Unix
 
 let read file_descr bytes pos len =
-  let s = Async.get () in
-  Async.await s s.reading file_descr;
-  Unix.read file_descr bytes pos len
+  match Unix.read file_descr bytes pos len with
+  | result -> result
+  | exception Unix.Unix_error ((EAGAIN | EWOULDBLOCK), _, _) ->
+      let s = Async.get () in
+      Async.await s s.reading file_descr;
+      Unix.read file_descr bytes pos len
 
 let write file_descr bytes pos len =
-  let s = Async.get () in
-  Async.await s s.writing file_descr;
-  Unix.write file_descr bytes pos len
+  match Unix.write file_descr bytes pos len with
+  | result -> result
+  | exception Unix.Unix_error ((EAGAIN | EWOULDBLOCK), _, _) ->
+      let s = Async.get () in
+      Async.await s s.writing file_descr;
+      Unix.write file_descr bytes pos len
 
 let accept ?cloexec file_descr =
-  let s = Async.get () in
-  Async.await s s.reading file_descr;
-  Unix.accept ?cloexec file_descr
+  match Unix.accept ?cloexec file_descr with
+  | result -> result
+  | exception Unix.Unix_error ((EAGAIN | EWOULDBLOCK), _, _) ->
+      let s = Async.get () in
+      Async.await s s.reading file_descr;
+      Unix.accept ?cloexec file_descr
