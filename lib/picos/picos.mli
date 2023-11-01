@@ -360,7 +360,11 @@ module Trigger : sig
 
   val is_initial : _ t -> bool
   (** [is_initial trigger] determines whether the trigger is in the initial
-      state. *)
+      state.
+
+      ⚠️ Consider using {!is_signaled} instead of [is_initial] as in some
+      contexts a trigger might reasonably be either in the initial or the
+      awaiting state depending on the order in which things are being done. *)
 
   val is_signaled : _ t -> bool
   (** [is_signaled trigger] determines whether the trigger is in the signaled
