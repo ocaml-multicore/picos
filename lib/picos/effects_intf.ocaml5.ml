@@ -1,8 +1,6 @@
 module type Exn_bt = sig
   type t
 
-  (* *)
-
   val discontinue : ('a, 'b) Effect.Deep.continuation -> t -> 'b
   (** [discontinue k exn_bt] is equivalent to
       [Effect.Deep.discontinue_with_backtrace k exn_bt.exn exn_bt.bt]. *)
@@ -19,8 +17,6 @@ end
 module type Trigger = sig
   type _ t
   type exn_bt
-
-  (* *)
 
   (** Schedulers may handle the {!Await} effect to customize the behavior of
       [await].
@@ -41,8 +37,6 @@ end
 module type Computation = sig
   type _ as_cancelable
   type exn_bt
-
-  (* *)
 
   (** Schedulers may handle the {!Cancel_after} effect to customize the behavior
       of [cancel_after].
@@ -68,8 +62,6 @@ end
 module type Fiber = sig
   type _ t
   type _ as_cancelable
-
-  (* *)
 
   (** Schedulers may handle the {!Current} effect to customize the behavior of
       [current].
