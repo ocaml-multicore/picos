@@ -56,7 +56,7 @@
     effort has been made to keep Picos as minimal and unopinionated as
     possible.
 
-    {2 Understanding cancelation}
+    {3 Understanding cancelation}
 
     A central idea of Picos is to provide a collection of building blocks for
     parallelism safe cancelation.  Consider the following characteristic
@@ -88,7 +88,7 @@
     may safely take effect at or during calls to [Mutex.lock] and
     [Condition.wait].
 
-    {3 Cancelation in Picos}
+    {4 Cancelation in Picos}
 
     The {!Fiber} concept in Picos corresponds to an independent thread of
     execution.  A fiber may explicitly {{!Fiber.forbid} forbid} or
@@ -125,7 +125,7 @@
     cancel asynchronous IO operations, or transfer ownership of a mutex to the
     next fiber in the queue of the mutex.
 
-    {2 The architecture of Picos}
+    {3 The architecture of Picos}
 
     The core concepts of Picos are
 
@@ -146,7 +146,7 @@
     that can be used to implement many kinds of higher level concurrent
     programming facilities.
 
-    {3 Picos compatible}
+    {4 Picos compatible}
 
     While Picos provides OCaml 4 compatible default behavior for the effects,
     the idea is that in OCaml 5 effects based schedulers provide their own
@@ -154,7 +154,7 @@
     Picos compatible and allows any libraries built on top of Picos to be used
     with the scheduler.
 
-    {3 Implemented in Picos}
+    {4 Implemented in Picos}
 
     A scheduler is just one element of a concurrent programming model.
     Separately from making a scheduler Picos compatible, one may choose to
@@ -164,7 +164,7 @@
     primitives.  Such elements can then be used on any Picos compatible
     scheduler.
 
-    {2 Design goals and principles}
+    {3 Design goals and principles}
 
     - {b Simple}: Picos should be kept as simple as possible.
     - {b Minimal}: Picos should be kept minimal.  The dependency footprint
@@ -181,7 +181,7 @@
     The documentation of the concepts includes design rationale for some of the
     specific ideas behind their detailed design.
 
-    {3 Constraints Liberate, Liberties Constrain}
+    {4 Constraints Liberate, Liberties Constrain}
 
     Picos aims to be unopinionated and flexible enough to allow higher level
     libraries to provide many different kinds of concurrent programming models.
