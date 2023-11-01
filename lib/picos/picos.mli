@@ -933,3 +933,94 @@ module Fiber : sig
       other effect handlers more freedom in choosing which fiber to schedule
       next. *)
 end
+
+(** {2 Advanced topics}
+
+    {3 Default behaviors}
+
+    All of the effects based operations
+
+    - {!Trigger.await},
+    - {!Computation.cancel_after},
+    - {!Fiber.current},
+    - {!Fiber.yield}, and
+    - {!Fiber.spawn}
+
+    have OCaml 4 compatible default behaviors or defaults in Picos.  Those
+    defaults allow libraries implemented in Picos to work out-of-the-box without
+    a scheduler.
+
+    The primary audience for the defaults is casual users such as those who are
+    not familiar with the concept of a scheduler or experienced users who just
+    e.g. want to quickly try some library implemented in Picos.  Thanks to the
+    defaults, libraries implemented in Picos will e.g. work in an OCaml REPL
+    without having to [#require "some_scheduler"] and explicitly run code under
+    the scheduler.
+
+    Most serious multicore applications should, however, use some scheduler,
+    because a proper scheduler implementation can provide fibers much more
+    efficiently.  The defaults are neither intended nor designed to compete with
+    actual scheduler implementations.
+
+    {4 Defaults architecture}
+
+    The underlying idea behind the defaults is to make it so that a fiber
+    corresponds to a thread (or domain, in case domains are available, but
+    threads are not).
+
+    Briefly:
+
+    - The default {{!Fiber.spawn} [spawn]} creates a thread for each fiber.
+    - The default {{!Fiber.current} [current]} uses {!TLS} to store the current
+      fiber.
+    - The default {{!Fiber.yield} [yield]} just calls [Thread.yield].
+    - The default {{!Trigger.await} [await]} uses {!TLS} to store a [Mutex] and
+      [Condition] to suspend the thread.
+    - The default {{!Computation.cancel_after} [cancel_after]} uses {!DLS} to
+      store a priority queue of timeouts and a per-domain background timeout
+      thread that runs a [Unix.select] loop to cancel computations.
+
+    The default behaviors initialize their resources, per-thread, and per-domain
+    state and the background timeout thread, only when actually used.  If the
+    default {{!Computation.cancel_after} [cancel_after]} is not used, no
+    background timeout thread will be created and no per-domain state will be
+    used.  If none of the defaults are used, no per-thread state will be used.
+
+    {4 Partial schedulers}
+
+    The default behaviors are further implemented such that a scheduler
+    implementation need not necessarily handle all of the effects.
+
+    In particular, the default {{!Computation.cancel_after} [cancel_after]}
+    should basically work fine on any platform where OCaml implements the full
+    [Thread] and [Unix] modules.  Notably the default
+    {{!Computation.cancel_after} [cancel_after]} will not work on
+    {{:https://ocsigen.org/js_of_ocaml/latest/manual/overview} [Js_of_ocaml]}.
+    On platforms where the default is available, a scheduler may choose to leave
+    the {{!Computation.Cancel_after} [Cancel_after]} effect unhandled.  This can
+    be particularly convenient when creating a new scheduler, because the
+    {{!Computation.Cancel_after} [Cancel_after]} effect is perhaps the most
+    difficult to implement properly.
+
+    The effects that a scheduler should always handle are {{!Fiber.Current}
+    [Current]} and {{!Trigger.Await} [Await]}.  Essentially all of the default
+    behaviors will use {{!Fiber.current} [current]} to obtain the fiber handle
+    and check for cancelation.  So, providing the fiber identity is essential.
+    The {{!Trigger.Await} [await]} operation is the most important operation
+    used by practically anything and everything implemented in Picos.
+
+    When the {{!Fiber.Spawn} [Spawn]} effect is not handled, the default
+    {{!Fiber.spawn} [spawn]} creates new threads and, because a new thread does
+    not have any handlers, such threads will use the defaults.  This means that
+    it is technically not an issue to leave {{!Fiber.Spawn} [Spawn]} unhandled.
+    Typical communication and synchronization abstractions implemented in Picos
+    do not spawn fibers and will work fine even when {{!Fiber.Spawn} [Spawn]} is
+    not handled.
+
+    The default {{!Fiber.yield} [yield]} behavior of calling [Thread.yield] is
+    only useful when threads are being used.  However, practical concurrent
+    abstractions implemented in Picos should generally avoid {{!Fiber.yield}
+    [yield]}, because it is merely a request to reschedule.  It is typically
+    better to {{!Trigger.await} [await]} for something to happen or use
+    {{!Computation.cancel_after} [cancel_after]} to sleep in case progress
+    cannot be made immediately. *)
