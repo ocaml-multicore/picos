@@ -43,19 +43,11 @@ let run ~forbid main =
     then Mutex_and_condition.broadcast t.mc
   in
   let rec fork fiber main =
-    let current =
-      Some
-        (fun k ->
-          match Fiber.canceled fiber with
-          | None -> Effect.Deep.continue k fiber
-          | Some exn_bt -> Exn_bt.discontinue k exn_bt)
+    let current = Some (fun k -> Fiber.continue fiber k fiber)
     and yield =
       Some
         (fun k ->
-          Mpsc_queue.enqueue t.ready (fun () ->
-              match Fiber.canceled fiber with
-              | None -> Effect.Deep.continue k ()
-              | Some exn_bt -> Exn_bt.discontinue k exn_bt);
+          Mpsc_queue.enqueue t.ready (Fiber.continue fiber k);
           next t)
     in
     let effc (type a) :
