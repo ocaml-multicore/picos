@@ -63,6 +63,27 @@ module type Fiber = sig
   type _ t
   type _ as_cancelable
 
+  val continue : 'a t -> ('v, 'r) Effect.Deep.continuation -> 'v -> 'r
+  (** [continue fiber k v] is equivalent to:
+      {[
+        match Fiber.canceled fiber with
+        | None -> Effect.Deep.continue k v
+        | Some exn_bt -> Exn_bt.discontinue k exn_bt
+      ]} *)
+
+  val continue_with :
+    'a t ->
+    ('v, 'b) Effect.Shallow.continuation ->
+    'v ->
+    ('b, 'r) Effect.Shallow.handler ->
+    'r
+  (** [continue_with fiber k v h] is equivalent to:
+      {[
+        match Fiber.canceled fiber with
+        | None -> Effect.Shallow.continue_with k v h
+        | Some exn_bt -> Exn_bt.discontinue_with k exn_bt h
+      ]} *)
+
   (** Schedulers may handle the {!Current} effect to customize the behavior of
       [current].
 

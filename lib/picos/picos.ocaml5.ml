@@ -34,6 +34,20 @@ end
 module Fiber = struct
   include Bootstrap.Fiber
 
+  let continue (Fiber r) k v =
+    if r.forbid then Effect.Deep.continue k v
+    else
+      match Atomic.get r.computation with
+      | Canceled exn_bt -> Exn_bt.discontinue k exn_bt
+      | Continue _ | Returned _ -> Effect.Deep.continue k v
+
+  let continue_with (Fiber r) k v h =
+    if r.forbid then Effect.Shallow.continue_with k v h
+    else
+      match Atomic.get r.computation with
+      | Canceled exn_bt -> Exn_bt.discontinue_with k exn_bt h
+      | Continue _ | Returned _ -> Effect.Shallow.continue_with k v h
+
   type _ Effect.t += Current : [ `Sync | `Async ] t Effect.t
 
   let current () =
