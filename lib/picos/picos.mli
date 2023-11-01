@@ -646,7 +646,7 @@ module Computation : sig
   (** [try_attach computation trigger] tries to attach the trigger to be
       signaled on completion of the computation and returns [true] on success.
       Otherwise returns [false], which means that the computation has already
-      been completed. *)
+      been completed or the trigger has already been signaled. *)
 
   val detach : ('a, [> `Await ]) t -> [> `Signal ] Trigger.t -> unit
   (** [detach computation trigger] {{!Trigger.signal} signals} the trigger and

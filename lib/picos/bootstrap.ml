@@ -64,6 +64,9 @@ module Computation = struct
     match Atomic.get t with
     | Returned _ | Canceled _ -> false
     | Continue r as before ->
+        (* We check the trigger before potential allocations. *)
+        (not (Trigger.is_signaled trigger))
+        &&
         let after =
           if 0 <= r.balance then
             Continue
