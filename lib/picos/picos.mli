@@ -235,12 +235,10 @@ module DLS : sig
 
   val new_key : (unit -> 'a) -> 'a key
   (** [new_key compute] allocates a new key for associating values in storage
-      associated with domains.  The behavior depends on OCaml version:
-
-      - On OCaml 5 the initial value for each domain is [compute]d by calling
-        the given function if the [key] is {{!get}read} before it has been
-        {{!set}written}.
-      - On OCaml 4 the initial value is computed once immediately. *)
+      associated with domains.  The initial value for each domain is [compute]d
+      by calling the given function if the [key] is {{!get}read} before it has
+      been {{!set}written}.  The [compute] function might be called multiple
+      times per domain, but only one result will be used. *)
 
   val get : 'a key -> 'a
   (** [get key] returns the value associated with the [key] in the storage
@@ -264,15 +262,9 @@ module TLS : sig
 
   val new_key : (unit -> 'a) -> 'a key
   (** [new_key compute] allocates a new key for associating values in storage
-      associated with threads.  The behavior depends on OCaml version and the
-      availability of the [threads.posix] library:
-
-      - On OCaml 5 and on OCaml 4, when [threads.posix] library is available,
-        the initial value for each thread is [compute]d by calling the given
-        function if the [key] is {{!get}read} before it has been
-        {{!set}written}.
-      - On OCaml 4, when [threads.posix] library is not available, the initial
-        value is computed once immediately. *)
+      associated with threads.  The initial value for each thread is [compute]d
+      by calling the given function if the [key] is {{!get}read} before it has
+      been {{!set}written}. *)
 
   val get : 'a key -> 'a
   (** [get key] returns the value associated with the [key] in the storage
