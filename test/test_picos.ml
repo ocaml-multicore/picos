@@ -1,36 +1,38 @@
 open Picos
 open Foundation.Finally
 
-let answer_key = Fiber.FLS.new_key (Constant 42)
-
-let counter_key =
-  let counter = Atomic.make 0 in
-  (Fiber.FLS.new_key @@ Computed (fun () -> Atomic.fetch_and_add counter 1)
-    :> _ Fiber.FLS.as_read_only)
-
 let run_in_domain thunk = Domain.join @@ Domain.spawn thunk
 
-let test_fls_basics () =
-  let first =
+let test_fls_basics =
+  let answer_key = Fiber.FLS.new_key (Constant 42) in
+
+  let counter_key =
+    let counter = Atomic.make 0 in
+    (Fiber.FLS.new_key @@ Computed (fun () -> Atomic.fetch_and_add counter 1)
+      :> _ Fiber.FLS.as_read_only)
+  in
+
+  fun () ->
+    let first =
+      run_in_domain @@ fun () ->
+      let fiber = Fiber.current () in
+      Alcotest.(check' int)
+        ~msg:"constant" ~expected:42
+        ~actual:(Fiber.FLS.get fiber answer_key);
+      Fiber.FLS.set fiber answer_key 101;
+      Alcotest.(check' int)
+        ~msg:"updated" ~expected:101
+        ~actual:(Fiber.FLS.get fiber answer_key);
+      Fiber.FLS.get fiber counter_key
+    in
     run_in_domain @@ fun () ->
     let fiber = Fiber.current () in
     Alcotest.(check' int)
       ~msg:"constant" ~expected:42
       ~actual:(Fiber.FLS.get fiber answer_key);
-    Fiber.FLS.set fiber answer_key 101;
     Alcotest.(check' int)
-      ~msg:"updated" ~expected:101
-      ~actual:(Fiber.FLS.get fiber answer_key);
-    Fiber.FLS.get fiber counter_key
-  in
-  run_in_domain @@ fun () ->
-  let fiber = Fiber.current () in
-  Alcotest.(check' int)
-    ~msg:"constant" ~expected:42
-    ~actual:(Fiber.FLS.get fiber answer_key);
-  Alcotest.(check' int)
-    ~msg:"computed" ~expected:(first + 1)
-    ~actual:(Fiber.FLS.get fiber counter_key)
+      ~msg:"computed" ~expected:(first + 1)
+      ~actual:(Fiber.FLS.get fiber counter_key)
 
 let test_trigger_basics () =
   let trigger = Trigger.create () in
