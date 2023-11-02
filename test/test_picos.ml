@@ -3,6 +3,22 @@ open Foundation.Finally
 
 let run_in_domain thunk = Domain.join @@ Domain.spawn thunk
 
+let test_dls_is_lazy =
+  let counter = ref 0 in
+  let key =
+    DLS.new_key @@ fun () ->
+    let v = !counter in
+    counter := v + 1;
+    v
+  in
+  fun () ->
+    Alcotest.(check' int)
+      ~msg:"must not be incremented" ~expected:0 ~actual:!counter;
+    Alcotest.(check' int)
+      ~msg:"must be initial" ~expected:0 ~actual:(DLS.get key);
+    Alcotest.(check' int)
+      ~msg:"must be incremented" ~expected:1 ~actual:!counter
+
 let test_fls_basics =
   let answer_key = Fiber.FLS.new_key (Constant 42) in
 
@@ -97,6 +113,7 @@ let test_cancel_after () =
 
 let () =
   [
+    ("DLS is lazy", [ Alcotest.test_case "" `Quick test_dls_is_lazy ]);
     ("Trigger basics", [ Alcotest.test_case "" `Quick test_trigger_basics ]);
     ( "Computation basics",
       [ Alcotest.test_case "" `Quick test_computation_basics ] );
