@@ -71,7 +71,10 @@ let run ~forbid main =
       | Fiber.Yield -> yield
       | Trigger.Await trigger ->
           (* We handle [Await] last as it is probably the least latency
-             sensitive effect. *)
+             sensitive effect.  It could also be that another fiber running in
+             parallel is just about to signal the trigger, so checking the
+             trigger last gives a tiny bit of time for that to happen and
+             potentially allows us to make better/different decisions here. *)
           Some
             (fun k ->
               if Fiber.has_forbidden fiber then begin
