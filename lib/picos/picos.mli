@@ -636,6 +636,10 @@ module Computation : sig
   (** [check computation] is equivalent to
       [Option.iter Exn_bt.raise (canceled computation)]. *)
 
+  val peek : ('a, _) t -> ('a, Exn_bt.t) result option
+  (** [peek computation] returns the result of the computation or [None] in case
+      the computation has not completed. *)
+
   (** {2 Interface for awaiting} *)
 
   val try_attach : ('a, [> `Await ]) t -> [> `Signal ] Trigger.t -> bool

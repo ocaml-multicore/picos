@@ -128,6 +128,12 @@ module Computation = struct
     | Canceled exn_bt -> Exn_bt.raise exn_bt
     | Returned _ | Continue _ -> ()
 
+  let peek t =
+    match Atomic.get t with
+    | Canceled exn_bt -> Some (Error exn_bt)
+    | Returned value -> Some (Ok value)
+    | Continue _ -> None
+
   open struct
     let propagate _ from into =
       match canceled from with None -> () | Some exn_bt -> cancel into exn_bt
