@@ -74,18 +74,57 @@ let run ~forbid main =
              sensitive effect. *)
           Some
             (fun k ->
-              if Fiber.has_forbidden fiber then
-                if Trigger.on_signal trigger fiber k resume then next t
-                else Effect.Deep.continue k None
-              else if Fiber.try_attach fiber trigger then
-                if Trigger.on_signal trigger fiber k resume then next t
+              if Fiber.has_forbidden fiber then begin
+                (* Fiber has forbidden propagation of cancelation.  This is the
+                   easy case to handle. *)
+                if Trigger.on_signal trigger fiber k resume then begin
+                  (* Fiber is now suspended and can be resumed through the
+                     trigger.  We just continue the next ready fiber. *)
+                  next t
+                end
                 else begin
-                  Fiber.detach fiber trigger;
+                  (* The trigger was already signaled.  We could now freely
+                     choose which fiber to continue here, but in this scheduler
+                     we choose to continue the current fiber. *)
+                  Effect.Deep.continue k None
+                end
+              end
+              else begin
+                (* Fiber permits propagation of cancelation.  We support
+                   cancelation and so first try to attach the trigger to the
+                   computation of the fiber. *)
+                if Fiber.try_attach fiber trigger then begin
+                  (* The trigger was successfully attached, which means the
+                     computation has not been canceled. *)
+                  if Trigger.on_signal trigger fiber k resume then begin
+                    (* Fiber is now suspended and can be resumed through the
+                       trigger.  That can now happen by signaling the trigger
+                       directly or by canceling the computation of the fiber,
+                       which will also signal the trigger.  We just continue the
+                       next ready fiber. *)
+                    next t
+                  end
+                  else begin
+                    (* The trigger was already signaled.  We first need to
+                       ensure that the trigger is detached from the computation
+                       of the fiber. *)
+                    Fiber.detach fiber trigger;
+                    (* We could now freely decide which fiber to continue, but
+                       in this scheduler we choose to continue the current
+                       fiber. *)
+                    Effect.Deep.continue k (Fiber.canceled fiber)
+                  end
+                end
+                else begin
+                  (* We could not attach the trigger to the computation of the
+                     fiber, which means that either the computation has been
+                     canceled or the trigger has been signaled.  We still need
+                     to ensure that the trigger really is signaled. *)
+                  Trigger.signal trigger;
+                  (* We could now freely decide which fiber to continue, but in
+                     this scheduler we choose to continue the current fiber. *)
                   Effect.Deep.continue k (Fiber.canceled fiber)
                 end
-              else begin
-                Trigger.signal trigger;
-                Effect.Deep.continue k (Fiber.canceled fiber)
               end)
       | _ -> None
     and retc () =
