@@ -49,6 +49,9 @@
    (and
     (>= 5.4.0)
     :with-test))
-  (conf-npm :with-test)
+  (conf-npm
+   (and
+    (<> :arch "x86_32")
+    :with-test))
   (ocaml
    (>= 4.12.0))))
