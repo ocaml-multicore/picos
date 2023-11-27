@@ -28,6 +28,18 @@
  (libraries test_server_and_client))
 
 (test
+ (name test_mpsc_queue)
+ (modules test_mpsc_queue)
+ (libraries
+  foundation
+  qcheck-core
+  qcheck-core.runner
+  qcheck-stm.stm
+  qcheck-stm.sequential)
+ (action
+  (run %{test} --verbose)))
+
+(test
  (name test_js_of_ocaml)
  (modules test_js_of_ocaml)
  (modes js)
