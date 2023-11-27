@@ -25,7 +25,7 @@ let dequeue t =
       | [] -> raise_notrace Empty
       | [ x ] -> x
       | x :: xs -> begin
-          match List.rev_append [ x ] xs with
+          match List.rev_append xs [ x ] with
           | x :: xs ->
               t.head := xs;
               x
