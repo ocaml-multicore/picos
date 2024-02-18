@@ -1,0 +1,5 @@
+(library
+ (name traced_atomic)
+ (modules atomic)
+ (wrapped false)
+ (libraries dscheck))

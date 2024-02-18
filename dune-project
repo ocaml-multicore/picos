@@ -69,5 +69,9 @@
    (and
     (>= 0.4.1)
     :with-test))
+  (dscheck
+   (and
+    (>= 0.3.0)
+    :with-test))
   (ocaml
    (>= 4.12.0))))
