@@ -5,15 +5,34 @@
   (>= %{ocaml_version} 5.0.0))
  (libraries picos schedulers unix))
 
+;;
+
 (test
  (name bench_mpsc_queue)
  (modules bench_mpsc_queue)
  (libraries foundation unix saturn saturn_lockfree domain_shims))
 
+;;
+
 (test
  (name test_picos)
  (modules test_picos)
  (libraries picos foundation alcotest unix domain_shims))
+
+;;
+
+(rule
+ (action
+  (progn
+   (copy ../lib/picos/exn_bt.ml exn_bt.ml)
+   (copy ../lib/picos/bootstrap.ml bootstrap.ml))))
+
+(test
+ (name test_picos_dscheck)
+ (modules test_picos_dscheck bootstrap exn_bt)
+ (libraries backoff traced_atomic dscheck alcotest))
+
+;;
 
 (library
  (name test_server_and_client)
@@ -32,6 +51,8 @@
  (modules test_server_and_client_threads)
  (libraries test_server_and_client))
 
+;;
+
 (test
  (name test_mpsc_queue)
  (modules test_mpsc_queue)
@@ -43,6 +64,8 @@
   qcheck-stm.sequential)
  (action
   (run %{test} --verbose)))
+
+;;
 
 (test
  (name test_js_of_ocaml)

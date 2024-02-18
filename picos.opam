@@ -22,6 +22,7 @@ depends: [
   "conf-npm" {arch != "x86_32" & with-test}
   "saturn" {>= "0.4.1" & with-test}
   "saturn_lockfree" {>= "0.4.1" & with-test}
+  "dscheck" {>= "0.3.0" & with-test}
   "ocaml" {>= "4.12.0"}
   "odoc" {with-doc}
 ]
