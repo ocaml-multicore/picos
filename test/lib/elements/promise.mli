@@ -17,7 +17,7 @@ val peek : 'a t -> 'a option
 val both : unit t -> unit t -> unit t
 (** *)
 
-val cancel : 'a t -> Picos.Exn_bt.t -> unit
+val try_cancel : 'a t -> Picos.Exn_bt.t -> bool
 (** *)
 
 module Infix : sig
@@ -44,10 +44,10 @@ type !'a unpublished
 val create : unit -> 'a unpublished
 (** *)
 
-val return_to : 'a unpublished -> 'a -> unit
+val try_return_to : 'a unpublished -> 'a -> bool
 (** *)
 
-val reify_to : 'a unpublished -> (unit -> 'a) -> unit
+val try_reify_to : 'a unpublished -> (unit -> 'a) -> bool
 (** *)
 
 val publish : 'a unpublished -> 'a t

@@ -6,7 +6,7 @@ type 'a unpublished = ('a, [ `Await | `Cancel | `Return ]) Computation.t
 let await = Computation.await
 let[@inline] of_computation x = (x :> 'a t)
 let peek t = if Computation.is_running t then None else Some (await t)
-let cancel = Computation.cancel
+let try_cancel = Computation.try_cancel
 
 module Infix = struct
   let ( let+ ) x xy =
@@ -54,6 +54,6 @@ let both x y =
   ()
 
 let create = Computation.create
-let return_to = Computation.return
-let reify_to t thunk = Computation.capture t thunk ()
+let try_return_to = Computation.try_return
+let try_reify_to t thunk = Computation.try_capture t thunk ()
 let publish = of_computation

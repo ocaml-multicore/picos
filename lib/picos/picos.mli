@@ -579,17 +579,32 @@ module Computation : sig
   val finished : (unit, [ `Await | `Cancel | `Return ]) t
   (** [finished] is a constant finished computation. *)
 
+  val try_return : ('a, [> `Return ]) t -> 'a -> bool
+  (** [try_return computation value] attempts to complete the computation with
+      the specified [value] and returns [true] on success.  Otherwise returns
+      [false], which means that the computation had already been completed
+      before. *)
+
   val return : ('a, [> `Return ]) t -> 'a -> unit
-  (** [return computation value] attempts to complete the computation with the
-      specified [value]. *)
+  (** [return computation value] is equivalent to
+      [try_return computation value |> ignore]. *)
+
+  val try_finish : (unit, [> `Return ]) t -> bool
+  (** [try_finish computation] is equivalent to [try_return computation ()]. *)
 
   val finish : (unit, [> `Return ]) t -> unit
-  (** [finish computation] is equivalent to [return computation ()]. *)
+  (** [finish computation] is equivalent to
+      [try_finish computation |> ignore]. *)
+
+  val try_capture : ('a, [> `Cancel | `Return ]) t -> ('b -> 'a) -> 'b -> bool
+  (** [try_capture computation fn x] calls [fn x] and tries to complete the
+      computation with the value returned or the exception raised by the call
+      and returns [true] on success.  Otherwise returns [false], which means
+      that the computation had already been completed before. *)
 
   val capture : ('a, [> `Cancel | `Return ]) t -> ('b -> 'a) -> 'b -> unit
-  (** [capture computation fn x] calls [fn x] and tries to complete the
-      computation with the value returned or the exception raised by the
-      call. *)
+  (** [capture computation fn x] is equivalent to
+      [try_capture computation fn x |> ignore]. *)
 
   val cancel_after :
     ('a, [> `Await | `Cancel ]) t -> seconds:float -> Exn_bt.t -> unit
@@ -617,9 +632,15 @@ module Computation : sig
   (** Synonym for a packed computation that only allows cancelation aside from
       await. *)
 
+  val try_cancel : ('a, [> `Cancel ]) t -> Exn_bt.t -> bool
+  (** [try_cancel computation exn_bt] attempts to mark the computation as
+      canceled with the specified exception and backtrace and returns [true] on
+      success.  Otherwise returns [false], which means that the computation had
+      already been completed before. *)
+
   val cancel : ('a, [> `Cancel ]) t -> Exn_bt.t -> unit
-  (** [cancel computation exn_bt] attempts to mark the computation as canceled
-      with the specified exception and backtrace. *)
+  (** [cancel computation exn_bt] is equivalent to
+      [try_cancel computation exn_bt |> ignore]. *)
 
   (** {2 Interface for polling} *)
 
