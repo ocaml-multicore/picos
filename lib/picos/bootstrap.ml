@@ -103,25 +103,32 @@ module Computation = struct
     | Continue _ -> true
 
   open struct
-    let rec terminate backoff t after =
+    let rec try_terminate backoff t after =
       match Atomic.get t with
-      | Returned _ | Canceled _ -> ()
+      | Returned _ | Canceled _ -> false
       | Continue r as before ->
-          if Atomic.compare_and_set t before after then
-            List.iter Trigger.signal r.triggers
-          else terminate (Backoff.once backoff) t after
+          if Atomic.compare_and_set t before after then begin
+            List.iter Trigger.signal r.triggers;
+            true
+          end
+          else try_terminate (Backoff.once backoff) t after
   end
 
   let returned_unit = Returned ()
   let finished = Atomic.make returned_unit
-  let return t value = terminate Backoff.default t (Returned value)
-  let finish t = terminate Backoff.default t returned_unit
-  let cancel t exn_bt = terminate Backoff.default t (Canceled exn_bt)
+  let try_return t value = try_terminate Backoff.default t (Returned value)
+  let try_finish t = try_terminate Backoff.default t returned_unit
+  let try_cancel t exn_bt = try_terminate Backoff.default t (Canceled exn_bt)
+  let return t value = try_return t value |> ignore
+  let finish t = try_finish t |> ignore
+  let cancel t exn_bt = try_cancel t exn_bt |> ignore
 
-  let capture t fn x =
+  let try_capture t fn x =
     match fn x with
-    | y -> return t y
-    | exception exn -> cancel t (Exn_bt.get exn)
+    | y -> try_return t y
+    | exception exn -> try_cancel t (Exn_bt.get exn)
+
+  let capture t fn x = try_capture t fn x |> ignore
 
   let check t =
     match Atomic.get t with

@@ -47,10 +47,15 @@ let test_computation_contract () =
   let () =
     Atomic.trace @@ fun () ->
     let computation = Computation.create () in
-    let () = Atomic.spawn @@ fun () -> Computation.return computation 101 in
+    let returns = ref 0 and cancels = ref 0 in
     let () =
       Atomic.spawn @@ fun () ->
-      Computation.cancel computation (Exn_bt.get_callstack 1 Exit)
+      if Computation.try_return computation 101 then incr returns
+    in
+    let () =
+      Atomic.spawn @@ fun () ->
+      if Computation.try_cancel computation (Exn_bt.get_callstack 1 Exit) then
+        incr cancels
     in
     let triggers = Array.init 2 @@ fun _ -> Trigger.create () in
     let attached = ref 0 and unattached = ref 0 in
@@ -67,7 +72,8 @@ let test_computation_contract () =
     unattached_total += !unattached;
     begin
       match Computation.peek computation with
-      | Some (Ok 101) | Some (Error { exn = Exit; _ }) -> true
+      | Some (Ok 101) when !returns = 1 && !cancels = 0 -> true
+      | Some (Error { exn = Exit; _ }) when !returns = 0 && !cancels = 1 -> true
       | _ -> false
     end
     && !attached + !unattached = Array.length triggers
