@@ -27,12 +27,18 @@
    (>= 0.1))
   (backoff
    (>= 0.1.0))
-  (multicore-magic
-   (>= 2.0.0))
   (mtime
    (>= 2.0.0))
   (psq
    (>= 0.2.1))
+  (multicore-magic
+   (and
+    (>= 2.1.0)
+    :with-test))
+  (multicore-bench
+   (and
+    (>= 0.1.1)
+    :with-test))
   (alcotest
    (and
     (>= 1.7.0)

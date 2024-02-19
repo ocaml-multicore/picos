@@ -1,0 +1,19 @@
+(* -*- tuareg -*- *)
+
+let maybe_domain_shims =
+  if Jbuild_plugin.V1.ocaml_version < "5" then "domain_shims" else ""
+
+let () =
+  Jbuild_plugin.V1.send
+  @@ {|
+
+(test
+ (name main)
+ (libraries
+  picos
+  foundation
+  schedulers
+  multicore-bench
+  multicore-magic |}
+  ^ maybe_domain_shims ^ {| ))
+|}

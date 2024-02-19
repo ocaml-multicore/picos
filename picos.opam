@@ -10,9 +10,10 @@ depends: [
   "dune" {>= "3.9"}
   "thread-local-storage" {>= "0.1"}
   "backoff" {>= "0.1.0"}
-  "multicore-magic" {>= "2.0.0"}
   "mtime" {>= "2.0.0"}
   "psq" {>= "0.2.1"}
+  "multicore-magic" {>= "2.1.0" & with-test}
+  "multicore-bench" {>= "0.1.1" & with-test}
   "alcotest" {>= "1.7.0" & with-test}
   "qcheck-core" {>= "0.21.2" & with-test}
   "qcheck-stm" {>= "0.3" & with-test}
