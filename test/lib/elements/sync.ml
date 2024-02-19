@@ -20,7 +20,7 @@ module Checked = struct
      This way both lock and unlock attempt O(1) and O(n) operations at the same
      time. *)
 
-  let rec unlock_as backoff owner t =
+  let rec unlock_as t owner backoff =
     match Atomic.get t with
     | Unlocked -> unlocked ()
     | Locked r as before ->
@@ -28,58 +28,58 @@ module Checked = struct
           match r.head with
           | { trigger; fiber } :: rest ->
               let after = Locked { r with fiber; head = rest } in
-              transfer_as backoff owner t before after trigger
+              transfer_as t owner before after trigger backoff
           | [] -> begin
               match List.rev r.tail with
               | { trigger; fiber } :: rest ->
                   let after = Locked { fiber; head = rest; tail = [] } in
-                  transfer_as backoff owner t before after trigger
+                  transfer_as t owner before after trigger backoff
               | [] ->
                   if not (Atomic.compare_and_set t before Unlocked) then
-                    unlock_as (Backoff.once backoff) owner t
+                    unlock_as t owner (Backoff.once backoff)
             end
         else not_owner ()
 
-  and transfer_as backoff owner t before after trigger =
+  and transfer_as t owner before after trigger backoff =
     if Atomic.compare_and_set t before after then Trigger.signal trigger
-    else unlock_as (Backoff.once backoff) owner t
+    else unlock_as t owner (Backoff.once backoff)
 
   let unlock t =
-    unlock_as Backoff.default (Fiber.current () :> Fiber.as_async) t
+    unlock_as t (Fiber.current () :> Fiber.as_async) Backoff.default
 
-  let rec cleanup_as backoff entry t =
+  let rec cleanup_as t entry backoff =
     (* We have been canceled.  If we are the owner, we must unlock the mutex.
        Otherwise we must remove our entry from the queue. *)
     match Atomic.get t with
     | Locked r as before ->
-        if Fiber.equal r.fiber entry.fiber then unlock_as backoff entry.fiber t
+        if Fiber.equal r.fiber entry.fiber then unlock_as t entry.fiber backoff
         else if r.head != [] then
           match List.drop_first_or_not_found entry r.head with
           | head ->
               let after = Locked { r with head } in
-              cancel_as backoff entry t before after
+              cancel_as t entry before after backoff
           | exception Not_found ->
               let tail = List.drop_first_or_not_found entry r.tail in
               let after = Locked { r with tail } in
-              cancel_as backoff entry t before after
+              cancel_as t entry before after backoff
         else
           let tail =
             List.drop_first_or_not_found entry r.tail (* wont raise *)
           in
           let after = Locked { r with tail } in
-          cancel_as backoff entry t before after
+          cancel_as t entry before after backoff
     | Unlocked -> unlocked () (* impossible *)
 
-  and cancel_as backoff fiber t before after =
+  and cancel_as t fiber before after backoff =
     if not (Atomic.compare_and_set t before after) then
-      cleanup_as (Backoff.once backoff) fiber t
+      cleanup_as t fiber (Backoff.once backoff)
 
-  let rec lock_as backoff fiber t =
+  let rec lock_as t fiber backoff =
     match Atomic.get t with
     | Unlocked as before ->
         let after = Locked { fiber; head = []; tail = [] } in
         if not (Atomic.compare_and_set t before after) then
-          lock_as (Backoff.once backoff) fiber t
+          lock_as t fiber (Backoff.once backoff)
     | Locked r as before ->
         if Fiber.equal r.fiber (fiber :> Fiber.as_async) then owner ()
         else
@@ -95,12 +95,12 @@ module Checked = struct
             match Trigger.await trigger with
             | None -> ()
             | Some exn_bt ->
-                cleanup_as Backoff.default entry t;
+                cleanup_as t entry Backoff.default;
                 Exn_bt.raise exn_bt
           end
-          else lock_as (Backoff.once backoff) fiber t
+          else lock_as t fiber (Backoff.once backoff)
 
-  let lock t = lock_as Backoff.default (Fiber.current () :> Fiber.as_async) t
+  let lock t = lock_as t (Fiber.current () :> Fiber.as_async) Backoff.default
 
   let try_lock t =
     let fiber = (Fiber.current () :> Fiber.as_async) in
@@ -110,28 +110,28 @@ module Checked = struct
 
   let protect t body =
     let fiber = (Fiber.current () :> Fiber.as_async) in
-    lock_as Backoff.default fiber t;
+    lock_as t fiber Backoff.default;
     match body () with
     | value ->
-        unlock_as Backoff.default fiber t;
+        unlock_as t fiber Backoff.default;
         value
     | exception exn ->
         let bt = Printexc.get_raw_backtrace () in
-        unlock_as Backoff.default fiber t;
+        unlock_as t fiber Backoff.default;
         Printexc.raise_with_backtrace exn bt
 
   let succumb t body =
     let fiber = Fiber.current () in
-    unlock_as Backoff.default (fiber :> Fiber.as_async) t;
+    unlock_as t (fiber :> Fiber.as_async) Backoff.default;
     match body () with
     | value ->
         Fiber.forbid fiber (fun () ->
-            lock_as Backoff.default (fiber :> Fiber.as_async) t);
+            lock_as t (fiber :> Fiber.as_async) Backoff.default);
         value
     | exception exn ->
         let bt = Printexc.get_raw_backtrace () in
         Fiber.forbid fiber (fun () ->
-            lock_as Backoff.default (fiber :> Fiber.as_async) t);
+            lock_as t (fiber :> Fiber.as_async) Backoff.default);
         Printexc.raise_with_backtrace exn bt
 end
 

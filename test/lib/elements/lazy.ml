@@ -12,7 +12,7 @@ type 'a t = 'a state Atomic.t
 let from_fun th = Atomic.make (Fun th)
 let from_val v = Atomic.make (Val v)
 
-let rec cleanup backoff t trigger =
+let rec cleanup t trigger backoff =
   match Atomic.get t with
   | Val _ | Exn _ -> ()
   | Fun _ -> failwith "impossible"
@@ -21,11 +21,11 @@ let rec cleanup backoff t trigger =
       | triggers ->
           let after = Run { r with triggers } in
           if not (Atomic.compare_and_set t before after) then
-            cleanup (Backoff.once backoff) t trigger
+            cleanup t trigger (Backoff.once backoff)
       | exception Not_found -> ()
     end
 
-let rec force backoff fiber t =
+let rec force t fiber backoff =
   match Atomic.get t with
   | Val v -> v
   | Exn r -> Printexc.raise_with_backtrace r.exn r.trace
@@ -43,9 +43,9 @@ let rec force backoff fiber t =
         | Val _ | Exn _ | Fun _ -> failwith "impossible"
         | Run r ->
             List.iter Trigger.signal r.triggers;
-            force Backoff.default fiber t
+            force t fiber Backoff.default
       end
-      else force (Backoff.once backoff) fiber t
+      else force t fiber (Backoff.once backoff)
   | Run r as before ->
       if Fiber.equal r.fiber fiber then raise Stdlib.Lazy.Undefined
       else
@@ -54,18 +54,18 @@ let rec force backoff fiber t =
         let after = Run { r with triggers } in
         if Atomic.compare_and_set t before after then begin
           match Trigger.await trigger with
-          | None -> force Backoff.default fiber t
+          | None -> force t fiber Backoff.default
           | Some exn_bt ->
-              cleanup Backoff.default t (trigger :> Trigger.as_signal);
+              cleanup t (trigger :> Trigger.as_signal) Backoff.default;
               Exn_bt.raise exn_bt
         end
-        else force (Backoff.once backoff) fiber t
+        else force t fiber (Backoff.once backoff)
 
 let force t =
   match Atomic.get t with
   | Val v -> v
   | Exn r -> Printexc.raise_with_backtrace r.exn r.trace
   | Fun _ | Run _ ->
-      force Backoff.default (Fiber.current () :> Fiber.as_async) t
+      force t (Fiber.current () :> Fiber.as_async) Backoff.default
 
 let map f t = from_fun @@ fun () -> f (force t)

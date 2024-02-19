@@ -60,7 +60,7 @@ module Computation = struct
           else gc (length + 1) (r :: triggers) rs
   end
 
-  let rec try_attach backoff t trigger =
+  let rec try_attach t trigger backoff =
     match Atomic.get t with
     | Returned _ | Canceled _ -> false
     | Continue r as before ->
@@ -74,11 +74,11 @@ module Computation = struct
           else gc 1 [ trigger ] r.triggers
         in
         Atomic.compare_and_set t before after
-        || try_attach (Backoff.once backoff) t trigger
+        || try_attach t trigger (Backoff.once backoff)
 
-  let try_attach t trigger = try_attach Backoff.default t trigger
+  let try_attach t trigger = try_attach t trigger Backoff.default
 
-  let rec detach backoff t =
+  let rec detach t backoff =
     match Atomic.get t with
     | Returned _ | Canceled _ -> ()
     | Continue r as before ->
@@ -87,11 +87,11 @@ module Computation = struct
           else gc 0 [] r.triggers
         in
         if not (Atomic.compare_and_set t before after) then
-          detach (Backoff.once backoff) t
+          detach t (Backoff.once backoff)
 
   let detach t trigger =
     Trigger.signal trigger;
-    detach Backoff.default t
+    detach t Backoff.default
 
   type 'a as_cancelable = ('a, [ `Await | `Cancel ]) t
   type -'allowed packed = Packed : ('a, 'allowed) t -> 'allowed packed
@@ -103,7 +103,7 @@ module Computation = struct
     | Continue _ -> true
 
   open struct
-    let rec try_terminate backoff t after =
+    let rec try_terminate t after backoff =
       match Atomic.get t with
       | Returned _ | Canceled _ -> false
       | Continue r as before ->
@@ -111,14 +111,14 @@ module Computation = struct
             List.iter Trigger.signal r.triggers;
             true
           end
-          else try_terminate (Backoff.once backoff) t after
+          else try_terminate t after (Backoff.once backoff)
   end
 
   let returned_unit = Returned ()
   let finished = Atomic.make returned_unit
-  let try_return t value = try_terminate Backoff.default t (Returned value)
-  let try_finish t = try_terminate Backoff.default t returned_unit
-  let try_cancel t exn_bt = try_terminate Backoff.default t (Canceled exn_bt)
+  let try_return t value = try_terminate t (Returned value) Backoff.default
+  let try_finish t = try_terminate t returned_unit Backoff.default
+  let try_cancel t exn_bt = try_terminate t (Canceled exn_bt) Backoff.default
   let return t value = try_return t value |> ignore
   let finish t = try_finish t |> ignore
   let cancel t exn_bt = try_cancel t exn_bt |> ignore
