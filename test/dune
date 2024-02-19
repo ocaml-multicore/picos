@@ -1,20 +1,4 @@
 (test
- (name bench_current)
- (modules bench_current)
- (build_if
-  (>= %{ocaml_version} 5.0.0))
- (libraries picos schedulers unix))
-
-;;
-
-(test
- (name bench_mpsc_queue)
- (modules bench_mpsc_queue)
- (libraries foundation unix saturn saturn_lockfree domain_shims))
-
-;;
-
-(test
  (name test_picos)
  (modules test_picos)
  (libraries picos foundation alcotest unix domain_shims))
