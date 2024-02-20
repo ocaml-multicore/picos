@@ -2,4 +2,6 @@
  (name traced_atomic)
  (modules atomic)
  (wrapped false)
+ (enabled_if
+  (>= %{ocaml_version} 5))
  (libraries dscheck))

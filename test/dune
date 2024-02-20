@@ -14,6 +14,8 @@
 (test
  (name test_picos_dscheck)
  (modules test_picos_dscheck bootstrap exn_bt)
+ (build_if
+  (>= %{ocaml_version} 5))
  (libraries backoff traced_atomic dscheck alcotest))
 
 ;;
