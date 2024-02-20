@@ -12,7 +12,9 @@ let () =
  (libraries
   picos
   foundation
-  schedulers
+  (select scheduler.ml from
+   (schedulers -> scheduler.ocaml5.ml)
+   (           -> scheduler.ocaml4.ml))
   multicore-bench
   multicore-magic |}
   ^ maybe_domain_shims ^ {| ))

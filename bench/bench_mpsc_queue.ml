@@ -51,7 +51,9 @@ let run_one ~budgetf ~n_adders () =
         if 0 < n then
           match Queue.dequeue t with
           | _ -> loop (n - 1)
-          | exception Queue.Empty -> loop n
+          | exception Queue.Empty ->
+              Domain.cpu_relax ();
+              loop n
       in
       loop n_msgs
   in

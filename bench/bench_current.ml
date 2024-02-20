@@ -8,7 +8,7 @@ let run_one ~budgetf ~n_domains () =
 
   let init _ = Atomic.set n_ops_todo n_ops in
   let work _ () =
-    Schedulers.Fifos.run ~forbid:false @@ fun () ->
+    Scheduler.run @@ fun () ->
     let rec work () =
       let n = Util.alloc n_ops_todo in
       if n <> 0 then

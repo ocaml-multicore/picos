@@ -1,0 +1,1 @@
+let run action = action ()

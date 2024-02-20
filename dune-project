@@ -1,4 +1,4 @@
-(lang dune 3.9)
+(lang dune 3.14)
 
 (name picos)
 
@@ -67,17 +67,17 @@
    (and
     (<> :arch "x86_32")
     :with-test))
-  (saturn
-   (and
-    (>= 0.4.1)
-    :with-test))
-  (saturn_lockfree
-   (and
-    (>= 0.4.1)
-    :with-test))
   (dscheck
    (and
-    (>= 0.3.0)
+    (>= 0.4.0)
     :with-test))
+  (sherlodoc
+   (and
+    (>= 0.2)
+    :with-doc))
+  (odoc
+   (and
+    (>= 2.4.1)
+    :with-doc))
   (ocaml
    (>= 4.12.0))))

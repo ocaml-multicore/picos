@@ -7,7 +7,7 @@ license: "ISC"
 homepage: "https://github.com/ocaml-multicore/picos"
 bug-reports: "https://github.com/ocaml-multicore/picos/issues"
 depends: [
-  "dune" {>= "3.9"}
+  "dune" {>= "3.14"}
   "thread-local-storage" {>= "0.1"}
   "backoff" {>= "0.1.0"}
   "mtime" {>= "2.0.0"}
@@ -21,11 +21,10 @@ depends: [
   "domain_shims" {>= "0.1.0" & with-test}
   "js_of_ocaml" {>= "5.4.0" & with-test}
   "conf-npm" {arch != "x86_32" & with-test}
-  "saturn" {>= "0.4.1" & with-test}
-  "saturn_lockfree" {>= "0.4.1" & with-test}
-  "dscheck" {>= "0.3.0" & with-test}
+  "dscheck" {>= "0.4.0" & with-test}
+  "sherlodoc" {>= "0.2" & with-doc}
+  "odoc" {>= "2.4.1" & with-doc}
   "ocaml" {>= "4.12.0"}
-  "odoc" {with-doc}
 ]
 build: [
   ["dune" "subst"] {dev}
