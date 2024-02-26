@@ -15,18 +15,20 @@ There are already several concrete effects-based concurrent programming
 libraries and models being developed. Here is a list of some such publicly
 available projects:<sup>[\*](https://xkcd.com/927/)</sup>
 
-1. [Affect](https://github.com/dbuenzli/affect) — “Composable concurrency
-   primitives with OCaml effects handlers (unreleased)”,
+1. [Affect](https://github.com/dbuenzli/affect) — "Composable concurrency
+   primitives with OCaml effects handlers (unreleased)",
 2. [Domainslib](https://github.com/ocaml-multicore/domainslib) —
-   “Nested-parallel programming”,
-3. [Eio](https://github.com/ocaml-multicore/eio) — “Effects-Based Parallel IO
-   for OCaml”,
-4. [Miou](https://github.com/robur-coop/miou) — “a simple scheduler for OCaml
-   5”,
-5. [Moonpool](https://github.com/c-cube/moonpool) — “[beta] Commodity thread
-   pools for OCaml 5”, and
-6. [Riot](https://github.com/leostera/riot) — “An actor-model multi-core
-   scheduler for OCaml 5”.
+   "Nested-parallel programming",
+3. [Eio](https://github.com/ocaml-multicore/eio) — "Effects-Based Parallel IO
+   for OCaml",
+4. [Fuseau](https://github.com/c-cube/fuseau) — "Lightweight fiber library for
+   OCaml 5",
+5. [Miou](https://github.com/robur-coop/miou) — "A simple scheduler for OCaml
+   5",
+6. [Moonpool](https://github.com/c-cube/moonpool) — "Commodity thread pools for
+   OCaml 5", and
+7. [Riot](https://github.com/leostera/riot) — "An actor-model multi-core
+   scheduler for OCaml 5".
 
 All of the above libraries are mutually incompatible with each other with the
 exception that Domainslib, Eio, and Moonpool implement an earlier
