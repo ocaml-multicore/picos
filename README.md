@@ -1,4 +1,5 @@
 [API reference](https://ocaml-multicore.github.io/picos/doc/picos/Picos/index.html)
+&middot; [Benchmarks](https://bench.ci.dev/ocaml-multicore/picos/branch/main)
 
 # **Picos** &mdash; Interoperable effects based concurrency
 
