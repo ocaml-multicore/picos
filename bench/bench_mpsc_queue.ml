@@ -19,9 +19,11 @@ let run_one_domain ~budgetf ?(n_msgs = 50 * Util.iter_factor) () =
   Times.record ~budgetf ~n_domains:1 ~init ~work ()
   |> Times.to_thruput_metrics ~n:n_msgs ~singular:"message" ~config:"one domain"
 
-let run_one ~budgetf ?(n_adders = 2) ?(n_msgs = 50 * Util.iter_factor) () =
+let run_one ~budgetf ~n_adders () =
   let n_takers = 1 in
   let n_domains = n_adders + n_takers in
+
+  let n_msgs = 200 / n_takers * Util.iter_factor in
 
   let t = Queue.create () in
 
