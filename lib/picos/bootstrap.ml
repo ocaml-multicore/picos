@@ -46,15 +46,17 @@ module Computation = struct
     | Returned _ | Continue _ -> None
 
   open struct
-    (** [gc] reverses the list of triggers while dropping signaled triggers.
-        This should be fine (it doesn't make the behavior non-deterministic, for
-        example), but it might make sense to take extra steps to preserve the
-        original ordering. *)
-    let rec gc length triggers = function
-      | [] -> Continue { balance = length; triggers }
+    (** [gc] is called when balance becomes negative by both [try_attach] and
+        [detach].  This ensures that the [O(n)] lazy removal done by [gc] cannot
+        cause starvation, because the only reason that CAS fails after [gc] is
+        that someone else completed the [gc]. *)
+    let rec gc balance triggers = function
+      | [] ->
+          let triggers = if balance <= 1 then triggers else List.rev triggers in
+          Continue { balance; triggers }
       | r :: rs ->
-          if Trigger.is_signaled r then gc length triggers rs
-          else gc (length + 1) (r :: triggers) rs
+          if Trigger.is_signaled r then gc balance triggers rs
+          else gc (balance + 1) (r :: triggers) rs
   end
 
   let rec try_attach t trigger backoff =
