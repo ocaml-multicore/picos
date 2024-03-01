@@ -1,3 +1,13 @@
+(** In this example, [Promise]s are implemented directly in terms of [Fiber]s
+    and [Computation]s.  This perhaps has some advantages, but this also makes
+    things relatively expensive as every composition spawns a new fiber (or
+    more).  Also, this [Promise] is eager rather than lazy.
+
+    ⚠️ This example is not meant to endorse this way of implementing a [Promise]
+    like concept directly using [Fiber]s and [Computation]s.  This example is
+    mostly meant to demonstrate that you could do so and that you can compose
+    computations as demonstrated in this example. *)
+
 open Picos
 
 type 'a t = ('a, [ `Await | `Cancel ]) Computation.t
@@ -52,6 +62,41 @@ let both x y =
   let open Infix in
   let+ () = x and+ () = y in
   ()
+
+let any xs =
+  let y = Computation.create () in
+  let main =
+    Computation.capture y @@ fun () ->
+    let t = Trigger.create () in
+    let rec find_first_and_detach_rest = function
+      | [] -> assert false
+      | y :: ys ->
+          if Computation.is_running y then begin
+            Computation.detach y t;
+            find_first_and_detach_rest ys
+          end
+          else begin
+            List.iter (fun y -> Computation.detach y t) ys;
+            Computation.await y
+          end
+    in
+    let rec try_attach_to_all ys = function
+      | [] -> begin
+          match Trigger.await t with
+          | Some exn_bt ->
+              List.iter (fun y -> Computation.detach y t) ys;
+              Exn_bt.raise exn_bt
+          | None -> find_first_and_detach_rest ys
+        end
+      | x :: xs ->
+          let ys = x :: ys in
+          if Computation.try_attach x t then try_attach_to_all ys xs
+          else find_first_and_detach_rest ys
+    in
+    try_attach_to_all [] xs
+  in
+  Fiber.spawn ~forbid:false y [ main ];
+  of_computation y
 
 let create = Computation.create
 let try_return_to = Computation.try_return
