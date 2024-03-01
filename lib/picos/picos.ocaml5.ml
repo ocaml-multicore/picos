@@ -19,7 +19,7 @@ end
 module Trigger = struct
   include Bootstrap.Trigger
 
-  type _ Effect.t += Await : [ `On | `Signal ] t -> Exn_bt.t option Effect.t
+  type _ Effect.t += Await : t -> Exn_bt.t option Effect.t
 
   let await t =
     match Atomic.get t with
@@ -48,7 +48,7 @@ module Fiber = struct
       | Canceled exn_bt -> Exn_bt.discontinue_with k exn_bt h
       | Continue _ | Returned _ -> Effect.Shallow.continue_with k v h
 
-  type _ Effect.t += Current : [ `Sync | `Async ] t Effect.t
+  type _ Effect.t += Current : t Effect.t
 
   let current () =
     try Effect.perform Current
@@ -57,16 +57,16 @@ module Fiber = struct
   type _ Effect.t +=
     | Spawn : {
         forbid : bool;
-        computation : 'a Bootstrap.Computation.as_cancelable;
+        computation : 'a Bootstrap.Computation.t;
         mains : (unit -> unit) list;
       }
         -> unit Effect.t
 
   let spawn ~forbid computation mains =
-    try Effect.perform @@ Spawn { forbid; computation :> _; mains }
-    with Effect.Unhandled (Spawn { forbid; computation; mains }) ->
+    try Effect.perform @@ Spawn { forbid; computation; mains }
+    with Effect.Unhandled (Spawn r) ->
       let _ = current () in
-      Default.spawn forbid computation mains
+      Default.spawn r.forbid r.computation r.mains
 
   type _ Effect.t += Yield : unit Effect.t
 
@@ -99,7 +99,7 @@ module Computation = struct
     | Cancel_after : {
         seconds : float;
         exn_bt : Exn_bt.t;
-        computation : 'a as_cancelable;
+        computation : 'a t;
       }
         -> unit Effect.t
 

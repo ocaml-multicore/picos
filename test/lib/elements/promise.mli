@@ -8,7 +8,7 @@ type !'a t
 val await : 'a t -> 'a
 (** *)
 
-val of_computation : ('a, [> `Await | `Cancel ]) Picos.Computation.t -> 'a t
+val of_computation : 'a Picos.Computation.t -> 'a t
 (** *)
 
 val peek : 'a t -> 'a option

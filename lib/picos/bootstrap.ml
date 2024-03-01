@@ -1,10 +1,10 @@
 module Trigger = struct
   type state =
     | Signaled
-    | Awaiting : ([ `On | `Signal ] t -> 'x -> 'y -> unit) * 'x * 'y -> state
+    | Awaiting : (t -> 'x -> 'y -> unit) * 'x * 'y -> state
     | Initial
 
-  and 'allowed t = state Atomic.t
+  and t = state Atomic.t
 
   let create () = Atomic.make Initial
 
@@ -19,9 +19,6 @@ module Trigger = struct
 
   let is_signaled t = Atomic.get t == Signaled
   let is_initial t = Atomic.get t == Initial
-
-  type as_signal = [ `Signal ] t
-
   let[@inline never] awaiting () = invalid_arg "Trigger: already awaiting"
 
   let rec on_signal t x y action =
@@ -37,9 +34,9 @@ module Computation = struct
   type 'a state =
     | Canceled of Exn_bt.t
     | Returned of 'a
-    | Continue of { balance : int; triggers : [ `Signal ] Trigger.t list }
+    | Continue of { balance : int; triggers : Trigger.t list }
 
-  type ('a, 'allowed) t = 'a state Atomic.t
+  type 'a t = 'a state Atomic.t
 
   let create () = Atomic.make (Continue { balance = 0; triggers = [] })
 
@@ -93,9 +90,7 @@ module Computation = struct
     Trigger.signal trigger;
     detach t Backoff.default
 
-  type 'a as_cancelable = ('a, [ `Await | `Cancel ]) t
-  type -'allowed packed = Packed : ('a, 'allowed) t -> 'allowed packed
-  type packed_as_cancelable = [ `Await | `Cancel ] packed
+  type packed = Packed : 'a t -> packed
 
   let is_running t =
     match Atomic.get t with
@@ -151,17 +146,15 @@ module Computation = struct
 end
 
 module Fiber = struct
-  type -'allowed t =
+  type t =
     | Fiber : {
-        computation : ('a, [ `Await | `Cancel ]) Computation.t;
+        computation : 'a Computation.t;
         mutable forbid : bool;
         mutable fls : Obj.t array;
       }
-        -> 'allowed t
+        -> t
 
-  let create ~forbid computation =
-    Fiber { computation :> _; forbid; fls = [||] }
-
+  let create ~forbid computation = Fiber { computation; forbid; fls = [||] }
   let has_forbidden (Fiber r) = r.forbid
 
   let canceled (Fiber r) =
@@ -171,9 +164,6 @@ module Fiber = struct
     Computation.try_attach r.computation trigger
 
   let detach (Fiber r) trigger = Computation.detach r.computation trigger
-
-  type as_async = [ `Async ] t
-
   let[@inline] equal t1 t2 = t1 == t2
   let computation (Fiber r) = Computation.Packed r.computation
   let check (Fiber r) = if not r.forbid then Computation.check r.computation
@@ -195,8 +185,7 @@ module Fiber = struct
   let permit t body = explicitly ~forbid:false t body
 
   module FLS = struct
-    type ('a, _) key = { index : int; default : Obj.t; compute : unit -> 'a }
-    type 'a as_read_only = ('a, [ `Get ]) key
+    type 'a key = { index : int; default : Obj.t; compute : unit -> 'a }
 
     open struct
       let compute () = failwith "impossible"

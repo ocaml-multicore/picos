@@ -344,13 +344,13 @@ module Trigger : sig
 
   (** {2 Interface for suspending} *)
 
-  type -'allowed t
+  type t
   (** Represents a trigger. *)
 
-  val create : unit -> [ `Await | `Signal ] t
+  val create : unit -> t
   (** [create ()] allocates a new trigger in the initial state. *)
 
-  val is_initial : _ t -> bool
+  val is_initial : t -> bool
   (** [is_initial trigger] determines whether the trigger is in the initial
       state.
 
@@ -358,11 +358,11 @@ module Trigger : sig
       contexts a trigger might reasonably be either in the initial or the
       awaiting state depending on the order in which things are being done. *)
 
-  val is_signaled : _ t -> bool
+  val is_signaled : t -> bool
   (** [is_signaled trigger] determines whether the trigger is in the signaled
       state. *)
 
-  val await : [> `Await ] t -> Exn_bt.t option
+  val await : t -> Exn_bt.t option
   (** [await trigger] waits for the trigger to be {!signal}ed.
 
       The return value is [None] in case the trigger was signaled before [await]
@@ -372,8 +372,8 @@ module Trigger : sig
       responsible for cleaning up.  Usually this means making sure that no
       references to the trigger remain to avoid space leaks.
 
-      ⚠️ Only the owner or creator of a trigger may call [await] and it is
-      considered an error to make multiple concurrent calls to [await].
+      ⚠️ Only the owner or creator of a trigger may call [await].  It is
+      considered an error to make multiple calls to [await].
 
       On OCaml 5, [await] will first try to perform the {!Await} effect and
       falls back to the OCaml 4 default implementation that suspends the
@@ -385,10 +385,7 @@ module Trigger : sig
 
   (** {2 Interface for resuming} *)
 
-  type as_signal = [ `Signal ] t
-  (** Synonym for a trigger that only allows the {!signal} operation. *)
-
-  val signal : [> `Signal ] t -> unit
+  val signal : t -> unit
   (** After [signal trigger] returns, the trigger has been put into the signaled
       state and any attached action has been called.
 
@@ -399,12 +396,7 @@ module Trigger : sig
 
   (** {2 Interface for schedulers} *)
 
-  val on_signal :
-    [> `On | `Signal ] t ->
-    'x ->
-    'y ->
-    ([> `Signal ] t -> 'x -> 'y -> unit) ->
-    bool
+  val on_signal : t -> 'x -> 'y -> (t -> 'x -> 'y -> unit) -> bool
   (** [on_signal trigger x y resume] attempts to attach the [resume] action to
       the [trigger] and transition the trigger to the awaiting state.  It must
       be safe to call [resume trigger x y] from any context that {!signal} might
@@ -414,14 +406,15 @@ module Trigger : sig
       Otherwise the return value is [false], which means that the trigger was
       already in the signaled state.
 
-      ⚠️ The handler of {!Await} should call [on_signal] at most once.
+      ⚠️ Only the scheduler should call [on_signal] in the handler of {!Await} to
+      attach the [resume] action to the [trigger].  It is considered an error to
+      make multiple calls to [on_signal] with a specific [trigger].
 
       @raise Invalid_argument if the trigger was in the awaiting state, which
         means that either the owner or creator of the trigger made concurrent
         calls to {!await} or the handler called [on_signal] more than once. *)
 
-  include
-    Effects_intf.Trigger with type 'a t := 'a t with type exn_bt := Exn_bt.t
+  include Effects_intf.Trigger with type t := t with type exn_bt := Exn_bt.t
 
   (** {2 Design rationale}
 
@@ -571,44 +564,43 @@ module Computation : sig
 
   (** {2 Interface for creating} *)
 
-  type (!'a, -'allowed) t
+  type !'a t
   (** Represents a cancelable computation. *)
 
-  val create : unit -> ('a, [ `Await | `Cancel | `Return ]) t
+  val create : unit -> 'a t
   (** [create ()] creates a new computation in the running state. *)
 
-  val finished : (unit, [ `Await | `Cancel | `Return ]) t
+  val finished : unit t
   (** [finished] is a constant finished computation. *)
 
-  val try_return : ('a, [> `Return ]) t -> 'a -> bool
+  val try_return : 'a t -> 'a -> bool
   (** [try_return computation value] attempts to complete the computation with
       the specified [value] and returns [true] on success.  Otherwise returns
       [false], which means that the computation had already been completed
       before. *)
 
-  val return : ('a, [> `Return ]) t -> 'a -> unit
+  val return : 'a t -> 'a -> unit
   (** [return computation value] is equivalent to
       [try_return computation value |> ignore]. *)
 
-  val try_finish : (unit, [> `Return ]) t -> bool
+  val try_finish : unit t -> bool
   (** [try_finish computation] is equivalent to [try_return computation ()]. *)
 
-  val finish : (unit, [> `Return ]) t -> unit
+  val finish : unit t -> unit
   (** [finish computation] is equivalent to
       [try_finish computation |> ignore]. *)
 
-  val try_capture : ('a, [> `Cancel | `Return ]) t -> ('b -> 'a) -> 'b -> bool
+  val try_capture : 'a t -> ('b -> 'a) -> 'b -> bool
   (** [try_capture computation fn x] calls [fn x] and tries to complete the
       computation with the value returned or the exception raised by the call
       and returns [true] on success.  Otherwise returns [false], which means
       that the computation had already been completed before. *)
 
-  val capture : ('a, [> `Cancel | `Return ]) t -> ('b -> 'a) -> 'b -> unit
+  val capture : 'a t -> ('b -> 'a) -> 'b -> unit
   (** [capture computation fn x] is equivalent to
       [try_capture computation fn x |> ignore]. *)
 
-  val cancel_after :
-    ('a, [> `Await | `Cancel ]) t -> seconds:float -> Exn_bt.t -> unit
+  val cancel_after : 'a t -> seconds:float -> Exn_bt.t -> unit
   (** [cancel_after ~seconds computation exn_bt] arranges to {!cancel} the
       computation after the specified time with the specified exception and
       backtrace.  Completion of the computation before the specified time
@@ -622,82 +614,73 @@ module Computation : sig
 
   (** {2 Interface for canceling} *)
 
-  type 'a as_cancelable = ('a, [ `Await | `Cancel ]) t
-  (** Synonym for a computation that only allows cancelation aside from
-      await. *)
-
   (** An existential wrapper for computations. *)
-  type -'allowed packed = Packed : ('a, 'allowed) t -> 'allowed packed
+  type packed = Packed : 'a t -> packed
 
-  type packed_as_cancelable = [ `Await | `Cancel ] packed
-  (** Synonym for a packed computation that only allows cancelation aside from
-      await. *)
-
-  val try_cancel : ('a, [> `Cancel ]) t -> Exn_bt.t -> bool
+  val try_cancel : 'a t -> Exn_bt.t -> bool
   (** [try_cancel computation exn_bt] attempts to mark the computation as
       canceled with the specified exception and backtrace and returns [true] on
       success.  Otherwise returns [false], which means that the computation had
       already been completed before. *)
 
-  val cancel : ('a, [> `Cancel ]) t -> Exn_bt.t -> unit
+  val cancel : 'a t -> Exn_bt.t -> unit
   (** [cancel computation exn_bt] is equivalent to
       [try_cancel computation exn_bt |> ignore]. *)
 
   (** {2 Interface for polling} *)
 
-  val is_running : ('a, _) t -> bool
+  val is_running : 'a t -> bool
   (** [is_running computation] determines whether the computation is in the
       running state meaning that it has not yet been completed. *)
 
-  val canceled : ('a, _) t -> Exn_bt.t option
+  val canceled : 'a t -> Exn_bt.t option
   (** [canceled computation] returns the exception that the computation has been
       canceled with or returns [None] in case the computation has not been
       canceled. *)
 
-  val check : ('a, _) t -> unit
+  val check : 'a t -> unit
   (** [check computation] is equivalent to
       [Option.iter Exn_bt.raise (canceled computation)]. *)
 
-  val peek : ('a, _) t -> ('a, Exn_bt.t) result option
+  val peek : 'a t -> ('a, Exn_bt.t) result option
   (** [peek computation] returns the result of the computation or [None] in case
       the computation has not completed. *)
 
   (** {2 Interface for awaiting} *)
 
-  val try_attach : ('a, [> `Await ]) t -> [> `Signal ] Trigger.t -> bool
+  val try_attach : 'a t -> Trigger.t -> bool
   (** [try_attach computation trigger] tries to attach the trigger to be
       signaled on completion of the computation and returns [true] on success.
       Otherwise returns [false], which means that the computation has already
       been completed or the trigger has already been signaled. *)
 
-  val detach : ('a, [> `Await ]) t -> [> `Signal ] Trigger.t -> unit
+  val detach : 'a t -> Trigger.t -> unit
   (** [detach computation trigger] {{!Trigger.signal} signals} the trigger and
       detaches it from the computation. *)
 
-  val await : ('a, [> `Await ]) t -> 'a
+  val await : 'a t -> 'a
   (** [await computation] waits for the computation to complete and either
       returns the value of the completed computation or raises the exception the
       computation was canceled with. *)
 
   (** {2 Interface for propagating cancelation} *)
 
-  val canceler :
-    from:('a, [> `Await ]) t ->
-    into:('b, [> `Cancel ]) t ->
-    [ `Signal ] Trigger.t
+  val canceler : from:'a t -> into:'b t -> Trigger.t
   (** [canceler ~from ~into] creates a trigger that propagates cancelation
-      [from] one computation [into] another on {{:Trigger.signal} signal}.
+      [from] one computation [into] another on {{:Trigger.signal} signal}.  The
+      returned trigger is not attached to any computation.
 
       The returned trigger is usually attached to the computation [from] which
       cancelation is to be propagated and the trigger should usually also be
-      detached after it is no longer needed. *)
+      detached after it is no longer needed.
+
+      ⚠️ The returned trigger will be in the awaiting state, which means that it
+      is an error to call {!Trigger.await} or {!Trigger.on_signal} on it. *)
 
   (** {2 Interface for schedulers} *)
 
   include
-    Effects_intf.Computation
-      with type 'a as_cancelable := 'a as_cancelable
-      with type exn_bt := Exn_bt.t
+    Effects_intf.Computation with type 'a t := 'a t with type exn_bt := Exn_bt.t
 
   (** {2 Design rationale}
 
@@ -737,7 +720,14 @@ module Fiber : sig
       {!create}d by schedulers in response to {!Spawn} effects.  A fiber is
       associated with a {{!Computation} computation} and either {!forbid}s or
       {!permit}s the scheduler from propagating cancelation to it.  A fiber also
-      has an associated {{!FLS} fiber local storage}. *)
+      has an associated {{!FLS} fiber local storage}.
+
+      ⚠️ Many operations on fibers can only be called safely from the fiber
+      itself, because those operations are neither concurrency nor parallelism
+      safe.  Such operations can be safely called from a handler in a scheduler
+      when it is handling an effect performed by the fiber.  In particular, a
+      scheduler can safely check whether the fiber {!has_forbidden} cancelation
+      and may access the {!FLS} of the fiber. *)
 
   (** {2 Interface for rescheduling} *)
 
@@ -750,11 +740,7 @@ module Fiber : sig
 
   (** {2 Interface for spawning} *)
 
-  val spawn :
-    forbid:bool ->
-    ('a, [> `Await | `Cancel ]) Computation.t ->
-    (unit -> unit) list ->
-    unit
+  val spawn : forbid:bool -> 'a Computation.t -> (unit -> unit) list -> unit
   (** [spawn ~forbid computation mains] starts new fibers by performing the
       {!Spawn} effect.  The fibers will share the same [computation] and start
       with {{!Fiber.has_forbidden} propagation of cancelation forbidden or
@@ -776,36 +762,39 @@ module Fiber : sig
 
   (** {2 Interface for current fiber} *)
 
-  type -'allowed t
+  type t
   (** Represents a fiber. *)
 
-  val current : unit -> [ `Sync | `Async ] t
+  val current : unit -> t
   (** [current ()] returns the current fiber.
 
       On OCaml 5, [current] will first try to perform the {!Current} effect and
       falls back to the OCaml 4 default implementation using [Thread]-local
       storage. *)
 
-  (** ⚠️ Operations that require the fiber handle to be [[> `Sync]] can only be
-      called safely from the fiber itself. *)
-
-  val has_forbidden : [> `Sync ] t -> bool
+  val has_forbidden : t -> bool
   (** [has_forbidden fiber] determines whether the fiber {!forbid}s or
-      {!permit}s the scheduler from propagating cancelation to it. *)
+      {!permit}s the scheduler from propagating cancelation to it.
 
-  val forbid : [> `Sync ] t -> (unit -> 'a) -> 'a
+      ⚠️ It is only safe to call [has_forbidden] from the fiber itself. *)
+
+  val forbid : t -> (unit -> 'a) -> 'a
   (** [forbid fiber thunk] tells the scheduler that cancelation must not be
       propagated to the fiber during the execution of [thunk].
 
       Note that this does not prevent the associated {!computation} from being
       canceled.  This only tells the scheduler not to propagate cancelation to
-      the fiber. *)
+      the fiber.
 
-  val permit : [> `Sync ] t -> (unit -> 'a) -> 'a
+      ⚠️ It is only safe to call [forbid] from the fiber itself. *)
+
+  val permit : t -> (unit -> 'a) -> 'a
   (** [permit fiber thunk] tells the scheduler that cancelation may be
-      propagated to the fiber during the execution of [thunk]. *)
+      propagated to the fiber during the execution of [thunk].
 
-  val canceled : [> `Sync ] t -> Exn_bt.t option
+      ⚠️ It is only safe to call [permit] from the fiber itself. *)
+
+  val canceled : t -> Exn_bt.t option
   (** [canceled fiber] is equivalent to:
       {@ocaml skip[
         if Fiber.has_forbidden fiber then
@@ -815,9 +804,11 @@ module Fiber : sig
             Fiber.computation fiber
           in
           Computation.canceled computation
-      ]} *)
+      ]}
 
-  val check : [> `Sync ] t -> unit
+      ⚠️ It is only safe to call [canceled] from the fiber itself. *)
+
+  val check : t -> unit
   (** [check fiber] is equivalent to:
       {@ocaml skip[
         if not (Fiber.has_forbidden fiber) then
@@ -825,7 +816,9 @@ module Fiber : sig
             Fiber.computation fiber
           in
           Computation.check computation
-      ]} *)
+      ]}
+
+      ⚠️ It is only safe to call [check] from the fiber itself. *)
 
   module FLS : sig
     (** Fiber local storage
@@ -840,12 +833,9 @@ module Fiber : sig
         {[
           let fiber_id_key =
             let next = Atomic.make 0 in
-            let key =
-              Fiber.FLS.new_key
-              @@ Computed (fun () ->
-                  Atomic.fetch_and_add next 1)
-            in
-            (key :> _ Fiber.FLS.as_read_only)
+            Fiber.FLS.new_key
+            @@ Computed (fun () ->
+                Atomic.fetch_and_add next 1)
         ]}
 
         Here is an example of how one might define a fiber priority:
@@ -859,17 +849,14 @@ module Fiber : sig
         of a fiber highly efficiently.  Fibers that are fine with the default
         priority do not necessarily need to store a priority at all. *)
 
-    type (!'a, -'allowed) key
+    type !'a key
     (** Represents a key for storing values of type ['a] in storage associated
         with fibers. *)
-
-    type 'a as_read_only = ('a, [ `Get ]) key
-    (** Synonym for a key with allowed operations restricted to reading. *)
 
     (** Type to specify initial values for fibers. *)
     type 'a initial = Constant of 'a | Computed of (unit -> 'a)
 
-    val new_key : 'a initial -> ('a, [ `Get | `Set ]) key
+    val new_key : 'a initial -> 'a key
     (** [new_key initial] allocates a new key for associating values in storage
         associated with fibers.  The [initial] value for every fiber is either
         the given {!Constant} or is {!Computed} with the given function.  If the
@@ -878,52 +865,46 @@ module Fiber : sig
 
         ⚠️ New keys should not be created dynamically. *)
 
-    (** ⚠️ Operations that require the fiber handle to be [[> `Sync]] can only be
-        called safely from the fiber itself. *)
-
-    val get : [> `Sync ] t -> ('a, [> `Get ]) key -> 'a
+    val get : t -> 'a key -> 'a
     (** [get fiber key] returns the value associated with the [key] in the
-        storage associated with the [fiber]. *)
+        storage associated with the [fiber].
 
-    val set : [> `Sync ] t -> ('a, [> `Set ]) key -> 'a -> unit
+        ⚠️ It is only safe to call [get] from the fiber itself. *)
+
+    val set : t -> 'a key -> 'a -> unit
     (** [set fiber key value] sets the [value] associated with the [key] to the
-        given value in the storage associated with the [fiber]. *)
+        given value in the storage associated with the [fiber].
+
+        ⚠️ It is only safe to call [set] from the fiber itself. *)
   end
 
   (** {2 Interface for foreign fiber} *)
 
-  type as_async = [ `Async ] t
-  (** Synonym for a fiber with the allowed operations restricted to those that
-      can be performed from outside of the fiber. *)
-
-  val equal : 'allowed t -> 'allowed t -> bool
+  val equal : t -> t -> bool
   (** [equal fiber1 fiber2] determines whether [fiber1] and [fiber2] are one and
       the same fiber. *)
 
-  val computation : [> `Async ] t -> Computation.packed_as_cancelable
+  val computation : t -> Computation.packed
   (** [computation fiber] returns the computation that the fiber has been
       {!create}d with. *)
 
-  val try_attach : [> `Async ] t -> [> `Signal ] Trigger.t -> bool
+  val try_attach : t -> Trigger.t -> bool
   (** [try_attach fiber trigger] is equivalent to
       [let Packed c = computation fiber in Computation.try_attach c trigger]. *)
 
-  val detach : [> `Async ] t -> [> `Signal ] Trigger.t -> unit
+  val detach : t -> Trigger.t -> unit
   (** [detach fiber trigger] is equivalent to
       [let Packed c = computation fiber in Computation.detach c trigger]. *)
 
   (** {2 Interface for schedulers} *)
 
-  val create :
-    forbid:bool ->
-    ('a, [> `Await | `Cancel ]) Computation.t ->
-    [ `Sync | `Async ] t
+  val create : forbid:bool -> 'a Computation.t -> t
   (** [create ~forbid computation] creates a new fiber. *)
 
   include
     Effects_intf.Fiber
-      with type 'a t := 'a t
-      with type 'a as_cancelable := 'a Computation.as_cancelable
+      with type t := t
+      with type 'a computation := 'a Computation.t
 
   (** {2 Design rationale}
 

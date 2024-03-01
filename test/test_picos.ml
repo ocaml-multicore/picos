@@ -24,8 +24,7 @@ let test_fls_basics =
 
   let counter_key =
     let counter = Atomic.make 0 in
-    (Fiber.FLS.new_key @@ Computed (fun () -> Atomic.fetch_and_add counter 1)
-      :> _ Fiber.FLS.as_read_only)
+    Fiber.FLS.new_key @@ Computed (fun () -> Atomic.fetch_and_add counter 1)
   in
 
   fun () ->

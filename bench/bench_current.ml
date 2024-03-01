@@ -14,7 +14,7 @@ let run_one ~budgetf ~n_domains () =
       if n <> 0 then
         let rec loop n =
           if 0 < n then
-            let _ : _ Fiber.t = Fiber.current () in
+            let _ : Fiber.t = Fiber.current () in
             loop (n - 1)
           else work ()
         in
