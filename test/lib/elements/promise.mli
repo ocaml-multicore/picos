@@ -17,6 +17,9 @@ val peek : 'a t -> 'a option
 val both : unit t -> unit t -> unit t
 (** *)
 
+val any : 'a t list -> 'a t
+(** *)
+
 val try_cancel : 'a t -> Picos.Exn_bt.t -> bool
 (** *)
 
