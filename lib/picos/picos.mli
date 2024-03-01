@@ -469,7 +469,8 @@ module Trigger : sig
 
       Once {!signal} has been called, a trigger no longer refers to any other
       object and takes just two words of memory.  This e.g. allows lazy removal
-      of triggers.
+      of triggers, assuming the number of attached triggers can be bounded,
+      because nothing except the trigger itself would be leaked.
 
       To further understand the problem domain, in this design, in a
       suspend-resume scenario, there are three distinct pieces of state:
