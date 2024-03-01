@@ -3,10 +3,7 @@ open Picos
 (* TODO: propagation of all exceptions? *)
 (* TODO: cancelation forbidden? *)
 
-type t = {
-  num_fibers : int Atomic.t;
-  computation : (unit, [ `Await | `Cancel | `Return ]) Computation.t;
-}
+type t = { num_fibers : int Atomic.t; computation : unit Computation.t }
 
 let decr t =
   let n = Atomic.fetch_and_add t.num_fibers (-1) in

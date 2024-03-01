@@ -3,7 +3,7 @@ open Foundation
 
 type 'a state =
   | Fun of (unit -> 'a)
-  | Run of { fiber : Fiber.as_async; triggers : Trigger.as_signal list }
+  | Run of { fiber : Fiber.t; triggers : Trigger.t list }
   | Val of 'a
   | Exn of { exn : exn; trace : Printexc.raw_backtrace }
 
@@ -50,13 +50,13 @@ let rec force t fiber backoff =
       if Fiber.equal r.fiber fiber then raise Stdlib.Lazy.Undefined
       else
         let trigger = Trigger.create () in
-        let triggers = (trigger :> Trigger.as_signal) :: r.triggers in
+        let triggers = trigger :: r.triggers in
         let after = Run { r with triggers } in
         if Atomic.compare_and_set t before after then begin
           match Trigger.await trigger with
           | None -> force t fiber Backoff.default
           | Some exn_bt ->
-              cleanup t (trigger :> Trigger.as_signal) Backoff.default;
+              cleanup t trigger Backoff.default;
               Exn_bt.raise exn_bt
         end
         else force t fiber (Backoff.once backoff)
@@ -65,7 +65,6 @@ let force t =
   match Atomic.get t with
   | Val v -> v
   | Exn r -> Printexc.raise_with_backtrace r.exn r.trace
-  | Fun _ | Run _ ->
-      force t (Fiber.current () :> Fiber.as_async) Backoff.default
+  | Fun _ | Run _ -> force t (Fiber.current ()) Backoff.default
 
 let map f t = from_fun @@ fun () -> f (force t)

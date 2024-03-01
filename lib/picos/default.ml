@@ -3,7 +3,7 @@ open struct
     type t = {
       mutex : Mutex.t;
       condition : Condition.t;
-      fiber : [ `Sync | `Async ] Bootstrap.Fiber.t;
+      fiber : Bootstrap.Fiber.t;
     }
 
     open struct
@@ -70,7 +70,7 @@ open struct
       | Entry : {
           time : Mtime.span;
           exn_bt : Exn_bt.t;
-          computation : 'a Bootstrap.Computation.as_cancelable;
+          computation : 'a Bootstrap.Computation.t;
         }
           -> t
 

@@ -3,16 +3,16 @@ module type Exn_bt = sig
 end
 
 module type Trigger = sig
-  type _ t
+  type t
   type exn_bt
 end
 
 module type Computation = sig
-  type _ as_cancelable
+  type _ t
   type exn_bt
 end
 
 module type Fiber = sig
-  type _ t
-  type _ as_cancelable
+  type t
+  type _ computation
 end

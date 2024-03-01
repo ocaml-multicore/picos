@@ -15,7 +15,7 @@ module type Exn_bt = sig
 end
 
 module type Trigger = sig
-  type _ t
+  type t
   type exn_bt
 
   (** Schedulers may handle the {!Await} effect to customize the behavior of
@@ -25,17 +25,18 @@ module type Trigger = sig
       be attached to the computation of the fiber for the duration of suspending
       the fiber.
 
+      Typically the handler calls {!on_signal} to attach a scheduler specific
+      [resume] action to the [trigger].
+
       Whether being resumed due to cancelation or not, the trigger should be
       signaled before resuming the fiber.
 
       The scheduler is free to choose which ready fiber to resume next. *)
-  type _ Effect.t +=
-    private
-    | Await : [ `On | `Signal ] t -> exn_bt option Effect.t
+  type _ Effect.t += private Await : t -> exn_bt option Effect.t
 end
 
 module type Computation = sig
-  type _ as_cancelable
+  type _ t
   type exn_bt
 
   (** Schedulers may handle the {!Cancel_after} effect to customize the behavior
@@ -54,16 +55,16 @@ module type Computation = sig
     | Cancel_after : {
         seconds : float;  (** Guaranteed to be non-negative. *)
         exn_bt : exn_bt;
-        computation : 'a as_cancelable;
+        computation : 'a t;
       }
         -> unit Effect.t
 end
 
 module type Fiber = sig
-  type _ t
-  type _ as_cancelable
+  type t
+  type _ computation
 
-  val continue : 'a t -> ('v, 'r) Effect.Deep.continuation -> 'v -> 'r
+  val continue : t -> ('v, 'r) Effect.Deep.continuation -> 'v -> 'r
   (** [continue fiber k v] is equivalent to:
       {[
         match Fiber.canceled fiber with
@@ -72,7 +73,7 @@ module type Fiber = sig
       ]} *)
 
   val continue_with :
-    'a t ->
+    t ->
     ('v, 'b) Effect.Shallow.continuation ->
     'v ->
     ('b, 'r) Effect.Shallow.handler ->
@@ -93,7 +94,7 @@ module type Fiber = sig
 
       Note that in typical use cases of [current] it makes sense to give
       priority to the fiber performing {!Current}, but this is not required. *)
-  type _ Effect.t += private Current : [ `Sync | `Async ] t Effect.t
+  type _ Effect.t += private Current : t Effect.t
 
   (** Schedulers may handle the {!Yield} effect to customize the behavior of
       [yield].
@@ -113,7 +114,7 @@ module type Fiber = sig
     private
     | Spawn : {
         forbid : bool;
-        computation : 'a as_cancelable;
+        computation : 'a computation;
         mains : (unit -> unit) list;
       }
         -> unit Effect.t

@@ -10,11 +10,11 @@
 
 open Picos
 
-type 'a t = ('a, [ `Await | `Cancel ]) Computation.t
-type 'a unpublished = ('a, [ `Await | `Cancel | `Return ]) Computation.t
+type 'a t = 'a Computation.t
+type 'a unpublished = 'a Computation.t
 
 let await = Computation.await
-let[@inline] of_computation x = (x :> 'a t)
+let of_computation = Fun.id
 let peek t = if Computation.is_running t then None else Some (await t)
 let try_cancel = Computation.try_cancel
 
@@ -23,7 +23,7 @@ module Infix = struct
     let y = Computation.create () in
     let main = Computation.capture y @@ fun () -> xy (await x) in
     Fiber.spawn ~forbid:false y [ main ];
-    of_computation y
+    y
 
   let ( and+ ) x y =
     let xy = Computation.create () in
@@ -47,13 +47,13 @@ module Infix = struct
         (await x, y)
     in
     Fiber.spawn ~forbid:false xy [ main ];
-    of_computation xy
+    xy
 
   let ( let* ) x xy =
     let y = Computation.create () in
     let main = Computation.capture y @@ fun () -> await (xy (await x)) in
     Fiber.spawn ~forbid:false y [ main ];
-    of_computation y
+    y
 
   let ( and* ) = ( and+ )
 end
@@ -96,7 +96,7 @@ let any xs =
     try_attach_to_all [] xs
   in
   Fiber.spawn ~forbid:false y [ main ];
-  of_computation y
+  y
 
 let create = Computation.create
 let try_return_to = Computation.try_return

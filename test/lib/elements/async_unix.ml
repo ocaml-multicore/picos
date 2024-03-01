@@ -5,7 +5,7 @@ module Async = struct
   (* TODO: Use better data structures for awaiters than lists. *)
 
   module Awaiter = struct
-    type t = { file_descr : Unix.file_descr; trigger : Trigger.as_signal }
+    type t = { file_descr : Unix.file_descr; trigger : Trigger.t }
 
     let file_descr_of t = t.file_descr
 
@@ -138,7 +138,7 @@ module Async = struct
 
   let await s r file_descr =
     let trigger = Trigger.create () in
-    let awaiter = Awaiter.{ file_descr; trigger :> Trigger.as_signal } in
+    let awaiter = Awaiter.{ file_descr; trigger } in
     Thread_atomic.modify r (List.cons awaiter);
     wakeup s;
     match Trigger.await trigger with

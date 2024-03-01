@@ -2,11 +2,11 @@ open Picos
 open Foundation
 
 module Checked = struct
-  type entry = { trigger : Trigger.as_signal; fiber : Fiber.as_async }
+  type entry = { trigger : Trigger.t; fiber : Fiber.t }
 
   type state =
     | Unlocked
-    | Locked of { fiber : Fiber.as_async; head : entry list; tail : entry list }
+    | Locked of { fiber : Fiber.t; head : entry list; tail : entry list }
 
   type t = state Atomic.t
 
@@ -44,8 +44,7 @@ module Checked = struct
     if Atomic.compare_and_set t before after then Trigger.signal trigger
     else unlock_as t owner (Backoff.once backoff)
 
-  let unlock t =
-    unlock_as t (Fiber.current () :> Fiber.as_async) Backoff.default
+  let unlock t = unlock_as t (Fiber.current ()) Backoff.default
 
   let rec cleanup_as t entry backoff =
     (* We have been canceled.  If we are the owner, we must unlock the mutex.
@@ -81,10 +80,10 @@ module Checked = struct
         if not (Atomic.compare_and_set t before after) then
           lock_as t fiber (Backoff.once backoff)
     | Locked r as before ->
-        if Fiber.equal r.fiber (fiber :> Fiber.as_async) then owner ()
+        if Fiber.equal r.fiber fiber then owner ()
         else
           let trigger = Trigger.create () in
-          let entry = { trigger :> Trigger.as_signal; fiber } in
+          let entry = { trigger; fiber } in
           let after =
             if r.head == [] then
               Locked
@@ -100,16 +99,16 @@ module Checked = struct
           end
           else lock_as t fiber (Backoff.once backoff)
 
-  let lock t = lock_as t (Fiber.current () :> Fiber.as_async) Backoff.default
+  let lock t = lock_as t (Fiber.current ()) Backoff.default
 
   let try_lock t =
-    let fiber = (Fiber.current () :> Fiber.as_async) in
+    let fiber = Fiber.current () in
     Atomic.get t == Unlocked
     && Atomic.compare_and_set t Unlocked
          (Locked { fiber; head = []; tail = [] })
 
   let protect t body =
-    let fiber = (Fiber.current () :> Fiber.as_async) in
+    let fiber = Fiber.current () in
     lock_as t fiber Backoff.default;
     match body () with
     | value ->
@@ -122,22 +121,20 @@ module Checked = struct
 
   let succumb t body =
     let fiber = Fiber.current () in
-    unlock_as t (fiber :> Fiber.as_async) Backoff.default;
+    unlock_as t fiber Backoff.default;
     match body () with
     | value ->
-        Fiber.forbid fiber (fun () ->
-            lock_as t (fiber :> Fiber.as_async) Backoff.default);
+        Fiber.forbid fiber (fun () -> lock_as t fiber Backoff.default);
         value
     | exception exn ->
         let bt = Printexc.get_raw_backtrace () in
-        Fiber.forbid fiber (fun () ->
-            lock_as t (fiber :> Fiber.as_async) Backoff.default);
+        Fiber.forbid fiber (fun () -> lock_as t fiber Backoff.default);
         Printexc.raise_with_backtrace exn bt
 end
 
 module Make (Mutex : Sync_intf.Mutex) :
   Sync_intf.Condition with type mutex := Mutex.t = struct
-  type state = { head : Trigger.as_signal list; tail : Trigger.as_signal list }
+  type state = { head : Trigger.t list; tail : Trigger.t list }
 
   let empty = { head = []; tail = [] }
 
@@ -208,21 +205,18 @@ module Make (Mutex : Sync_intf.Mutex) :
   let rec wait backoff trigger t mutex =
     let before = Atomic.get t in
     let after =
-      if before == empty then
-        { head = [ (trigger :> Trigger.as_signal) ]; tail = [] }
+      if before == empty then { head = [ trigger ]; tail = [] }
       else if before.head != [] then
-        { before with tail = (trigger :> Trigger.as_signal) :: before.tail }
+        { before with tail = trigger :: before.tail }
       else
-        let head =
-          List.rev_append [ (trigger :> Trigger.as_signal) ] before.tail
-        in
+        let head = List.rev_append [ trigger ] before.tail in
         { head; tail = [] }
     in
     if Atomic.compare_and_set t before after then begin
       match Mutex.succumb mutex @@ fun () -> Trigger.await trigger with
       | None -> ()
       | Some exn_bt ->
-          cleanup Backoff.default (trigger :> Trigger.as_signal) t;
+          cleanup Backoff.default trigger t;
           Exn_bt.raise exn_bt
     end
     else wait (Backoff.once backoff) trigger t mutex
