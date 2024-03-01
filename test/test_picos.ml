@@ -110,6 +110,49 @@ let test_cancel_after () =
     (Exn_bt.get_callstack 0 Not_found);
   Computation.await computation
 
+let test_computation_completion_signals_triggers_in_lifo_order () =
+  let state = Random.State.make_self_init () in
+  let num_non_trivial = ref 0 in
+  for _ = 1 to 10 do
+    let computation = Computation.create () in
+    let signals = ref [] in
+    let triggers = ref [] in
+    let counter = ref 0 in
+    let attach_one () =
+      let trigger = Trigger.create () in
+      triggers := trigger :: !triggers;
+      let i = !counter in
+      counter := i + 1;
+      assert (Computation.try_attach computation trigger);
+      assert (
+        Trigger.on_signal trigger () () (fun _ _ _ -> signals := i :: !signals))
+    in
+    let detach_one () =
+      let n = List.length !triggers in
+      if 0 < n then begin
+        let bits = Random.State.bits state in
+        let i = bits mod n in
+        let trigger = List.nth !triggers i in
+        triggers := List.filter (( != ) trigger) !triggers;
+        Computation.detach computation trigger
+      end
+    in
+    for _ = 1 to 10 do
+      for _ = 1 to 10 do
+        let bits = Random.State.bits state in
+        if bits land 3 <= 2 then attach_one () else detach_one ()
+      done;
+      for _ = 1 to List.length !triggers / 3 do
+        detach_one ()
+      done
+    done;
+    if List.length !triggers >= 2 then incr num_non_trivial;
+    signals := [];
+    Computation.finish computation;
+    assert (!signals = List.sort Int.compare !signals)
+  done;
+  assert (0 < !num_non_trivial)
+
 let () =
   [
     ("DLS is lazy", [ Alcotest.test_case "" `Quick test_dls_is_lazy ]);
@@ -120,5 +163,10 @@ let () =
     ( "Thread cancelation",
       [ Alcotest.test_case "" `Quick test_thread_cancelation ] );
     ("Cancel after", [ Alcotest.test_case "" `Quick test_cancel_after ]);
+    ( "Computation signals in LIFO order",
+      [
+        Alcotest.test_case "" `Quick
+          test_computation_completion_signals_triggers_in_lifo_order;
+      ] );
   ]
   |> Alcotest.run "Picos"
