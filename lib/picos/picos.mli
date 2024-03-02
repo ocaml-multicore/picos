@@ -782,9 +782,16 @@ module Fiber : sig
   (** [forbid fiber thunk] tells the scheduler that cancelation must not be
       propagated to the fiber during the execution of [thunk].
 
-      Note that this does not prevent the associated {!computation} from being
-      canceled.  This only tells the scheduler not to propagate cancelation to
-      the fiber.
+      The main use case of [forbid] is the implementation of concurrent
+      abstractions that may have to {{!Trigger.await} await} for something, or
+      may need to perform other effects, and must not be canceled while doing
+      so.  For example, the wait operation on a condition variable typically
+      re-acquires the associated mutex before returning, which may require
+      awaiting for the owner of the mutex to release it.
+
+      Note that [forbid] does not prevent the fiber or the associated
+      {!computation} from being canceled.  It only tells the scheduler not to
+      propagate cancelation to the fiber.
 
       ⚠️ It is only safe to call [forbid] from the fiber itself. *)
 
