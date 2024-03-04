@@ -29,7 +29,8 @@ module type Trigger = sig
       [resume] action to the [trigger].
 
       Whether being resumed due to cancelation or not, the trigger should be
-      signaled before resuming the fiber.
+      either {{!signal} signaled} outside of the effect handler, or {{!dispose}
+      disposed} by the effect handler, before resuming the fiber.
 
       The scheduler is free to choose which ready fiber to resume next. *)
   type _ Effect.t += private Await : t -> exn_bt option Effect.t

@@ -58,7 +58,7 @@ let await trigger =
       Bootstrap.Fiber.canceled per_thread.fiber
     end
   else begin
-    Bootstrap.Trigger.signal trigger;
+    Bootstrap.Trigger.dispose trigger;
     Bootstrap.Fiber.canceled per_thread.fiber
   end
 
@@ -244,8 +244,7 @@ let cancel_after seconds exn_bt computation =
       let id = Per_domain.next_id per_domain in
       Per_domain.add_timeout per_domain id entry;
       let remover =
-        Atomic.make
-          (Bootstrap.Trigger.Awaiting (Per_domain.remove_timeout, per_domain, id))
+        Bootstrap.Trigger.from_action per_domain id Per_domain.remove_timeout
       in
       if not (Bootstrap.Computation.try_attach computation remover) then
         Bootstrap.Trigger.signal remover

@@ -34,9 +34,24 @@ let run ~forbid main =
   let mc = Mutex_and_condition.get () in
   let t = { ready; needs_wakeup; num_alive_fibers; mc } in
   let resume trigger fiber k =
-    if not (Fiber.has_forbidden fiber) then Fiber.detach fiber trigger;
-    let work () = Effect.Deep.continue k (Fiber.canceled fiber) in
+    if not (Fiber.has_forbidden fiber) then begin
+      (* As propagation of cancelation was not forbidden, and we have attached a
+         trigger, we need to ensure that the trigger will not be leaked. *)
+      Fiber.detach fiber trigger
+    end;
+    let work () =
+      (* In this scheduler we determine the cancelation status just before we
+         continue the resumed fiber after dequeuing it from the ready queue. *)
+      let exn_bt_opt = Fiber.canceled fiber in
+      Effect.Deep.continue k exn_bt_opt
+    in
+    (* In this scheduler we don't schedule canceled fibers any differently, but
+       we could have, at this point, checked if the fiber actually has been
+       canceled and enqueue the fiber differently. *)
     Mpsc_queue.enqueue t.ready work;
+    (* As the trigger might have been signaled from another domain or systhread
+       outside of the scheduler, we check whether the scheduler needs to be
+       woken up and take care of it if necessary. *)
     if
       Atomic.get t.needs_wakeup
       && Atomic.compare_and_set t.needs_wakeup true false
@@ -122,8 +137,9 @@ let run ~forbid main =
                   (* We could not attach the trigger to the computation of the
                      fiber, which means that either the computation has been
                      canceled or the trigger has been signaled.  We still need
-                     to ensure that the trigger really is signaled. *)
-                  Trigger.signal trigger;
+                     to ensure that the trigger really is put into the signaled
+                     state before the fiber is continued. *)
+                  Trigger.dispose trigger;
                   (* We could now freely decide which fiber to continue, but in
                      this scheduler we choose to continue the current fiber. *)
                   Effect.Deep.continue k (Fiber.canceled fiber)

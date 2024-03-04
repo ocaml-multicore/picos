@@ -1,33 +1,41 @@
 module Trigger = struct
+  let[@inline never] awaiting () = invalid_arg "Trigger: already awaiting"
+
   type state =
     | Signaled
-    | Awaiting : (t -> 'x -> 'y -> unit) * 'x * 'y -> state
+    | Awaiting : { action : t -> 'x -> 'y -> unit; x : 'x; y : 'y } -> state
     | Initial
 
   and t = state Atomic.t
 
   let create () = Atomic.make Initial
-
-  let rec signal t =
-    match Atomic.get t with
-    | Signaled -> ()
-    | Initial ->
-        if not (Atomic.compare_and_set t Initial Signaled) then signal t
-    | Awaiting (action, x, y) as before ->
-        if Atomic.compare_and_set t before Signaled then action t x y
-        else signal t
-
   let is_signaled t = Atomic.get t == Signaled
   let is_initial t = Atomic.get t == Initial
-  let[@inline never] awaiting () = invalid_arg "Trigger: already awaiting"
+
+  let rec finish t ~allow_awaiting =
+    match Atomic.get t with
+    | Signaled -> ()
+    | Awaiting r as before ->
+        if allow_awaiting then
+          if Atomic.compare_and_set t before Signaled then r.action t r.x r.y
+          else finish t ~allow_awaiting
+        else awaiting ()
+    | Initial ->
+        if not (Atomic.compare_and_set t Initial Signaled) then
+          finish t ~allow_awaiting
+
+  let signal t = finish t ~allow_awaiting:true
+  let dispose t = finish t ~allow_awaiting:false
 
   let rec on_signal t x y action =
     match Atomic.get t with
-    | Initial ->
-        Atomic.compare_and_set t Initial (Awaiting (action, x, y))
-        || on_signal t x y action
     | Signaled -> false
     | Awaiting _ -> awaiting ()
+    | Initial ->
+        Atomic.compare_and_set t Initial (Awaiting { action; x; y })
+        || on_signal t x y action
+
+  let from_action x y action = Atomic.make (Awaiting { action; x; y })
 end
 
 module Computation = struct
@@ -160,8 +168,7 @@ module Computation = struct
       match canceled from with None -> () | Some exn_bt -> cancel into exn_bt
   end
 
-  let canceler ~from ~into =
-    Atomic.make (Trigger.Awaiting (propagate, from, into))
+  let canceler ~from ~into = Trigger.from_action from into propagate
 end
 
 module Fiber = struct
