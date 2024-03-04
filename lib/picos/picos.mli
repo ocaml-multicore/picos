@@ -567,8 +567,15 @@ module Computation : sig
   type !'a t
   (** Represents a cancelable computation. *)
 
-  val create : unit -> 'a t
-  (** [create ()] creates a new computation in the running state. *)
+  val create : ?mode:[ `FIFO | `LIFO ] -> unit -> 'a t
+  (** [create ()] creates a new computation in the running state.
+
+      The optional [mode] specifies the order in which {{!Trigger} triggers}
+      {{!try_attach} attached} to the computation will be {{!Trigger.signal}
+      signaled} after the computation has been completed.  [`FIFO] ordering may
+      reduce latency of IO bound computations and is the default.  [`LIFO] may
+      improve thruput of CPU bound computations and be preferable on a
+      work-stealing scheduler, for example. *)
 
   val finished : unit t
   (** [finished] is a constant finished computation. *)

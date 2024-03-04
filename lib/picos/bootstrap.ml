@@ -34,11 +34,16 @@ module Computation = struct
   type 'a state =
     | Canceled of Exn_bt.t
     | Returned of 'a
-    | Continue of { balance : int; triggers : Trigger.t list }
+    | Continue of { balance_and_mode : int; triggers : Trigger.t list }
 
   type 'a t = 'a state Atomic.t
 
-  let create () = Atomic.make (Continue { balance = 0; triggers = [] })
+  let fifo_bit = 1
+  let one = 2
+
+  let create ?(mode : [ `FIFO | `LIFO ] = `FIFO) () =
+    let balance_and_mode = Bool.to_int (mode == `FIFO) in
+    Atomic.make (Continue { balance_and_mode; triggers = [] })
 
   let canceled t =
     match Atomic.get t with
@@ -50,13 +55,16 @@ module Computation = struct
         [detach].  This ensures that the [O(n)] lazy removal done by [gc] cannot
         cause starvation, because the only reason that CAS fails after [gc] is
         that someone else completed the [gc]. *)
-    let rec gc balance triggers = function
+    let rec gc balance_and_mode triggers = function
       | [] ->
-          let triggers = if balance <= 1 then triggers else List.rev triggers in
-          Continue { balance; triggers }
+          let triggers =
+            if balance_and_mode <= one + fifo_bit then triggers
+            else List.rev triggers
+          in
+          Continue { balance_and_mode; triggers }
       | r :: rs ->
-          if Trigger.is_signaled r then gc balance triggers rs
-          else gc (balance + 1) (r :: triggers) rs
+          if Trigger.is_signaled r then gc balance_and_mode triggers rs
+          else gc (balance_and_mode + one) (r :: triggers) rs
   end
 
   let rec try_attach t trigger backoff =
@@ -67,10 +75,14 @@ module Computation = struct
         (not (Trigger.is_signaled trigger))
         &&
         let after =
-          if 0 <= r.balance then
+          if fifo_bit <= r.balance_and_mode then
             Continue
-              { balance = r.balance + 1; triggers = trigger :: r.triggers }
-          else gc 1 [ trigger ] r.triggers
+              {
+                balance_and_mode = r.balance_and_mode + one;
+                triggers = trigger :: r.triggers;
+              }
+          else
+            gc (one + (r.balance_and_mode land fifo_bit)) [ trigger ] r.triggers
         in
         Atomic.compare_and_set t before after
         || try_attach t trigger (Backoff.once backoff)
@@ -82,8 +94,10 @@ module Computation = struct
     | Returned _ | Canceled _ -> ()
     | Continue r as before ->
         let after =
-          if 0 <= r.balance then Continue { r with balance = r.balance - 2 }
-          else gc 0 [] r.triggers
+          if fifo_bit <= r.balance_and_mode then
+            Continue
+              { r with balance_and_mode = r.balance_and_mode - (2 * one) }
+          else gc (r.balance_and_mode land fifo_bit) [] r.triggers
         in
         if not (Atomic.compare_and_set t before after) then
           detach t (Backoff.once backoff)
@@ -105,7 +119,10 @@ module Computation = struct
       | Returned _ | Canceled _ -> false
       | Continue r as before ->
           if Atomic.compare_and_set t before after then begin
-            List.iter Trigger.signal r.triggers;
+            List.iter Trigger.signal
+              (if r.balance_and_mode land fifo_bit = fifo_bit then
+                 List.rev r.triggers
+               else r.triggers);
             true
           end
           else try_terminate t after (Backoff.once backoff)
