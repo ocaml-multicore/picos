@@ -43,81 +43,88 @@ let test_trigger_contract () =
 
 (** This tries to cover much of the public contract of [Computation]s. *)
 let test_computation_contract () =
-  let attached_total = ref 0 and unattached_total = ref 0 in
-  let () =
-    Atomic.trace @@ fun () ->
-    let computation = Computation.create () in
-    let returns = ref 0 and cancels = ref 0 in
-    let () =
-      Atomic.spawn @@ fun () ->
-      if Computation.try_return computation 101 then incr returns
-    in
-    let () =
-      Atomic.spawn @@ fun () ->
-      if Computation.try_cancel computation (Exn_bt.get_callstack 1 Exit) then
-        incr cancels
-    in
-    let triggers = Array.init 2 @@ fun _ -> Trigger.create () in
-    let attached = ref 0 and unattached = ref 0 in
-    let () =
-      triggers
-      |> Array.iter @@ fun trigger ->
+  [ `FIFO; `LIFO ]
+  |> List.iter @@ fun mode ->
+     let attached_total = ref 0 and unattached_total = ref 0 in
+     let () =
+       Atomic.trace @@ fun () ->
+       let computation = Computation.create ~mode () in
+       let returns = ref 0 and cancels = ref 0 in
+       let () =
          Atomic.spawn @@ fun () ->
-         if Computation.try_attach computation trigger then incr attached
-         else incr unattached
-    in
-    Atomic.final @@ fun () ->
-    Atomic.check @@ fun () ->
-    attached_total += !attached;
-    unattached_total += !unattached;
-    begin
-      match Computation.peek computation with
-      | Some (Ok 101) when !returns = 1 && !cancels = 0 -> true
-      | Some (Error { exn = Exit; _ }) when !returns = 0 && !cancels = 1 -> true
-      | _ -> false
-    end
-    && !attached + !unattached = Array.length triggers
-    && !attached
-       = sum_as
-           (fun trigger -> Bool.to_int (Trigger.is_signaled trigger))
-           triggers
-  in
-  [ attached_total; unattached_total ]
-  |> List.iter @@ fun total -> if !total = 0 then Alcotest.fail "uncovered case"
+         if Computation.try_return computation 101 then incr returns
+       in
+       let () =
+         Atomic.spawn @@ fun () ->
+         if Computation.try_cancel computation (Exn_bt.get_callstack 1 Exit)
+         then incr cancels
+       in
+       let triggers = Array.init 2 @@ fun _ -> Trigger.create () in
+       let attached = ref 0 and unattached = ref 0 in
+       let () =
+         triggers
+         |> Array.iter @@ fun trigger ->
+            Atomic.spawn @@ fun () ->
+            if Computation.try_attach computation trigger then incr attached
+            else incr unattached
+       in
+       Atomic.final @@ fun () ->
+       Atomic.check @@ fun () ->
+       attached_total += !attached;
+       unattached_total += !unattached;
+       begin
+         match Computation.peek computation with
+         | Some (Ok 101) when !returns = 1 && !cancels = 0 -> true
+         | Some (Error { exn = Exit; _ }) when !returns = 0 && !cancels = 1 ->
+             true
+         | _ -> false
+       end
+       && !attached + !unattached = Array.length triggers
+       && !attached
+          = sum_as
+              (fun trigger -> Bool.to_int (Trigger.is_signaled trigger))
+              triggers
+     in
+     [ attached_total; unattached_total ]
+     |> List.iter @@ fun total ->
+        if !total = 0 then Alcotest.fail "uncovered case"
 
 (** This covers the contract of [Computation] to remove detached triggers.
 
     Testing this through the public API would require relying on GC
     statistics. *)
 let test_computation_removes_triggers () =
-  Atomic.trace @@ fun () ->
-  let computation = Computation.create () in
-  let triggers = Array.init 4 @@ fun _ -> Trigger.create () in
-  let () =
-    triggers
-    |> Array.iter @@ fun trigger ->
-       Atomic.spawn @@ fun () ->
-       Atomic.check (fun () -> Computation.try_attach computation trigger);
-       Computation.detach computation trigger
-  in
-  Atomic.final @@ fun () ->
-  Atomic.check @@ fun () ->
-  Array.for_all Trigger.is_signaled triggers
-  &&
-  match Atomic.get computation with
-  | Canceled _ | Returned _ -> false
-  | Continue { balance; triggers } ->
-      balance <= 0
-      && List.length triggers <= 2
-      &&
-      let trigger = Trigger.create () in
-      Computation.try_attach computation trigger
-      && begin
-           match Atomic.get computation with
-           | Canceled _ | Returned _ -> false
-           | Continue { balance; triggers } ->
-               balance = 1 && triggers = [ trigger ]
-         end
+  [ `FIFO; `LIFO ]
+  |> List.iter @@ fun mode ->
+     Atomic.trace @@ fun () ->
+     let computation = Computation.create ~mode () in
+     let triggers = Array.init 4 @@ fun _ -> Trigger.create () in
+     let () =
+       triggers
+       |> Array.iter @@ fun trigger ->
+          Atomic.spawn @@ fun () ->
+          Atomic.check (fun () -> Computation.try_attach computation trigger);
+          Computation.detach computation trigger
+     in
+     Atomic.final @@ fun () ->
+     Atomic.check @@ fun () ->
+     Array.for_all Trigger.is_signaled triggers
+     &&
+     match Atomic.get computation with
+     | Canceled _ | Returned _ -> false
+     | Continue { balance_and_mode; triggers } ->
+         balance_and_mode <= Computation.fifo_bit
+         && List.length triggers <= 2
+         &&
+         let trigger = Trigger.create () in
+         Computation.try_attach computation trigger
+         && begin
+              match Atomic.get computation with
+              | Canceled _ | Returned _ -> false
+              | Continue { balance_and_mode; triggers } ->
+                  balance_and_mode <= Computation.one + Computation.fifo_bit
+                  && triggers = [ trigger ]
+            end
 
 let () =
   Alcotest.run "Picos DSCheck"

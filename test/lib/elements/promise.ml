@@ -98,7 +98,7 @@ let any xs =
   Fiber.spawn ~forbid:false y [ main ];
   y
 
-let create = Computation.create
+let create () = Computation.create ()
 let try_return_to = Computation.try_return
 let try_reify_to t thunk = Computation.try_capture t thunk ()
 let publish = of_computation

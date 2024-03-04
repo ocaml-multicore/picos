@@ -3,7 +3,7 @@ open Picos
 let exit_bt = Exn_bt.get_callstack 0 Exit
 
 let sleepf seconds =
-  let sleep = Computation.create () in
+  let sleep = Computation.create ~mode:`LIFO () in
   Computation.cancel_after ~seconds sleep exit_bt;
   let trigger = Trigger.create () in
   if Computation.try_attach sleep trigger then
