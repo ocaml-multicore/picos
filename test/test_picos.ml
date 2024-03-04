@@ -20,6 +20,10 @@ let test_dls_is_lazy =
       ~msg:"must be incremented" ~expected:1 ~actual:!counter
 
 let test_fls_basics =
+  (* It is imperative to test with both float... *)
+  let float_key = Fiber.FLS.new_key (Constant 1.01) in
+
+  (* ...and with non float keys. *)
   let answer_key = Fiber.FLS.new_key (Constant 42) in
 
   let counter_key =
@@ -45,6 +49,13 @@ let test_fls_basics =
     Alcotest.(check' int)
       ~msg:"constant" ~expected:42
       ~actual:(Fiber.FLS.get fiber answer_key);
+    Alcotest.(check' (float 0.0))
+      ~msg:"constant" ~expected:1.01
+      ~actual:(Fiber.FLS.get fiber float_key);
+    Fiber.FLS.set fiber float_key 4.2;
+    Alcotest.(check' (float 0.0))
+      ~msg:"constant" ~expected:4.2
+      ~actual:(Fiber.FLS.get fiber float_key);
     Alcotest.(check' int)
       ~msg:"computed" ~expected:(first + 1)
       ~actual:(Fiber.FLS.get fiber counter_key)
