@@ -163,7 +163,10 @@ module Computation = struct
 
   open struct
     let propagate _ from into =
-      match canceled from with None -> () | Some exn_bt -> cancel into exn_bt
+      match Atomic.get from with
+      | Returned _ | Continue _ -> ()
+      | Canceled _ as after ->
+          try_terminate into after Backoff.default |> ignore
   end
 
   let canceler ~from ~into = Trigger.from_action from into propagate
