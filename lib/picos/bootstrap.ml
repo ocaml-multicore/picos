@@ -84,11 +84,9 @@ module Computation = struct
         &&
         let after =
           if fifo_bit <= r.balance_and_mode then
-            Continue
-              {
-                balance_and_mode = r.balance_and_mode + one;
-                triggers = trigger :: r.triggers;
-              }
+            let balance_and_mode = r.balance_and_mode + one in
+            let triggers = trigger :: r.triggers in
+            Continue { balance_and_mode; triggers }
           else
             gc (one + (r.balance_and_mode land fifo_bit)) [ trigger ] r.triggers
         in
