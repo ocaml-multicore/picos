@@ -362,7 +362,7 @@ module Trigger : sig
   (** [is_initial trigger] determines whether the trigger is in the initial
       state.
 
-      ⚠️ Consider using {!is_signaled} instead of [is_initial] as in some
+      ℹ️ Consider using {!is_signaled} instead of [is_initial] as in some
       contexts a trigger might reasonably be either in the initial or the
       awaiting state depending on the order in which things are being done. *)
 
@@ -431,13 +431,18 @@ module Trigger : sig
 
   val on_signal : t -> 'x -> 'y -> (t -> 'x -> 'y -> unit) -> bool
   (** [on_signal trigger x y resume] attempts to attach the [resume] action to
-      the [trigger] and transition the trigger to the awaiting state.  It must
-      be safe to call [resume trigger x y] from any context that {!signal} might
-      be called from.
+      the [trigger] and transition the trigger to the awaiting state.
 
       The return value is [true] in case the action was attached successfully.
       Otherwise the return value is [false], which means that the trigger was
       already in the signaled state.
+
+      ⚠️ The action that you attach to a trigger must be safe to call from any
+      context that might end up signaling the trigger.  Unless you know, then
+      you should assume that {!signal} might be called from a different domain
+      running in parallel with neither effect nor exception handlers and that if
+      the attached action doesn't return the system may deadlock or if actions
+      doesn't return quickly it may cause performance issues.
 
       ⚠️ Only the scheduler should call [on_signal] in the handler of {!Await} to
       attach the [resume] action to the [trigger].  It is considered an error to
@@ -451,8 +456,16 @@ module Trigger : sig
   (** [from_action x y resume] is equivalent to
       [let t = create () in assert (on_signal t x y resume); t].
 
-      🚦 The intended use case of [from_action] is as a low level building block
-      for schedulers and structured concurrency mechanisms.
+      🛑 The intended use case of [from_action] is as an escape hatch for
+      experts implementing schedulers or structured concurrency mechanisms when
+      it would be too difficult or too inefficient to implement those otherwise.
+
+      ⚠️ The action that you attach to a trigger must be safe to call from any
+      context that might end up signaling the trigger.  Unless you know, then
+      you should assume that {!signal} might be called from a different domain
+      running in parallel with neither effect nor exception handlers and that if
+      the attached action doesn't return the system may deadlock or if actions
+      doesn't return quickly it may cause performance issues.
 
       ⚠️ The returned trigger will be in the awaiting state, which means that it
       is an error to call {!await}, {!on_signal}, or {!dispose} on it. *)
