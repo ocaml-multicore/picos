@@ -132,14 +132,14 @@ let test_computation_completion_signals_triggers_in_order () =
        let triggers = ref [] in
        let counter = ref 0 in
        let attach_one () =
-         let trigger = Trigger.create () in
-         triggers := trigger :: !triggers;
          let i = !counter in
          counter := i + 1;
-         assert (Computation.try_attach computation trigger);
-         assert (
-           Trigger.on_signal trigger () () (fun _ _ _ ->
-               signals := i :: !signals))
+         let[@alert "-sledge_hammer"] trigger =
+           Trigger.from_action signals i @@ fun _ signals i ->
+           signals := i :: !signals
+         in
+         triggers := trigger :: !triggers;
+         assert (Computation.try_attach computation trigger)
        in
        let detach_one () =
          let n = List.length !triggers in

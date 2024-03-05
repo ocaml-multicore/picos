@@ -430,6 +430,11 @@ module Trigger : sig
   (** {2 Interface for schedulers} *)
 
   val on_signal : t -> 'x -> 'y -> (t -> 'x -> 'y -> unit) -> bool
+  [@@alert
+    handler
+      "Only a scheduler should call this in the handler of the Await effect to \
+       attach the scheduler specific resume action to the trigger.  Annotate \
+       your effect handling function with [@alert \"-handler\"]."]
   (** [on_signal trigger x y resume] attempts to attach the [resume] action to
       the [trigger] and transition the trigger to the awaiting state.
 
@@ -438,34 +443,36 @@ module Trigger : sig
       already in the signaled state.
 
       ⚠️ The action that you attach to a trigger must be safe to call from any
-      context that might end up signaling the trigger.  Unless you know, then
-      you should assume that {!signal} might be called from a different domain
-      running in parallel with neither effect nor exception handlers and that if
-      the attached action doesn't return the system may deadlock or if actions
-      doesn't return quickly it may cause performance issues.
+      context that might end up signaling the trigger directly or indirectly
+      through {{!Computation.canceler} propagation}.  Unless you know, then you
+      should assume that the [resume] action might be called from a different
+      domain running in parallel with neither effect nor exception handlers and
+      that if the attached action doesn't return the system may deadlock or if
+      actions doesn't return quickly it may cause performance issues.
 
-      ⚠️ Only the scheduler should call [on_signal] in the handler of {!Await} to
-      attach the [resume] action to the [trigger].  It is considered an error to
-      make multiple calls to [on_signal] with a specific [trigger].
+      ⚠️ It is considered an error to make multiple calls to [on_signal] with a
+      specific [trigger].
 
       @raise Invalid_argument if the trigger was in the awaiting state, which
         means that either the owner or creator of the trigger made concurrent
         calls to {!await} or the handler called [on_signal] more than once. *)
 
   val from_action : 'x -> 'y -> (t -> 'x -> 'y -> unit) -> t
+  [@@alert
+    sledge_hammer
+      "This is an escape hatch for experts implementing schedulers or \
+       structured concurrency mechanisms.  If you know what you are doing, use \
+       [@alert \"-sledge_hammer\"]."]
   (** [from_action x y resume] is equivalent to
       [let t = create () in assert (on_signal t x y resume); t].
 
-      🛑 The intended use case of [from_action] is as an escape hatch for
-      experts implementing schedulers or structured concurrency mechanisms when
-      it would be too difficult or too inefficient to implement those otherwise.
-
       ⚠️ The action that you attach to a trigger must be safe to call from any
-      context that might end up signaling the trigger.  Unless you know, then
-      you should assume that {!signal} might be called from a different domain
-      running in parallel with neither effect nor exception handlers and that if
-      the attached action doesn't return the system may deadlock or if actions
-      doesn't return quickly it may cause performance issues.
+      context that might end up signaling the trigger directly or indirectly
+      through {{!Computation.canceler} propagation}.  Unless you know, then you
+      should assume that the [resume] action might be called from a different
+      domain running in parallel with neither effect nor exception handlers and
+      that if the attached action doesn't return the system may deadlock or if
+      actions doesn't return quickly it may cause performance issues.
 
       ⚠️ The returned trigger will be in the awaiting state, which means that it
       is an error to call {!await}, {!on_signal}, or {!dispose} on it. *)

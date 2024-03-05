@@ -65,7 +65,7 @@ let run ~forbid main =
           Mpsc_queue.enqueue t.ready (Fiber.continue fiber k);
           next t)
     in
-    let effc (type a) :
+    let[@alert "-handler"] effc (type a) :
         a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option = function
       | Fiber.Current ->
           (* We handle [Current] first as it is perhaps the most latency
