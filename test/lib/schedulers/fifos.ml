@@ -71,14 +71,16 @@ let run ~forbid main =
           (* We handle [Current] first as it is perhaps the most latency
              sensitive effect. *)
           current
-      | Fiber.Spawn { forbid; computation; mains } ->
+      | Fiber.Spawn spawn ->
           Some
             (fun k ->
               match Fiber.canceled fiber with
               | None ->
-                  mains
+                  spawn.mains
                   |> List.iter (fun main ->
-                         let fiber = Fiber.create ~forbid computation in
+                         let fiber =
+                           Fiber.create ~forbid:spawn.forbid spawn.computation
+                         in
                          Mpsc_queue.enqueue t.ready (fun () -> fork fiber main);
                          incr t.num_alive_fibers);
                   Effect.Deep.continue k ()
