@@ -148,8 +148,8 @@ These are minimalistic, but fully-functioning, schedulers provided as samples.
 
 {!modules:
   Picos_fifos
-  Picos_threaded
   Picos_lwt
+  Picos_threaded
 }
 
 {^ You may find these useful for both understanding the core Picos framework and
@@ -160,6 +160,7 @@ These are minimalistic, but fully-functioning, schedulers provided as samples.
 These are examples of libraries implemented in Picos.
 
 {!modules:
+  Picos_structured
   Picos_sync
   Picos_stdio
   Picos_select

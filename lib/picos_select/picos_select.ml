@@ -101,7 +101,7 @@ let cleared =
 
 let intr_key =
   Picos_thread.TLS.new_key @@ fun () : [ `Req ] tdt ->
-  invalid_arg "Picos_select has not been configured"
+  invalid_arg "has not been configured"
 
 let key =
   Picos_domain.DLS.new_key @@ fun () ->
@@ -280,13 +280,12 @@ let is_intr_sig signum = signum = config.intr_sig
 
 let rec configure ?(intr_sig = Sys.sigusr2) ?(handle_sigchld = true) () =
   if not (Picos_thread.is_main_thread ()) then
-    invalid_arg
-      "Picos_select must be configured from the main thread on the main domain";
+    invalid_arg "must be called from the main thread on the main domain";
   assert (Sys.sigabrt = -1 && Sys.sigxfsz < Sys.sigabrt);
   if intr_sig < Sys.sigxfsz || 0 <= intr_sig || intr_sig = Sys.sigchld then
-    invalid_arg "Invalid interrupt signal number";
+    invalid_arg "invalid interrupt signal number";
   if not (try_configure ~intr_sig ~intr_sigs:[ intr_sig ] ~handle_sigchld) then
-    invalid_arg "Picos_select.configure already configured";
+    invalid_arg "already configured";
 
   if not Sys.win32 then begin
     if config.bits land handle_sigchld_bit <> 0 then begin
@@ -336,8 +335,7 @@ let[@inline never] init s =
   while s.state == `Starting do
     Thread.yield ()
   done;
-  if s.state != `Alive then
-    invalid_arg "Picos_select: domain has been terminated"
+  if s.state != `Alive then invalid_arg "domain has been terminated"
 
 let get () =
   let s = Picos_domain.DLS.get key in
@@ -368,9 +366,7 @@ let rec remove_action _trigger s id =
 
 let to_deadline ~seconds =
   match Mtime.Span.of_float_ns (seconds *. 1_000_000_000.) with
-  | None ->
-      invalid_arg
-        "Picos_select: seconds should be between 0 to pow(2, 53) nanoseconds"
+  | None -> invalid_arg "seconds should be between 0 to pow(2, 53) nanoseconds"
   | Some span -> Mtime.Span.add (Mtime_clock.elapsed ()) span
 
 let[@alert "-handler"] cancel_after computation ~seconds exn_bt =
@@ -457,8 +453,7 @@ module Intr = struct
   let nothing = R Nothing
 
   let[@alert "-handler"] req ~seconds =
-    if Sys.win32 then
-      invalid_arg "Picos_select.Intr is not supported on Windows"
+    if Sys.win32 then invalid_arg "not supported on Windows"
     else begin
       let time = to_deadline ~seconds in
       (* assert (not (Computation.is_running r.computation)); *)

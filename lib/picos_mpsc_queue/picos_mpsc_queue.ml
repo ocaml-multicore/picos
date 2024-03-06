@@ -11,8 +11,7 @@ and 'a tail = T : ('a, [< `Tail | `Snoc ]) tdt -> 'a tail [@@unboxed]
 
 exception Empty
 
-let[@inline never] impossible () =
-  invalid_arg "Picos_mpsc_queue: multiple consumers not allowed"
+let[@inline never] impossible () = invalid_arg "multiple consumers not allowed"
 
 let create () =
   let tail = Multicore_magic.copy_as_padded @@ Atomic.make (T Tail) in

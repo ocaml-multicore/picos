@@ -75,11 +75,12 @@
     such as condition variables, where it is necessary to forbid cancelation
     when the associated mutex is reacquired.
 
-    Each fiber has an associated {!Computation}.  A computation is something
-    that needs to be completed either by {{!Computation.return} returning} a
-    value through it or by {{!Computation.cancel} canceling} it with an
-    exception.  To cancel a fiber one cancels the {{!Fiber.computation}
-    computation} associated with the fiber.
+    Each fiber has an associated {!Computation} at all times.  A computation is
+    something that needs to be completed either by {{!Computation.return}
+    returning} a value through it or by {{!Computation.cancel} canceling} it
+    with an exception.  To cancel a fiber one cancels the computation associated
+    with the fiber or any computation whose {{!Computation.canceler} cancelation
+    is propagated} to the computation associated with the fiber.
 
     Before a computation has been completed, it is also possible to
     {{!Computation.try_attach} attach} a {!Trigger} to the computation and also
@@ -114,7 +115,7 @@
     as well as a simple helper for cleaning up resources
 
     {[
-      open Foundation.Finally
+      open Picos_structured.Finally
     ]}
 
     and define a simple scheduler on OCaml 4
@@ -458,10 +459,12 @@ module Computation : sig
         end
       ]}
 
-      In this framework, a fiber is always associated with {{!Fiber.computation}
-      at least a single computation}.  However, {{!Fiber.spawn} it is possible
-      for multiple fibers to share a single computation} and it is also possible
-      for a single fiber to perform multiple computations.
+      In this framework, a fiber is always associated with
+      {{!Fiber.get_computation} at least a single computation}.  However,
+      {{!Fiber.spawn} it is possible for multiple fibers to share a single
+      computation} and it is also possible for a single fiber to perform
+      multiple computations.  Furthermore, the computation associated with a
+      fiber {{!Fiber.set_computation} can be changed} by the fiber.
 
       Computations are not hierarchical.  In other words, computations do not
       directly implement structured concurrency.  However, it is possible to
@@ -640,6 +643,15 @@ module Computation : sig
       ⚠️ The returned trigger will be in the awaiting state, which means that it
       is an error to call {!Trigger.await} or {!Trigger.on_signal} on it. *)
 
+  val attach_canceler : from:_ t -> into:_ t -> Trigger.t
+  (** [attach_canceler ~from ~into] tries to attach a {!canceler} to the
+      computation [from] to propagate cancelation to the computation [into] and
+      returns the {!canceler} when successful.  If the computation [from] has
+      already been canceled, the exception that [from] was canceled with will be
+      raised.
+
+      @raise Invalid_argument if the [from] computation has already returned. *)
+
   (** {2 Interface for schedulers} *)
 
   include Intf.Computation with type 'a t := 'a t with type exn_bt := Exn_bt.t
@@ -675,13 +687,14 @@ module Computation : sig
       scoping of computations and resource cleanup at completion, which is how
       the design evolved from a more traditional cancelation context design.
 
-      In this framework, {{!Fiber.computation} every fiber has an associated
-      computation}.  Being able to return a value through the computation means
-      that no separate promise is necessarily required to hold the result of a
-      fiber.  On the other hand, in this framework, {{!Fiber.spawn} multiple
-      fibers may share a single computation}.  This allows multiple fibers to be
-      canceled efficiently through a single atomic update.  In other words, the
-      design allows various higher level patterns to be implemented efficiently.
+      In this framework, {{!Fiber.get_computation} every fiber is associated
+      with a computation}.  Being able to return a value through the computation
+      means that no separate promise is necessarily required to hold the result
+      of a fiber.  On the other hand, in this framework, {{!Fiber.spawn}
+      multiple fibers may share a single computation}.  This allows multiple
+      fibers to be canceled efficiently through a single atomic update.  In
+      other words, the design allows various higher level patterns to be
+      implemented efficiently.
 
       Instead of directly implementing a hierarchy of computations, the design
       allows {{!try_attach} attach}ing triggers to computations and
@@ -702,8 +715,9 @@ module Fiber : sig
       A fiber corresponds to an independent thread of execution.  Fibers are
       {!create}d by schedulers in response to {!Spawn} effects.  A fiber is
       associated with a {{!Computation} computation} and either {!forbid}s or
-      {!permit}s the scheduler from propagating cancelation to it.  A fiber also
-      has an associated {{!FLS} fiber local storage}.
+      {!permit}s the scheduler from propagating cancelation when the fiber
+      performs effects.  A fiber also has an associated {{!FLS} fiber local
+      storage}.
 
       ⚠️ Many operations on fibers can only be called safely from the fiber
       itself, because those operations are neither concurrency nor parallelism
@@ -722,6 +736,10 @@ module Fiber : sig
       - on OCaml 5, [yield] perform the {!Yield} effect, and
       - on OCaml 4, [yield] will call the [yield] operation of the {{!Handler}
         current handler}. *)
+
+  val sleep : seconds:float -> unit
+  (** [sleep ~seconds] suspends the current fiber for specified number of
+      seconds. *)
 
   (** {2 Interface for spawning} *)
 
@@ -764,8 +782,8 @@ module Fiber : sig
 
       ⚠️ Extra care should be taken when storing the fiber object in any shared
       data structure, because, aside from checking whether two fibers are
-      {!equal}, or from accessing the associated {!computation}, it is generally
-      unsafe to perform any operations on foreign fibers.
+      {!equal}, it is generally unsafe to perform any operations on foreign
+      fibers.
 
       ℹ️ The behavior is that
 
@@ -802,7 +820,7 @@ module Fiber : sig
 
       ℹ️ [forbid] does not prevent the fiber or the associated {!computation}
       from being canceled.  It only tells the scheduler not to propagate
-      cancelation to the fiber.
+      cancelation to the fiber when it performs effects.
 
       ⚠️ It is only safe to call [forbid] from the fiber itself. *)
 
@@ -821,7 +839,7 @@ module Fiber : sig
       {@ocaml skip[
         not (Fiber.has_forbidden fiber) &&
         let (Packed computation) =
-          Fiber.computation fiber
+          Fiber.get_computation fiber
         in
         Computation.is_canceled computation
       ]}
@@ -837,7 +855,7 @@ module Fiber : sig
           None
         else
           let (Packed computation) =
-            Fiber.computation fiber
+            Fiber.get_computation fiber
           in
           Computation.canceled computation
       ]}
@@ -851,7 +869,7 @@ module Fiber : sig
       {@ocaml skip[
         if not (Fiber.has_forbidden fiber) then
           let (Packed computation) =
-            Fiber.computation fiber
+            Fiber.get_computation fiber
           in
           Computation.check computation
       ]}
@@ -927,6 +945,16 @@ module Fiber : sig
         ⚠️ It is only safe to call [set] from the fiber itself. *)
   end
 
+  (** {2 Interface for structuring} *)
+
+  val get_computation : t -> Computation.packed
+  (** [get_computation fiber] returns the computation that the fiber is
+      currently associated with. *)
+
+  val set_computation : t -> Computation.packed -> unit
+  (** [set_computation fiber packed] associates the fiber with the specified
+      computation. *)
+
   (** {2 Interface for foreign fiber} *)
 
   val equal : t -> t -> bool
@@ -936,18 +964,6 @@ module Fiber : sig
       ℹ️ One use case of [equal] is in the implementation of concurrent
       primitives like mutexes where it makes sense to check that acquire and
       release operations are performed by the same fiber. *)
-
-  val computation : t -> Computation.packed
-  (** [computation fiber] returns the computation that the fiber has been
-      {!create}d with. *)
-
-  val try_attach : t -> Trigger.t -> bool
-  (** [try_attach fiber trigger] is equivalent to
-      [let Packed c = computation fiber in Computation.try_attach c trigger]. *)
-
-  val detach : t -> Trigger.t -> unit
-  (** [detach fiber trigger] is equivalent to
-      [let Packed c = computation fiber in Computation.detach c trigger]. *)
 
   module Maybe : sig
     (** An unboxed optional {{!Fiber.t} fiber}. *)
@@ -1015,8 +1031,12 @@ module Fiber : sig
 
   (** {2 Interface for schedulers} *)
 
+  val create_packed : forbid:bool -> Computation.packed -> t
+  (** [create_packed ~forbid packed] creates a new fiber. *)
+
   val create : forbid:bool -> 'a Computation.t -> t
-  (** [create ~forbid computation] creates a new fiber. *)
+  (** [create ~forbid computation] is equivalent to
+      [create_packed ~forbid (Computation.Packed computation)]. *)
 
   val try_suspend :
     t -> Trigger.t -> 'x -> 'y -> (Trigger.t -> 'x -> 'y -> unit) -> bool

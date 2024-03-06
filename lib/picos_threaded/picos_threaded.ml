@@ -2,8 +2,8 @@ open Picos
 
 type t = { fiber : Fiber.t; mutex : Mutex.t; condition : Condition.t }
 
-let create ~forbid computation =
-  let fiber = Fiber.create ~forbid computation in
+let create_packed ~forbid packed =
+  let fiber = Fiber.create_packed ~forbid packed in
   let mutex = Mutex.create () in
   let condition = Condition.create () in
   { fiber; mutex; condition }
@@ -70,13 +70,14 @@ and cancel_after : type a. _ -> a Computation.t -> _ =
 and spawn : type a. _ -> forbid:bool -> a Computation.t -> _ =
  fun t ~forbid computation mains ->
   Fiber.check t.fiber;
+  let packed = Computation.Packed computation in
   mains
   |> List.iter @@ fun main ->
      Thread.create
        (fun () ->
          (* We need to (recursively) install the handler on each new thread
             that we create. *)
-         Handler.using handler (create ~forbid computation) main)
+         Handler.using handler (create_packed ~forbid packed) main)
        ()
      |> ignore
 
@@ -84,4 +85,5 @@ and handler = Handler.{ current; spawn; yield; cancel_after; await }
 
 let run ~forbid main =
   Select.check_configured ();
-  Handler.using handler (create ~forbid (Computation.create ())) main
+  let packed = Computation.Packed (Computation.create ()) in
+  Handler.using handler (create_packed ~forbid packed) main

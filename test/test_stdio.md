@@ -1,8 +1,10 @@
 # `Picos_stdio`
 
 ```ocaml
-open Foundation.Finally
 open Picos
+open Picos_structured.Finally
+open Picos_structured
+open Picos_sync
 open Picos_stdio
 ```
 
@@ -54,18 +56,14 @@ test_stdio.md
 
 ```ocaml
 # Test_scheduler.run @@ fun () ->
-  let computation = Computation.create () in
-  let exited = Trigger.create () in
-  Fiber.spawn ~forbid:false computation [ fun () ->
-    match Unix.select [] [] [] (-1.0) with
-    | _ -> Printf.printf "Impossible\n%!"
-    | exception Exit ->
-      Trigger.signal exited ];
+  Bundle.join_after @@ fun bundle ->
+  Bundle.fork bundle begin fun () ->
+    let _ = Unix.select [] [] [] (-1.0) in
+    Printf.printf "Impossible\n%!"
+  end;
   Unix.sleepf 0.01;
-  assert (Trigger.is_initial exited);
-  Computation.cancel computation (Exn_bt.get_callstack 0 Exit);
-  Trigger.await exited
-- : Picos_exn_bt.t option = None
+  Bundle.terminate bundle
+- : unit = ()
 ```
 
 ```ocaml
@@ -91,29 +89,27 @@ test_stdio.md
   Unix.set_nonblock syn_inn;
   Unix.set_nonblock syn_out;
 
-  let consumer = Computation.create () in
-  let finished = Trigger.create () in
-  Fiber.spawn ~forbid:false consumer [ fun () ->
-    try
-      while true do
-        match Unix.select [ msg_inn1; msg_inn2 ] [] [] 0.1 with
-        | inns, _, _ ->
-          if List.exists ((==) msg_inn1) inns then begin
-            Printf.printf "Inn1\n%!";
-            assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1);
-            assert (1 = Unix.write_substring syn_out "!" 0 1)
-          end;
-          if List.exists ((==) msg_inn2) inns then begin
-            Printf.printf "Inn2\n%!";
-            assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1);
-            assert (1 = Unix.write_substring syn_out "!" 0 1)
-          end;
-          if [] == inns then begin
-            Printf.printf "Timeout\n%!";
-            assert (1 = Unix.write_substring syn_out "!" 0 1)
-          end
-      done
-    with Exit -> Trigger.signal finished  ];
+  Bundle.join_after @@ fun bundle ->
+  Bundle.fork bundle begin fun () ->
+    while true do
+      match Unix.select [ msg_inn1; msg_inn2 ] [] [] 0.1 with
+      | inns, _, _ ->
+        if List.exists ((==) msg_inn1) inns then begin
+          Printf.printf "Inn1\n%!";
+          assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1);
+          assert (1 = Unix.write_substring syn_out "!" 0 1)
+        end;
+        if List.exists ((==) msg_inn2) inns then begin
+          Printf.printf "Inn2\n%!";
+          assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1);
+          assert (1 = Unix.write_substring syn_out "!" 0 1)
+        end;
+        if [] == inns then begin
+          Printf.printf "Timeout\n%!";
+          assert (1 = Unix.write_substring syn_out "!" 0 1)
+        end
+    done
+  end;
 
   assert (1 = Unix.write_substring msg_out1 "!" 0 1);
   assert (1 = Unix.write_substring msg_out2 "!" 0 1);
@@ -122,10 +118,9 @@ test_stdio.md
 
   assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
 
-  Computation.cancel consumer (Exn_bt.get_callstack 0 Exit);
-  Trigger.await finished
+  Bundle.terminate bundle
 Inn1
 Inn2
 Timeout
-- : Picos_exn_bt.t option = None
+- : unit = ()
 ```

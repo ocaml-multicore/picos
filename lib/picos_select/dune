@@ -21,11 +21,11 @@
  (enabled_if
   (>= %{ocaml_version} 5.1.0))
  (libraries
-  foundation
   picos
   picos.exn_bt
-  picos.stdio
   picos.fifos
   picos.select
+  picos.stdio
+  picos.structured
   unix)
  (files picos_select.mli))

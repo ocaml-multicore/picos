@@ -81,7 +81,7 @@ let test_mutex_and_condition_cancelation () =
   in
 
   let attempt i finished ?checked () =
-    computations.(i) <- Fiber.computation (Fiber.current ());
+    computations.(i) <- Fiber.get_computation (Fiber.current ());
     match
       Atomic.incr step_1;
       Domain.cpu_relax ();

@@ -1,0 +1,18 @@
+(library
+ (name picos_structured)
+ (public_name picos.structured)
+ (libraries picos backoff multicore-magic))
+
+(mdx
+ (enabled_if
+  (and
+   (>= %{ocaml_version} 5.0.0)
+   (= %{env:OPAM_REPO_CI=false} false)))
+ (libraries
+  picos.exn_bt
+  picos.fifos
+  picos.stdio
+  picos.structured
+  picos.sync
+  unix)
+ (files picos_structured.mli))

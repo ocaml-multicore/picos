@@ -1,5 +1,5 @@
 open Picos
-open Foundation.Finally
+open Picos_structured.Finally
 
 let run_in_fiber main =
   let computation = Computation.create () in

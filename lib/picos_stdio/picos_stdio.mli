@@ -685,11 +685,11 @@ end
 
 (** {1 Examples}
 
-    For convenience, we first open the {!Picos} and {!Picos_stdio} modules:
+    First we open some modules for convenience:
 
     {[
-      open Foundation.Finally
-      open Picos
+      open Picos_structured.Finally
+      open Picos_structured
       open Picos_stdio
     ]}
 
@@ -715,9 +715,8 @@ end
         Unix.set_nonblock syn_inn;
         Unix.set_nonblock syn_out;
 
-        let consumer = Computation.create () in
-        Fiber.spawn ~forbid:false consumer [ fun () ->
-          try
+        Bundle.join_after begin fun bundle ->
+          Bundle.fork bundle begin fun () ->
             let bytes = Bytes.create 100 in
             while true do
               let n = Unix.read msg_inn bytes 0 100 in
@@ -726,18 +725,19 @@ end
                 assert (1 = Unix.write_substring syn_out "!" 0 1)
               end
             done
-          with Exit -> () ];
+          end;
 
-        let send_string s =
-          let n = String.length s in
-          assert (n = Unix.write_substring msg_out s 0 n);
-          assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1)
-        in
+          let send_string s =
+            let n = String.length s in
+            assert (n = Unix.write_substring msg_out s 0 n);
+            assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1)
+          in
 
-        send_string "Hello, world!";
-        send_string "POSIX with OCaml";
+          send_string "Hello, world!";
+          send_string "POSIX with OCaml";
 
-        Computation.cancel consumer (Exn_bt.get_callstack 0 Exit)
+          Bundle.terminate bundle
+        end
       Hello, world!
       POSIX with OCaml
       - : unit = ()

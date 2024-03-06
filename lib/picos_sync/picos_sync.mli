@@ -159,10 +159,10 @@ end
 
 (** {1 Examples}
 
-    For convenience, we first open the {!Picos} and {!Picos_sync} modules:
+    First we open some modules for convenience:
 
     {[
-      open Picos
+      open Picos_structured
       open Picos_sync
     ]}
 
@@ -230,29 +230,27 @@ end
 
         let bq = Bounded_queue.create ~capacity:3 () in
 
-        let consumer = Computation.create () in
-        Fiber.spawn ~forbid:false consumer [ fun () ->
-          try
+        Bundle.join_after begin fun bundle ->
+          Bundle.fork bundle begin fun () ->
             while true do
               Printf.printf "Popped %d\n%!" (Bounded_queue.pop bq)
             done
-          with Exit -> () ];
+          end;
 
-        for i=1 to 5 do
-          Printf.printf "Pushing %d\n%!" i;
-          Bounded_queue.push bq i
-        done;
+          for i=1 to 5 do
+            Printf.printf "Pushing %d\n%!" i;
+            Bounded_queue.push bq i
+          done;
 
-        Printf.printf "All done?\n%!";
+          Printf.printf "All done?\n%!";
 
-        Fiber.yield ();
+          Control.yield ();
 
-        Computation.cancel consumer (Exn_bt.get_callstack 0 Exit);
+          Bundle.terminate bundle
+        end;
 
         Printf.printf "Pushing %d\n%!" 101;
         Bounded_queue.push bq 101;
-
-        Fiber.yield ();
 
         Printf.printf "Popped %d\n%!" (Bounded_queue.pop bq)
       Pushing 1

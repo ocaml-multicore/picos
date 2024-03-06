@@ -16,7 +16,7 @@
  (modules test_picos)
  (libraries
   test_scheduler
-  foundation
+  picos.structured
   alcotest
   unix
   threads.posix
@@ -57,7 +57,7 @@
 (test
  (name test_server_and_client)
  (modules test_server_and_client)
- (libraries test_scheduler picos.stdio elements foundation))
+ (libraries test_scheduler picos.stdio picos.structured picos.sync))
 
 ;;
 
@@ -85,7 +85,12 @@
 (test
  (name test_select)
  (modules test_select)
- (libraries foundation picos.threaded picos.select alcotest domain_shims))
+ (libraries
+  picos.structured
+  picos.threaded
+  picos.select
+  alcotest
+  domain_shims))
 
 ;;
 
@@ -127,12 +132,13 @@
 
 (mdx
  (libraries
-  foundation
   picos
   picos.exn_bt
   picos.htbl
   picos.stdio
+  picos.structured
+  picos.sync
   picos.threaded
   test_scheduler
   unix)
- (files test_htbl.md test_scheduler.md test_stdio.md))
+ (files test_htbl.md test_scheduler.md test_stdio.md test_structured.md))

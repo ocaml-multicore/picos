@@ -17,5 +17,5 @@ module type S = sig
   val await : (unit -> 'a Lwt.t) -> 'a
   (** [await thunk] awaits for the promise returned by [thunk ()] to resolve and
       returns the result.  This should only be called from inside a fiber
-      running inside {!start}. *)
+      started through {!run}. *)
 end
