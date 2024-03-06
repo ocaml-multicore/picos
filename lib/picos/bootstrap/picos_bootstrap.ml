@@ -1,7 +1,7 @@
 module Exn_bt = Picos_exn_bt
 
 module Trigger = struct
-  let[@inline never] awaiting () = invalid_arg "Trigger: already awaiting"
+  let[@inline never] awaiting () = invalid_arg "already awaiting"
 
   type state =
     | Signaled
@@ -47,7 +47,9 @@ end
 
 module Computation = struct
   let[@inline never] negative_or_nan () =
-    invalid_arg "Computation: seconds must be non-negative"
+    invalid_arg "seconds must be non-negative"
+
+  let[@inline never] returned () = invalid_arg "already returned"
 
   type 'a state =
     | Canceled of Exn_bt.t
@@ -131,6 +133,7 @@ module Computation = struct
     Trigger.signal trigger;
     unsafe_unsuspend t Backoff.default |> ignore
 
+  (** This cannot be [@@unboxed] because [Atomic.t] is opaque *)
   type packed = Packed : 'a t -> packed
 
   let is_running t =
@@ -193,6 +196,14 @@ module Computation = struct
     | Returned value -> value
     | Canceled exn_bt -> Exn_bt.raise exn_bt
     | Continue _ -> get_or block (block t)
+
+  let attach_canceler ~from ~into =
+    let canceler = canceler ~from ~into in
+    if try_attach from canceler then canceler
+    else begin
+      check from;
+      returned ()
+    end
 end
 
 module Fiber = struct
@@ -202,29 +213,41 @@ module Fiber = struct
     | Nothing : [> `Nothing ] tdt
     | Fiber : {
         mutable forbid : bool;
-        computation : 'a Computation.t;
+        mutable packed : Computation.packed;
         mutable fls : non_float array;
       }
         -> [> `Fiber ] tdt
 
   type t = [ `Fiber ] tdt
 
-  let create ~forbid computation = Fiber { forbid; computation; fls = [||] }
+  let create_packed ~forbid packed = Fiber { forbid; packed; fls = [||] }
+
+  let create ~forbid computation =
+    create_packed ~forbid (Computation.Packed computation)
+
   let has_forbidden (Fiber r : t) = r.forbid
 
   let is_canceled (Fiber r : t) =
-    (not r.forbid) && Computation.is_canceled r.computation
+    (not r.forbid)
+    &&
+    let (Packed computation) = r.packed in
+    Computation.is_canceled computation
 
   let canceled (Fiber r : t) =
-    if r.forbid then None else Computation.canceled r.computation
+    if r.forbid then None
+    else
+      let (Packed computation) = r.packed in
+      Computation.canceled computation
 
-  let try_attach (Fiber r : t) trigger =
-    Computation.try_attach r.computation trigger
+  let get_computation (Fiber r : t) = r.packed
+  let set_computation (Fiber r : t) packed = r.packed <- packed
 
-  let detach (Fiber r : t) trigger = Computation.detach r.computation trigger
+  let check (Fiber r : t) =
+    if not r.forbid then
+      let (Packed computation) = r.packed in
+      Computation.check computation
+
   let[@inline] equal t1 t2 = t1 == t2
-  let computation (Fiber r : t) = Computation.Packed r.computation
-  let check (Fiber r : t) = if not r.forbid then Computation.check r.computation
 
   let exchange (Fiber r : t) ~forbid =
     let before = r.forbid in
@@ -248,14 +271,15 @@ module Fiber = struct
   let permit t body = explicitly t body ~forbid:false
 
   let try_suspend (Fiber r : t) trigger x y resume =
+    let (Packed computation) = r.packed in
     if not r.forbid then begin
-      if Computation.try_attach r.computation trigger then
+      if Computation.try_attach computation trigger then
         Trigger.on_signal trigger x y resume
         || begin
-             Computation.detach r.computation trigger;
+             Computation.detach computation trigger;
              false
            end
-      else if Computation.is_canceled r.computation then begin
+      else if Computation.is_canceled computation then begin
         Trigger.dispose trigger;
         false
       end
@@ -265,7 +289,10 @@ module Fiber = struct
 
   let[@inline] unsuspend (Fiber r : t) trigger =
     assert (Trigger.is_signaled trigger);
-    r.forbid || Computation.unsafe_unsuspend r.computation Backoff.default
+    r.forbid
+    ||
+    let (Packed computation) = r.packed in
+    Computation.unsafe_unsuspend computation Backoff.default
 
   module FLS = struct
     type 'a key = { index : int; default : non_float; compute : unit -> 'a }

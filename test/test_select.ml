@@ -1,4 +1,4 @@
-open Foundation.Finally
+open Picos_structured.Finally
 open Picos
 
 let () = Picos_select.configure ()

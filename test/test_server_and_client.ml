@@ -1,9 +1,11 @@
-open Foundation.Finally
-open Elements
+open Picos_structured.Finally
+open Picos_structured
 open Picos_stdio
+open Picos_sync
 
+let () = Random.self_init ()
 let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
-let use_nonblock = Sys.win32 || Random.bool (Random.self_init ())
+let use_nonblock = Sys.win32 || Random.bool ()
 
 let set_nonblock fd =
   if use_nonblock then
@@ -16,66 +18,108 @@ let is_opam_ci =
   | exception Not_found -> false
 
 let main () =
-  Bundle.run @@ fun bundle ->
   let n = 100 in
-  let server_addr = ref None in
 
-  let server =
-    Bundle.fork bundle @@ fun () ->
-    Printf.printf "  Server running\n%!";
-    let@ client =
-      finally Unix.close @@ fun () ->
-      let@ socket =
-        finally Unix.close @@ fun () ->
-        Unix.socket ~cloexec:true PF_INET SOCK_STREAM 0
-      in
-      set_nonblock socket;
-      match Unix.bind socket Unix.(ADDR_INET (inet_addr_loopback, 0)) with
-      | () ->
-          server_addr := Some (Unix.getsockname socket);
-          Unix.listen socket 1;
-          Printf.printf "  Server listening\n%!";
-          Unix.accept ~cloexec:true socket |> fst
-      | exception Unix.Unix_error (EPERM, _, _) when is_opam_ci -> raise Exit
-    in
-    set_nonblock client;
-    let bytes = Bytes.create n in
-    let n = Unix.read client bytes 0 (Bytes.length bytes) in
-    Printf.printf "  Server read %d\n%!" n;
-    let n = Unix.write client bytes 0 (n / 2) in
-    Printf.printf "  Server wrote %d\n%!" n
-  in
+  let loopback_0 = Unix.(ADDR_INET (inet_addr_loopback, 0)) in
+  let server_addr = ref loopback_0 in
+  let mutex = Mutex.create () in
+  let condition = Condition.create () in
 
-  let client =
-    Bundle.fork bundle @@ fun () ->
-    Printf.printf "  Client running\n%!";
+  let server_looping () =
+    Printf.printf "  Looping server running\n%!";
     let@ socket =
       finally Unix.close @@ fun () ->
       Unix.socket ~cloexec:true PF_INET SOCK_STREAM 0
     in
     set_nonblock socket;
-    let server_addr =
-      let rec loop retries =
-        match !server_addr with
-        | None ->
-            if retries < 0 then
-              if is_opam_ci then raise Exit else failwith "No server address";
-            Unix.sleepf 0.01;
-            loop (retries - 1)
-        | Some addr -> addr
-      in
-      loop 100
-    in
-    Unix.connect socket server_addr;
-    Printf.printf "  Client connected\n%!";
-    let bytes = Bytes.create n in
-    let n = Unix.write socket bytes 0 (Bytes.length bytes) in
-    Printf.printf "  Client wrote %d\n%!" n;
-    let n = Unix.read socket bytes 0 (Bytes.length bytes) in
-    Printf.printf "  Client read %d\n%!" n
+    match Unix.bind socket loopback_0 with
+    | () ->
+        Mutex.protect mutex (fun () -> server_addr := Unix.getsockname socket);
+        Condition.signal condition;
+        Unix.listen socket 8;
+        Printf.printf "  Server listening\n%!";
+        Bundle.join_after @@ fun bundle ->
+        while true do
+          let^ client =
+            finally Unix.close @@ fun () ->
+            Printf.printf "  Server accepting\n%!";
+            Unix.accept ~cloexec:true socket |> fst
+          in
+          Printf.printf "  Server accepted client\n%!";
+
+          Bundle.fork bundle @@ fun () ->
+          let@ client = move client in
+          set_nonblock client;
+          let bytes = Bytes.create n in
+          let n = Unix.read client bytes 0 (Bytes.length bytes) in
+          Printf.printf "  Server read %d\n%!" n;
+          let n = Unix.write client bytes 0 (n / 2) in
+          Printf.printf "  Server wrote %d\n%!" n
+        done
+    | exception Unix.Unix_error (EPERM, _, _) when is_opam_ci -> raise Exit
   in
 
-  Promise.await (Promise.both server client);
+  let server_recursive () =
+    Printf.printf "  Recursive server running\n%!";
+    let@ socket =
+      finally Unix.close @@ fun () ->
+      Unix.socket ~cloexec:true PF_INET SOCK_STREAM 0
+    in
+    set_nonblock socket;
+    match Unix.bind socket Unix.(ADDR_INET (inet_addr_loopback, 0)) with
+    | () ->
+        Mutex.protect mutex (fun () -> server_addr := Unix.getsockname socket);
+        Condition.signal condition;
+        Unix.listen socket 8;
+        Printf.printf "  Server listening\n%!";
+        Bundle.join_after @@ fun bundle ->
+        let rec accept () =
+          let@ client =
+            finally Unix.close @@ fun () ->
+            Printf.printf "  Server accepting\n%!";
+            Unix.accept ~cloexec:true socket |> fst
+          in
+          Printf.printf "  Server accepted client\n%!";
+          Bundle.fork bundle accept;
+          set_nonblock client;
+          let bytes = Bytes.create n in
+          let n = Unix.read client bytes 0 (Bytes.length bytes) in
+          Printf.printf "  Server read %d\n%!" n;
+          let n = Unix.write client bytes 0 (n / 2) in
+          Printf.printf "  Server wrote %d\n%!" n
+        in
+        Bundle.fork bundle accept
+    | exception Unix.Unix_error (EPERM, _, _) when is_opam_ci -> raise Exit
+  in
+
+  let server = if Random.bool () then server_looping else server_recursive in
+
+  let client id () =
+    Printf.printf "  Client %s running\n%!" id;
+    let@ socket =
+      finally Unix.close @@ fun () ->
+      Unix.socket ~cloexec:true PF_INET SOCK_STREAM 0
+    in
+    set_nonblock socket;
+    Unix.connect socket !server_addr;
+    Printf.printf "  Client %s connected\n%!" id;
+    let bytes = Bytes.create n in
+    let n = Unix.write socket bytes 0 (Bytes.length bytes) in
+    Printf.printf "  Client %s wrote %d\n%!" id n;
+    let n = Unix.read socket bytes 0 (Bytes.length bytes) in
+    Printf.printf "  Client %s read %d\n%!" id n
+  in
+
+  Bundle.join_after @@ fun bundle ->
+  Bundle.fork bundle server;
+  begin
+    Mutex.protect mutex @@ fun () ->
+    while !server_addr == loopback_0 do
+      Condition.wait condition mutex
+    done
+  end;
+  Run.all [ client "A"; client "B" ];
+  Bundle.terminate bundle;
 
   Printf.printf "Server and Client test: OK\n%!"
 

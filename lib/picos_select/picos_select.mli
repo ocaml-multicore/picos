@@ -119,11 +119,12 @@ val check_configured : unit -> unit
 
 (** {1 Examples}
 
-    For convenience, we first open the {!Picos} and {!Picos_stdio} modules:
+    First we open some modules for convenience:
 
     {[
-      open Foundation.Finally
       open Picos
+      open Picos_structured.Finally
+      open Picos_structured
       open Picos_stdio
     ]}
 
@@ -157,12 +158,9 @@ val check_configured : unit -> unit
         Unix.set_nonblock syn_inn;
         Unix.set_nonblock syn_out;
 
-        let consumer = Computation.create () in
-        Fiber.spawn ~forbid:false consumer [ fun () ->
-          try
+        Bundle.join_after begin fun bundle ->
+          Bundle.fork bundle begin fun () ->
             while true do
-              Fiber.check (Fiber.current ());
-
               let select = Computation.create () in
               Picos_select.return_on select msg_inn1 `R `Inn1;
               Picos_select.return_on select msg_inn2 `R `Inn2;
@@ -181,18 +179,20 @@ val check_configured : unit -> unit
               | exception Timeout ->
                 Printf.printf "Timeout\n%!";
                 assert (1 = Unix.write_substring syn_out "!" 0 1)
-              | exception Exit ->
-                Computation.cancel select (Exn_bt.get_callstack 0 Exit)
+              | exception exn ->
+                Computation.cancel select (Exn_bt.get_callstack 0 Exit);
+                raise exn
             done
-          with Exit -> () ];
+          end;
 
-        assert (1 = Unix.write_substring msg_out1 "!" 0 1);
-        assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
-        assert (1 = Unix.write_substring msg_out2 "!" 0 1);
-        assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
-        assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
+          assert (1 = Unix.write_substring msg_out1 "!" 0 1);
+          assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
+          assert (1 = Unix.write_substring msg_out2 "!" 0 1);
+          assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
+          assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
 
-        Computation.cancel consumer (Exn_bt.get_callstack 0 Exit)
+          Bundle.terminate bundle
+        end
       Inn1
       Inn2
       Timeout

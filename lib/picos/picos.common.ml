@@ -58,6 +58,21 @@ module Fiber = struct
       | T Nothing -> ()
       | T (Fiber r) -> check (Fiber r)
   end
+
+  exception Done
+
+  let done_bt = Exn_bt.get_callstack 0 Done
+
+  let sleep ~seconds =
+    let sleep = Computation.create ~mode:`LIFO () in
+    Computation.cancel_after ~seconds sleep done_bt;
+    let trigger = Trigger.create () in
+    if Computation.try_attach sleep trigger then
+      match Trigger.await trigger with
+      | None -> ()
+      | Some exn_bt ->
+          Computation.finish sleep;
+          Exn_bt.raise exn_bt
 end
 
 module Handler = struct

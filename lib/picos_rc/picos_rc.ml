@@ -1,10 +1,10 @@
 include Intf
 
 let[@inline never] created () =
-  invalid_arg "Picos_rc: resource already previously created"
+  invalid_arg "resource already previously created"
 
 let[@inline never] disposed () =
-  invalid_arg "Picos_rc: resource already previously disposed"
+  invalid_arg "resource already previously disposed"
 
 let bt =
   if Printexc.backtrace_status () then None else Some (Printexc.get_callstack 0)

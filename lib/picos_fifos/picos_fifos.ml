@@ -22,12 +22,12 @@ type t = {
   retc : unit -> unit;
 }
 
-let rec spawn t n forbid computation = function
+let rec spawn t n forbid packed = function
   | [] -> Atomic.fetch_and_add t.num_alive_fibers n |> ignore
   | main :: mains ->
-      let fiber = Fiber.create ~forbid computation in
+      let fiber = Fiber.create_packed ~forbid packed in
       Queue.push t.ready (Spawn (fiber, main));
-      spawn t (n + 1) forbid computation mains
+      spawn t (n + 1) forbid packed mains
 
 let continue = Some (fun k -> Effect.Deep.continue k ())
 
@@ -56,7 +56,7 @@ let rec next t =
                whole operation or discontinue the fiber. *)
             if Fiber.is_canceled fiber then discontinue
             else begin
-              spawn t 0 r.forbid r.computation r.mains;
+              spawn t 0 r.forbid (Packed r.computation) r.mains;
               continue
             end
         | Fiber.Yield -> yield

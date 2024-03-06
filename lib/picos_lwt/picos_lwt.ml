@@ -20,9 +20,10 @@ module Make (Sleep : Sleep) : S = struct
             (fun k ->
               match Fiber.canceled fiber with
               | None ->
+                  let packed = Computation.Packed r.computation in
                   List.iter
                     (fun main ->
-                      let fiber = Fiber.create ~forbid:r.forbid r.computation in
+                      let fiber = Fiber.create_packed ~forbid:r.forbid packed in
                       Lwt.async @@ fun () ->
                       run fiber (Effect.Shallow.fiber main) (Ok ()))
                     r.mains;
