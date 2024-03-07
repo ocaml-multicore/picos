@@ -1,0 +1,7 @@
+(library
+ (name picos_private_ocaml4)
+ (package picos)
+ (wrapped false)
+ (enabled_if
+  (< %{ocaml_version} 5.0.0))
+ (libraries picos_exn_bt picos_private_bootstrap picos_default))

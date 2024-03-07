@@ -61,3 +61,7 @@ let main () =
   Promise.await (Promise.both server client);
 
   Printf.printf "Server and Client test: OK\n%!"
+
+let () =
+  Printf.printf "Using fibers on OCaml 5 and threads on OCaml 4:\n%!";
+  Test_scheduler.run main

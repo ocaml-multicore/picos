@@ -43,7 +43,7 @@ module Async = struct
       Unix.stdin
     in
     (* In this case we really want to use DLS rather than TLS. *)
-    DLS.new_key @@ fun () ->
+    Picos_domain.DLS.new_key @@ fun () ->
     {
       state = `Init;
       pipe_inn = dummy_pipe;
@@ -111,7 +111,7 @@ module Async = struct
        initialization here. *)
     match Thread.create io_thread s with
     | thread ->
-        Domain.at_exit @@ fun () ->
+        Picos_domain.at_exit @@ fun () ->
         unlock s `Dead;
         wakeup s;
         Thread.join thread;
@@ -132,7 +132,7 @@ module Async = struct
     wait s
 
   let get () =
-    let s = DLS.get per_domain_key in
+    let s = Picos_domain.DLS.get per_domain_key in
     if s.state != `Alive then init s;
     s
 

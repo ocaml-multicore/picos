@@ -6,14 +6,12 @@ module DLS = struct
 
   let new_key default = ref (Default default)
 
-  open struct
-    let[@poll error] [@inline never] compare_and_set key before after =
-      !key == before
-      && begin
-           key := after;
-           true
-         end
-  end
+  let[@poll error] [@inline never] compare_and_set key before after =
+    !key == before
+    && begin
+         key := after;
+         true
+       end
 
   let rec get key =
     match !key with

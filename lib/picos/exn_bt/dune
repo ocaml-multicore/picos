@@ -1,0 +1,19 @@
+(library
+ (name picos_exn_bt)
+ (public_name picos.exn_bt))
+
+(rule
+ (enabled_if
+  (< %{ocaml_version} 5.0.0))
+ (action
+  (progn
+   (copy picos_exn_bt.ocaml4.ml picos_exn_bt.ml)
+   (copy picos_exn_bt.ocaml4.mli picos_exn_bt.mli))))
+
+(rule
+ (enabled_if
+  (>= %{ocaml_version} 5.0.0))
+ (action
+  (progn
+   (copy picos_exn_bt.ocaml5.ml picos_exn_bt.ml)
+   (copy picos_exn_bt.ocaml5.mli picos_exn_bt.mli))))

@@ -39,8 +39,10 @@ module Trigger = struct
 end
 
 module Computation = struct
+  let[@inline never] negative () = invalid_arg "Computation: negative seconds"
+
   type 'a state =
-    | Canceled of Exn_bt.t
+    | Canceled of Picos_exn_bt.t
     | Returned of 'a
     | Continue of { balance_and_mode : int; triggers : Trigger.t list }
 
@@ -146,13 +148,13 @@ module Computation = struct
   let try_capture t fn x =
     match fn x with
     | y -> try_return t y
-    | exception exn -> try_cancel t (Exn_bt.get exn)
+    | exception exn -> try_cancel t (Picos_exn_bt.get exn)
 
   let capture t fn x = try_capture t fn x |> ignore
 
   let check t =
     match Atomic.get t with
-    | Canceled exn_bt -> Exn_bt.raise exn_bt
+    | Canceled exn_bt -> Picos_exn_bt.raise exn_bt
     | Returned _ | Continue _ -> ()
 
   let peek t =

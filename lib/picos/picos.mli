@@ -148,11 +148,10 @@
 
     {4 Picos compatible}
 
-    While Picos provides OCaml 4 compatible default behavior for the effects,
-    the idea is that in OCaml 5 effects based schedulers provide their own
-    handlers for the effects.  By handling the Picos effects a scheduler becomes
-    Picos compatible and allows any libraries built on top of Picos to be used
-    with the scheduler.
+    The idea is that in OCaml 5, effects based schedulers provide their own
+    handlers for the Picos effects.  By handling the Picos effects a scheduler
+    becomes Picos compatible and allows any libraries built on top of Picos to
+    be used with the scheduler.
 
     {4 Implemented in Picos}
 
@@ -224,80 +223,8 @@
 
     {3 Auxiliary modules} *)
 
-module DLS : sig
-  (** Auxiliary module implementing domain-local storage.
-
-      On OCaml 4 there is always only a single domain. *)
-
-  type 'a key
-  (** Represents a key for storing values of type ['a] in storage associated
-      with domains. *)
-
-  val new_key : (unit -> 'a) -> 'a key
-  (** [new_key compute] allocates a new key for associating values in storage
-      associated with domains.  The initial value for each domain is [compute]d
-      by calling the given function if the [key] is {{!get}read} before it has
-      been {{!set}written}.  The [compute] function might be called multiple
-      times per domain, but only one result will be used. *)
-
-  val get : 'a key -> 'a
-  (** [get key] returns the value associated with the [key] in the storage
-      associated with the current domain. *)
-
-  val set : 'a key -> 'a -> unit
-  (** [set key value] sets the [value] associated with the [key] in the storage
-      associated with the current domain. *)
-end
-
-module TLS : sig
-  (** Auxiliary module implementing thread-local storage.
-
-      Note that here "thread" refers to system level threads rather than fibers.
-      In case system level thread implementation, i.e. the [threads.posix]
-      library, is not available, this will use {!DLS}. *)
-
-  type 'a key
-  (** Represents a key for storing values of type ['a] in storage associated
-      with threads. *)
-
-  val new_key : (unit -> 'a) -> 'a key
-  (** [new_key compute] allocates a new key for associating values in storage
-      associated with threads.  The initial value for each thread is [compute]d
-      by calling the given function if the [key] is {{!get}read} before it has
-      been {{!set}written}. *)
-
-  val get : 'a key -> 'a
-  (** [get key] returns the value associated with the [key] in the storage
-      associated with the current thread. *)
-
-  val set : 'a key -> 'a -> unit
-  (** [set key value] sets the [value] associated with the [key] in the storage
-      associated with the current thread. *)
-end
-
-module Exn_bt : sig
-  (** Auxiliary module for exceptions with backtraces. *)
-
-  type t = { exn : exn; bt : Printexc.raw_backtrace }
-  (** An exception and a backtrace. *)
-
-  val get : exn -> t
-  (** [get exn] is equivalent to
-      [{ exn; bt = Printexc.get_raw_backtrace () }]. *)
-
-  val get_callstack : int -> exn -> t
-  (** [get_callstack n exn] is equivalent to
-      [{ exn; bt = Printexc.get_callstack n }].
-
-      Note that [Printexc.get_callstack 0] effectively returns a constant value
-      and this function is optimized to take that into account. *)
-
-  val raise : t -> 'a
-  (** [raise exn_bt] is equivalent to
-      [Printexc.raise_with_backtrace exn_bt.exn exn_bt.bt]. *)
-
-  include Effects_intf.Exn_bt with type t := t
-end
+module Exn_bt = Picos_exn_bt
+(** Exceptions with backtraces. *)
 
 (** {3 Core modules}
 
@@ -315,7 +242,7 @@ module Trigger : sig
 
       Here is a simple example:
 
-      {[
+      {@ocaml version<5.0.0[
         let trigger = Trigger.create () in
 
         let signaler =
@@ -385,8 +312,8 @@ module Trigger : sig
       The return value is [None] in case the trigger has been signaled and the
       {{!Fiber} fiber} was resumed normally.  Otherwise the return value is
       [Some exn_bt], which indicates that the fiber has been canceled and the
-      caller should {{!Exn_bt.raise} raise} the exception.  In either case the
-      caller is responsible for cleaning up.  Usually this means making sure
+      caller should {{!Exn_bt.raise} raise} the exception.  In either case
+      the caller is responsible for cleaning up.  Usually this means making sure
       that no references to the trigger remain to avoid space leaks.
 
       ⚠️ As a rule of thumb, if you inserted the trigger to some data structure
@@ -401,10 +328,11 @@ module Trigger : sig
       ⚠️ Only the owner or creator of a trigger may call [await].  It is
       considered an error to make multiple calls to [await].
 
-      On OCaml 5, [await] will first try to perform the {!Await} effect and
-      falls back to the OCaml 4 default implementation that suspends the
-      underlying system level thread using a per thread [Mutex] and [Condition]
-      variable.
+      ℹ️ The behavior is that, {i unless [await] can return immediately},
+
+      - on OCaml 5, [await] will perform the {!Await} effect, and
+      - on OCaml 4, [await] will suspend the underlying system level thread
+        using a per thread [Mutex] and [Condition] variable.
 
       @raise Invalid_argument if the trigger was in the awaiting state, which
         means that multiple concurrent calls of [await] are being made. *)
@@ -459,10 +387,10 @@ module Trigger : sig
 
   val from_action : 'x -> 'y -> (t -> 'x -> 'y -> unit) -> t
   [@@alert
-    sledge_hammer
+    handler
       "This is an escape hatch for experts implementing schedulers or \
        structured concurrency mechanisms.  If you know what you are doing, use \
-       [@alert \"-sledge_hammer\"]."]
+       [@alert \"-handler\"]."]
   (** [from_action x y resume] is equivalent to
       [let t = create () in assert (on_signal t x y resume); t].
 
@@ -487,7 +415,7 @@ module Trigger : sig
 
       @raise Invalid_argument if the trigger was in the awaiting state. *)
 
-  include Effects_intf.Trigger with type t := t with type exn_bt := Exn_bt.t
+  include Intf.Trigger with type t := t with type exn_bt := Exn_bt.t
 
   (** {2 Design rationale}
 
@@ -585,7 +513,7 @@ module Computation : sig
 
       Here is an example:
 
-      {[
+      {@ocaml version<5.0.0[
         let computation =
           Computation.create ()
         in
@@ -720,9 +648,13 @@ module Computation : sig
       backtrace.  Completion of the computation before the specified time
       effectively cancels the timeout.
 
-      On OCaml 5, [cancel_after] will first try to perform the {!Cancel_after}
-      effect and falls back to the OCaml 4 default implementation using
-      [Unix.select] and a background [Thread] when available.
+      ℹ️ The behaviour is that [cancel_after] first checks that [seconds] is not
+      negative, and then
+
+      - on OCaml 5, [cancel_after] will perform the {!Cancel_after}
+        effect, and
+      - on OCaml 4, [cancel_after] registers the timeout to a background
+        [Thread] running a [Unix.select] loop.
 
       @raise Invalid_argument if [seconds] is negative or too large as
         determined by the scheduler. *)
@@ -794,8 +726,7 @@ module Computation : sig
 
   (** {2 Interface for schedulers} *)
 
-  include
-    Effects_intf.Computation with type 'a t := 'a t with type exn_bt := Exn_bt.t
+  include Intf.Computation with type 'a t := 'a t with type exn_bt := Exn_bt.t
 
   (** {2 Design rationale}
 
@@ -849,9 +780,10 @@ module Fiber : sig
   val yield : unit -> unit
   (** [yield ()] asks the current fiber to be re-scheduled.
 
-      On OCaml 5, [yield] will first attempt to perform the {!Yield} effect and
-      falls back to the OCaml 4 default implementation calling [Thread.yield ()]
-      when available. *)
+      ℹ️ The behavior is that
+
+      - on OCaml 5, [yield] perform the {!Yield} effect, and
+      - on OCaml 4, [yield] calls [Thread.yield ()]. *)
 
   (** {2 Interface for spawning} *)
 
@@ -871,9 +803,10 @@ module Fiber : sig
       other words, the caller {i must} arrange for the computation to be
       completed and errors reported in a desired manner.
 
-      On OCaml 5, [spawn] will first try to perform the {!Spawn} effect and
-      falls back to the OCaml 4 default implementation creating [Thread]s when
-      available. *)
+      ℹ️ The behavior is that
+
+      - on OCaml 5, [spawn] performs the {!Spawn} effect, and
+      - on OCaml 4, [spawn] creates a new [Thread] for each fiber. *)
 
   (** {2 Interface for current fiber} *)
 
@@ -892,9 +825,10 @@ module Fiber : sig
       {!equal}, or from accessing the associated {!computation}, it is generally
       unsafe to perform any operations on foreign fibers.
 
-      On OCaml 5, [current] will first try to perform the {!Current} effect and
-      falls back to the OCaml 4 default implementation using [Thread]-local
-      storage. *)
+      ℹ️ The behavior is that
+
+      - on OCaml 5, [current] performs the {!Current} effect, and
+      - on OCaml 4, [current] obtains the fiber from [Thread]-local storage. *)
 
   val has_forbidden : t -> bool
   (** [has_forbidden fiber] determines whether the fiber {!forbid}s or
@@ -1052,9 +986,7 @@ module Fiber : sig
   (** [create ~forbid computation] creates a new fiber. *)
 
   include
-    Effects_intf.Fiber
-      with type t := t
-      with type 'a computation := 'a Computation.t
+    Intf.Fiber with type t := t with type 'a computation := 'a Computation.t
 
   (** {2 Design rationale}
 
@@ -1073,7 +1005,7 @@ module Fiber : sig
       Fiber local storage} can be used to implement a fiber id or e.g. a fiber
       hash.
 
-      The {{!FLS}fiber local storage} is designed for the purpose of extending
+      The {{!FLS} fiber local storage} is designed for the purpose of extending
       fibers and to be as fast as possible.  It is not intended for application
       programming.
 
@@ -1095,81 +1027,27 @@ end
     - {!Fiber.yield}, and
     - {!Fiber.spawn}
 
-    have OCaml 4 compatible default behaviors or defaults in Picos.  Those
-    defaults allow libraries implemented in Picos to work out-of-the-box without
-    a scheduler.
-
-    The primary audience for the defaults is casual users such as those who are
-    not familiar with the concept of a scheduler or experienced users who just
-    e.g. want to quickly try some library implemented in Picos.  Thanks to the
-    defaults, libraries implemented in Picos will e.g. work in an OCaml REPL
-    without having to [#require "some_scheduler"] and explicitly run code under
-    the scheduler.
-
-    Most serious multicore applications should, however, use some scheduler,
-    because a proper scheduler implementation can provide fibers much more
-    efficiently.  The defaults are neither intended nor designed to compete with
-    actual scheduler implementations.
-
-    {4 Defaults architecture}
+    have default behaviors on OCaml 4.
 
     The underlying idea behind the defaults is to make it so that a fiber
-    corresponds to a thread (or domain, in case domains are available, but
-    threads are not).
+    corresponds to a [Thread].
 
     Briefly:
 
     - The default {{!Fiber.spawn} [spawn]} creates a thread for each fiber.
-    - The default {{!Fiber.current} [current]} uses {!TLS} to store the current
+    - The default {{!Fiber.current} [current]} uses {!Picos_tls} to store the current
       fiber.
     - The default {{!Fiber.yield} [yield]} just calls [Thread.yield].
-    - The default {{!Trigger.await} [await]} uses {!TLS} to store a [Mutex] and
+    - The default {{!Trigger.await} [await]} uses {!Picos_tls} to store a [Mutex] and
       [Condition] to suspend the thread.
-    - The default {{!Computation.cancel_after} [cancel_after]} uses {!DLS} to
-      store a priority queue of timeouts and a per-domain background timeout
-      thread that runs a [Unix.select] loop to cancel computations.
+    - The default {{!Computation.cancel_after} [cancel_after]} uses
+      {!Picos_domain.DLS} to store a priority queue of timeouts and a per-domain
+      background timeout thread that runs a [Unix.select] loop to cancel
+      computations.
 
     The default behaviors initialize their resources, per-thread, and per-domain
     state and the background timeout thread, only when actually used.  If the
     default {{!Computation.cancel_after} [cancel_after]} is not used, no
     background timeout thread will be created and no per-domain state will be
-    used.  If none of the defaults are used, no per-thread state will be used.
-
-    {4 Partial schedulers}
-
-    The default behaviors are further implemented such that a scheduler
-    implementation need not necessarily handle all of the effects.
-
-    In particular, the default {{!Computation.cancel_after} [cancel_after]}
-    should basically work fine on any platform where OCaml implements the full
-    [Thread] and [Unix] modules.  Notably the default
-    {{!Computation.cancel_after} [cancel_after]} will not work on
-    {{:https://ocsigen.org/js_of_ocaml/latest/manual/overview} [Js_of_ocaml]}.
-    On platforms where the default is available, a scheduler may choose to leave
-    the {{!Computation.Cancel_after} [Cancel_after]} effect unhandled.  This can
-    be particularly convenient when creating a new scheduler, because the
-    {{!Computation.Cancel_after} [Cancel_after]} effect is perhaps the most
-    difficult to implement properly.
-
-    The effects that a scheduler should always handle are {{!Fiber.Current}
-    [Current]} and {{!Trigger.Await} [Await]}.  Essentially all of the default
-    behaviors will use {{!Fiber.current} [current]} to obtain the fiber handle
-    and check for cancelation.  So, providing the fiber identity is essential.
-    The {{!Trigger.Await} [await]} operation is the most important operation
-    used by practically anything and everything implemented in Picos.
-
-    When the {{!Fiber.Spawn} [Spawn]} effect is not handled, the default
-    {{!Fiber.spawn} [spawn]} creates new threads and, because a new thread does
-    not have any handlers, such threads will use the defaults.  This means that
-    it is technically not an issue to leave {{!Fiber.Spawn} [Spawn]} unhandled.
-    Typical communication and synchronization abstractions implemented in Picos
-    do not spawn fibers and will work fine even when {{!Fiber.Spawn} [Spawn]} is
-    not handled.
-
-    The default {{!Fiber.yield} [yield]} behavior of calling [Thread.yield] is
-    only useful when threads are being used.  However, practical concurrent
-    abstractions implemented in Picos should generally avoid {{!Fiber.yield}
-    [yield]}, because it is merely a request to reschedule.  It is typically
-    better to {{!Trigger.await} [await]} for something to happen or use
-    {{!Computation.cancel_after} [cancel_after]} to sleep in case progress
-    cannot be made immediately. *)
+    used.  If none of the defaults are used, no per-thread state will be
+    used. *)

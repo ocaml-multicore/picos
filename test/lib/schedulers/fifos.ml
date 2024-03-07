@@ -6,6 +6,7 @@ type t = {
   needs_wakeup : bool Atomic.t;
   num_alive_fibers : int ref;
   mc : Mutex_and_condition.t;
+  on_unhandled : unit Try_handle.t option;
 }
 
 let rec next t =
@@ -27,12 +28,14 @@ let rec next t =
         next t
       end
 
-let run ~forbid main =
-  let ready = Mpsc_queue.create () in
-  let needs_wakeup = Atomic.make false in
-  let num_alive_fibers = ref 1 in
-  let mc = Mutex_and_condition.get () in
-  let t = { ready; needs_wakeup; num_alive_fibers; mc } in
+let run ?on_unhandled ~forbid main =
+  let t =
+    let ready = Mpsc_queue.create () in
+    let needs_wakeup = Atomic.make false in
+    let num_alive_fibers = ref 1 in
+    let mc = Mutex_and_condition.get () in
+    { ready; needs_wakeup; num_alive_fibers; mc; on_unhandled }
+  in
   let resume trigger fiber k =
     if not (Fiber.has_forbidden fiber) then begin
       (* As propagation of cancelation was not forbidden, and we have attached a
@@ -147,7 +150,7 @@ let run ~forbid main =
                   Effect.Deep.continue k (Fiber.canceled fiber)
                 end
               end)
-      | _ -> None
+      | e -> Try_handle.call t.on_unhandled e
     and retc () =
       decr t.num_alive_fibers;
       next t

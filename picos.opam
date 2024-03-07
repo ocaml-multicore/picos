@@ -8,8 +8,8 @@ homepage: "https://github.com/ocaml-multicore/picos"
 bug-reports: "https://github.com/ocaml-multicore/picos/issues"
 depends: [
   "dune" {>= "3.14"}
-  "thread-local-storage" {>= "0.1"}
   "backoff" {>= "0.1.0"}
+  "thread-local-storage" {>= "0.1"}
   "mtime" {>= "2.0.0"}
   "psq" {>= "0.2.1"}
   "multicore-magic" {>= "2.1.0" & with-test}
@@ -17,7 +17,8 @@ depends: [
   "alcotest" {>= "1.7.0" & with-test}
   "qcheck-core" {>= "0.21.2" & with-test}
   "qcheck-stm" {>= "0.3" & with-test}
-  "mdx" {>= "2.3.1" & with-test}
+  "mdx" {>= "2.4.0" & with-test}
+  "ocaml-version" {>= "3.6.4" & with-test}
   "domain_shims" {>= "0.1.0" & with-test}
   "js_of_ocaml" {>= "5.4.0" & with-test}
   "conf-npm" {arch != "x86_32" & with-test}

@@ -1,57 +1,23 @@
 (library
  (name picos)
  (public_name picos)
- (js_of_ocaml
-  (javascript_files thread.js))
  (libraries
-  backoff
-  psq
-  mtime
-  mtime.clock.os
+  (re_export picos_exn_bt)
+  picos_private_bootstrap
   (select
-   TLS.ml
+   picos.ml
    from
-   (thread-local-storage -> TLS.threads.ml)
-   (-> TLS.dls.ml))
+   (picos_private_ocaml4 -> picos.ocaml4.ml)
+   (picos_private_ocaml5 -> picos.ocaml5.ml))
   (select
-   systhreads.ml
+   intf.ml
    from
-   (threads.posix -> systhreads.posix.ml)
-   (-> systhreads.none.ml))
-  (select
-   select.ml
-   from
-   (unix -> select.unix.ml)
-   (-> select.none.ml))))
-
-;;
-
-(rule
- (targets picos.ml effects_intf.ml domain.ml thread.js)
- (enabled_if
-  (< %{ocaml_version} 5.0.0))
- (action
-  (progn
-   (copy picos.ocaml4.ml picos.ml)
-   (copy effects_intf.ocaml4.ml effects_intf.ml)
-   (copy domain.ocaml4.ml domain.ml)
-   (copy thread.ocaml4.js thread.js))))
-
-(rule
- (targets picos.ml effects_intf.ml thread.js)
- (enabled_if
-  (>= %{ocaml_version} 5.0.0))
- (action
-  (progn
-   (copy picos.ocaml5.ml picos.ml)
-   (copy effects_intf.ocaml5.ml effects_intf.ml)
-   (copy thread.ocaml5.js thread.js))))
-
-;;
+   (picos_private_ocaml4 -> intf.ocaml4.ml)
+   (picos_private_ocaml5 -> intf.ocaml5.ml))))
 
 (mdx
  (package picos)
  (deps
   (package picos))
- (libraries picos unix domain_shims)
+ (libraries picos picos_exn_bt domain_shims)
  (files picos.mli))

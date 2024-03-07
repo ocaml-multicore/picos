@@ -1,46 +1,58 @@
+(library
+ (name test_scheduler)
+ (modules test_scheduler)
+ (libraries
+  picos
+  (select
+   test_scheduler.ml
+   from
+   (schedulers picos_default -> test_scheduler.ocaml5.ml)
+   (-> test_scheduler.ocaml4.ml))))
+
+;;
+
 (test
  (name test_picos)
+ (package picos)
  (modules test_picos)
- (libraries picos foundation alcotest unix domain_shims))
+ (libraries
+  picos
+  test_scheduler
+  foundation
+  alcotest
+  unix
+  threads.posix
+  domain_shims))
 
 ;;
 
 (rule
  (action
   (progn
-   (copy ../lib/picos/exn_bt.ml exn_bt.ml)
-   (copy ../lib/picos/bootstrap.ml bootstrap.ml))))
+   (copy
+    ../lib/picos/bootstrap/picos_private_bootstrap.ml
+    picos_private_bootstrap.ml))))
 
 (test
  (name test_picos_dscheck)
- (modules test_picos_dscheck bootstrap exn_bt)
+ (package picos)
+ (modules test_picos_dscheck picos_private_bootstrap)
  (build_if
   (>= %{ocaml_version} 5))
- (libraries backoff traced_atomic dscheck alcotest))
+ (libraries picos.exn_bt backoff traced_atomic dscheck alcotest))
 
 ;;
 
-(library
+(test
  (name test_server_and_client)
  (modules test_server_and_client)
- (libraries elements foundation))
-
-(test
- (name test_server_and_client_fibers)
- (modules test_server_and_client_fibers)
- (build_if
-  (>= %{ocaml_version} 5.0.0))
- (libraries schedulers test_server_and_client))
-
-(test
- (name test_server_and_client_threads)
- (modules test_server_and_client_threads)
- (libraries test_server_and_client))
+ (libraries test_scheduler elements foundation))
 
 ;;
 
 (test
  (name test_mpsc_queue)
+ (package picos)
  (modules test_mpsc_queue)
  (libraries
   foundation
@@ -55,10 +67,11 @@
 
 (test
  (name test_js_of_ocaml)
+ (package picos)
  (modules test_js_of_ocaml)
  (modes js)
  (js_of_ocaml
   (flags --enable=effects))
  (build_if
   (<> %{architecture} i386))
- (libraries picos threads.posix))
+ (libraries picos))
