@@ -23,14 +23,16 @@
  (name picos)
  (synopsis "Pico scheduler framework")
  (depends
-  (thread-local-storage
-   (>= 0.1))
   (backoff
    (>= 0.1.0))
+  ;; For OCaml 4 compatible defaults that are not used on OCaml 5 by default
+  (thread-local-storage
+   (>= 0.1))
   (mtime
    (>= 2.0.0))
   (psq
    (>= 0.2.1))
+  ;; Test dependencies
   (multicore-magic
    (and
     (>= 2.1.0)
@@ -53,7 +55,11 @@
     :with-test))
   (mdx
    (and
-    (>= 2.3.1)
+    (>= 2.4.0)
+    :with-test))
+  (ocaml-version
+   (and
+    (>= 3.6.4)
     :with-test))
   (domain_shims
    (and
@@ -71,6 +77,7 @@
    (and
     (>= 0.4.0)
     :with-test))
+  ;; Documentation dependencies
   (sherlodoc
    (and
     (>= 0.2)

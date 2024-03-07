@@ -1,23 +1,10 @@
 open Picos
 open Foundation.Finally
 
-let run_in_domain thunk = Domain.join @@ Domain.spawn thunk
-
-let test_dls_is_lazy =
-  let counter = ref 0 in
-  let key =
-    DLS.new_key @@ fun () ->
-    let v = !counter in
-    counter := v + 1;
-    v
-  in
-  fun () ->
-    Alcotest.(check' int)
-      ~msg:"must not be incremented" ~expected:0 ~actual:!counter;
-    Alcotest.(check' int)
-      ~msg:"must be initial" ~expected:0 ~actual:(DLS.get key);
-    Alcotest.(check' int)
-      ~msg:"must be incremented" ~expected:1 ~actual:!counter
+let run_in_fiber main =
+  let computation = Computation.create () in
+  Fiber.spawn ~forbid:false computation [ Computation.capture computation main ];
+  Computation.await computation
 
 let test_fls_basics =
   (* It is imperative to test with both float... *)
@@ -32,8 +19,9 @@ let test_fls_basics =
   in
 
   fun () ->
+    Test_scheduler.run @@ fun () ->
     let first =
-      run_in_domain @@ fun () ->
+      run_in_fiber @@ fun () ->
       let fiber = Fiber.current () in
       Alcotest.(check' int)
         ~msg:"constant" ~expected:42
@@ -44,7 +32,7 @@ let test_fls_basics =
         ~actual:(Fiber.FLS.get fiber answer_key);
       Fiber.FLS.get fiber counter_key
     in
-    run_in_domain @@ fun () ->
+    run_in_fiber @@ fun () ->
     let fiber = Fiber.current () in
     Alcotest.(check' int)
       ~msg:"constant" ~expected:42
@@ -61,6 +49,7 @@ let test_fls_basics =
       ~actual:(Fiber.FLS.get fiber counter_key)
 
 let test_trigger_basics () =
+  Test_scheduler.run @@ fun () ->
   let trigger = Trigger.create () in
   let@ _ =
     finally Domain.join @@ fun () ->
@@ -69,13 +58,14 @@ let test_trigger_basics () =
   Trigger.await trigger |> Option.iter Exn_bt.raise
 
 let test_computation_basics () =
+  Test_scheduler.run @@ fun () ->
   let computation = Computation.create () in
   let@ _ =
     finally Domain.join @@ fun () ->
     Domain.spawn @@ fun () ->
     let rec fib i =
       Computation.check computation;
-      Fiber.yield ();
+      Thread.yield ();
       if i <= 1 then i else fib (i - 1) + fib (i - 2)
     in
     Computation.capture computation fib 80
@@ -92,6 +82,7 @@ let test_computation_basics () =
 
 let test_thread_cancelation () =
   Alcotest.check_raises "should be canceled" Exit @@ fun () ->
+  Test_scheduler.run @@ fun () ->
   let computation = Computation.create () in
   let@ _ =
     finally Computation.await @@ fun () ->
@@ -109,6 +100,7 @@ let test_thread_cancelation () =
 
 let test_cancel_after () =
   Alcotest.check_raises "should be canceled" Not_found @@ fun () ->
+  Test_scheduler.run @@ fun () ->
   let computation = Computation.create () in
   let main =
     Computation.capture computation @@ fun () ->
@@ -134,7 +126,7 @@ let test_computation_completion_signals_triggers_in_order () =
        let attach_one () =
          let i = !counter in
          counter := i + 1;
-         let[@alert "-sledge_hammer"] trigger =
+         let[@alert "-handler"] trigger =
            Trigger.from_action signals i @@ fun _ signals i ->
            signals := i :: !signals
          in
@@ -173,7 +165,6 @@ let test_computation_completion_signals_triggers_in_order () =
 
 let () =
   [
-    ("DLS is lazy", [ Alcotest.test_case "" `Quick test_dls_is_lazy ]);
     ("Trigger basics", [ Alcotest.test_case "" `Quick test_trigger_basics ]);
     ( "Computation basics",
       [ Alcotest.test_case "" `Quick test_computation_basics ] );

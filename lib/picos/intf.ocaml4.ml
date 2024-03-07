@@ -1,7 +1,3 @@
-module type Exn_bt = sig
-  type t
-end
-
 module type Trigger = sig
   type t
   type exn_bt

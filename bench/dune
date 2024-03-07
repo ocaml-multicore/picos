@@ -11,6 +11,7 @@ let () =
  (name main)
  (action
   (run %{test} -brief))
+ (package picos)
  (libraries
   picos
   foundation

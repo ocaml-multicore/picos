@@ -1,0 +1,38 @@
+(library
+ (name picos_default)
+ (package picos)
+ (js_of_ocaml
+  (javascript_files thread.js))
+ (libraries
+  picos_private_bootstrap
+  picos_tls
+  picos_domain
+  picos_exn_bt
+  psq
+  mtime
+  mtime.clock.os
+  (select
+   systhreads.ml
+   from
+   (threads.posix -> systhreads.posix.ml)
+   (-> systhreads.none.ml))
+  (select
+   select.ml
+   from
+   (unix -> select.unix.ml)
+   (-> select.none.ml))))
+
+(rule
+ (enabled_if
+  (< %{ocaml_version} 5.0.0))
+ (action
+  (progn
+   (copy domain.ocaml4.ml domain.ml)
+   (copy thread.ocaml4.js thread.js))))
+
+(rule
+ (enabled_if
+  (>= %{ocaml_version} 5.0.0))
+ (action
+  (progn
+   (copy thread.ocaml5.js thread.js))))
