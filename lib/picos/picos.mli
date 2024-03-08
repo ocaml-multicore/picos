@@ -246,7 +246,7 @@ module Exn_bt = Picos_exn_bt
     scheduler. *)
 
 module Trigger : sig
-  (** Ability to await for a signal
+  (** Ability to await for a signal.
 
       To suspend and later resume the current thread of execution, one can
       {!create} a trigger, arrange {!signal} to be called on it, and {!await}
@@ -501,7 +501,7 @@ module Trigger : sig
 end
 
 module Computation : sig
-  (** A cancelable computation
+  (** A cancelable computation.
 
       A computation simply holds the status, i.e.
 
@@ -776,7 +776,7 @@ module Computation : sig
 end
 
 module Fiber : sig
-  (** An independent thread of execution
+  (** An independent thread of execution.
 
       A fiber corresponds to an independent thread of execution.  Fibers are
       {!create}d by schedulers in response to {!Spawn} effects.  A fiber is
