@@ -503,7 +503,7 @@ end
 module Computation : sig
   (** A cancelable computation.
 
-      A computation simply holds the status, i.e.
+      A computation basically holds the status, i.e.
 
       - running,
       - returned, or
@@ -511,19 +511,22 @@ module Computation : sig
 
       of some sort of computation.
 
-      As a hopefully helpful analogy, a computation is basically like a
-      cancelable promise and a basic non-cancelable promise can be implemented
+      A hopefully enlightening analogy is that a computation is a kind of
+      single-shot atomic event.
+
+      Another hopefully helpful analogy is that a computation is basically like
+      a cancelable promise and a basic non-cancelable promise can be implemented
       trivially on top of a computation.
 
-      To define a computation, one first {!create}s it and then arranges for the
-      computation to be completed by {!return}ing a value through it or by
-      {!cancel}ing it with an exception at some point in the future.  There are
-      no restrictions on what it means for a computation to be running.  The
-      cancelation status of a computation can be {!check}ed explicitly.  Outside
-      observers can {{!try_attach} attach} {{!Trigger}triggers} to a computation
-      to get a signal when the computation is completed or {!await} the
-      computation.  Outside observers may also be selectively given the ability
-      to {!cancel} a computation.
+      To define a computation, one first {{!create} creates} it and then
+      arranges for the computation to be completed by {{!return} returning} a
+      value through it or by {{!cancel} canceling} it with an exception at some
+      point in the future.  There are no restrictions on what it means for a
+      computation to be running.  The cancelation status of a computation can be
+      polled or {{!check} checked} explicitly.  Observers can also
+      {{!try_attach} attach} {{!Trigger}triggers} to a computation to get a
+      signal when the computation is completed or {{!await} await} the
+      computation.
 
       Here is an example:
 
@@ -746,13 +749,13 @@ module Computation : sig
 
   (** {2 Design rationale}
 
-      The computation concept can be seen as a generalization of both a
-      cancelation context or token and of a promise.  Unlike a typical promise
-      mechanism, a computation can be canceled.  Unlike a typical cancelation
-      mechanism, a computation can and should also be completed in case it is
-      not canceled.  This promotes proper scoping of computations and resource
-      cleanup at completion, which is how the design evolved from a more
-      traditional cancelation context design.
+      The computation concept can be seen as a kind of single-shot atomic event
+      that is a generalization of both a cancelation context or token and of a
+      promise.  Unlike a typical promise mechanism, a computation can be
+      canceled.  Unlike a typical cancelation mechanism, a computation can and
+      should also be completed in case it is not canceled.  This promotes proper
+      scoping of computations and resource cleanup at completion, which is how
+      the design evolved from a more traditional cancelation context design.
 
       In this framework, {{!Fiber.computation} every fiber has an associated
       computation}.  Being able to return a value through the computation means
