@@ -7,8 +7,8 @@ let run_one ~budgetf ~n_domains () =
   let n_ops_todo = Atomic.make 0 |> Multicore_magic.copy_as_padded in
 
   let init _ = Atomic.set n_ops_todo n_ops in
+  let wrap _ () = Scheduler.run in
   let work _ () =
-    Scheduler.run @@ fun () ->
     let rec work () =
       let n = Util.alloc n_ops_todo in
       if n <> 0 then
@@ -26,8 +26,7 @@ let run_one ~budgetf ~n_domains () =
   let config =
     Printf.sprintf "%d worker%s" n_domains (if n_domains = 1 then "" else "s")
   in
-
-  Times.record ~budgetf ~n_domains ~init ~work ()
+  Times.record ~budgetf ~n_domains ~init ~wrap ~work ()
   |> Times.to_thruput_metrics ~n:n_ops ~singular:"op" ~config
 
 let run_suite ~budgetf =
