@@ -1,4 +1,6 @@
 (library
- (name picos_private_bootstrap)
+ (name picos_bootstrap)
  (package picos)
- (libraries picos_exn_bt backoff))
+ (libraries
+  (re_export picos.exn_bt)
+  backoff))

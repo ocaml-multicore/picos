@@ -1,3 +1,5 @@
+module Exn_bt = Picos_exn_bt
+
 module Trigger = struct
   let[@inline never] awaiting () = invalid_arg "Trigger: already awaiting"
 
@@ -10,7 +12,12 @@ module Trigger = struct
 
   let create () = Atomic.make Initial
   let is_signaled t = Atomic.get t == Signaled
-  let is_initial t = Atomic.get t == Initial
+
+  let is_initial t =
+    match Atomic.get t with
+    | Initial -> true
+    | Awaiting _ -> awaiting ()
+    | Signaled -> false
 
   let rec finish t ~allow_awaiting =
     match Atomic.get t with
@@ -39,10 +46,11 @@ module Trigger = struct
 end
 
 module Computation = struct
-  let[@inline never] negative () = invalid_arg "Computation: negative seconds"
+  let[@inline never] negative_or_nan () =
+    invalid_arg "Computation: seconds must be non-negative"
 
   type 'a state =
-    | Canceled of Picos_exn_bt.t
+    | Canceled of Exn_bt.t
     | Returned of 'a
     | Continue of { balance_and_mode : int; triggers : Trigger.t list }
 
@@ -148,13 +156,13 @@ module Computation = struct
   let try_capture t fn x =
     match fn x with
     | y -> try_return t y
-    | exception exn -> try_cancel t (Picos_exn_bt.get exn)
+    | exception exn -> try_cancel t (Exn_bt.get exn)
 
   let capture t fn x = try_capture t fn x |> ignore
 
   let check t =
     match Atomic.get t with
-    | Canceled exn_bt -> Picos_exn_bt.raise exn_bt
+    | Canceled exn_bt -> Exn_bt.raise exn_bt
     | Returned _ | Continue _ -> ()
 
   let peek t =
@@ -172,6 +180,15 @@ module Computation = struct
   end
 
   let canceler ~from ~into = Trigger.from_action from into propagate
+
+  let check_non_negative seconds =
+    if not (0.0 <= seconds) then negative_or_nan ()
+
+  let rec get_or block t =
+    match Atomic.get t with
+    | Returned value -> value
+    | Canceled exn_bt -> Exn_bt.raise exn_bt
+    | Continue _ -> get_or block (block t)
 end
 
 module Fiber = struct
@@ -288,5 +305,21 @@ module Fiber = struct
         r.fls <- fls;
         Array.unsafe_set fls key.index
           (Sys.opaque_identity (Obj.magic value : non_float))
+  end
+end
+
+module type Implementation = sig
+  module Fiber : sig
+    val current : unit -> Fiber.t
+    val spawn : forbid:bool -> 'a Computation.t -> (unit -> unit) list -> unit
+    val yield : unit -> unit
+  end
+
+  module Computation : sig
+    val cancel_after : 'a Computation.t -> seconds:float -> Exn_bt.t -> unit
+  end
+
+  module Trigger : sig
+    val await : Trigger.t -> Exn_bt.t option
   end
 end

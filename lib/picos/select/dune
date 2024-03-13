@@ -1,0 +1,13 @@
+(library
+ (name picos_select)
+ (public_name picos.select)
+ (optional)
+ (libraries
+  (re_export picos)
+  (re_export picos.exn_bt)
+  picos.domain
+  threads.posix
+  psq
+  mtime
+  mtime.clock.os
+  unix))

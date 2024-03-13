@@ -1,3 +1,5 @@
+(** A wrapper for exceptions with backtraces for {!Picos}. *)
+
 include Common.Intf
 
 val discontinue : ('a, 'b) Effect.Deep.continuation -> t -> 'b

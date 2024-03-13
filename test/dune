@@ -6,8 +6,8 @@
   (select
    test_scheduler.ml
    from
-   (schedulers picos_default -> test_scheduler.ocaml5.ml)
-   (-> test_scheduler.ocaml4.ml))))
+   (picos.select schedulers -> test_scheduler.ocaml5.ml)
+   (picos.threaded -> test_scheduler.ocaml4.ml))))
 
 ;;
 
@@ -29,14 +29,12 @@
 (rule
  (action
   (progn
-   (copy
-    ../lib/picos/bootstrap/picos_private_bootstrap.ml
-    picos_private_bootstrap.ml))))
+   (copy ../lib/picos/bootstrap/picos_bootstrap.ml picos_bootstrap.ml))))
 
 (test
  (name test_picos_dscheck)
  (package picos)
- (modules test_picos_dscheck picos_private_bootstrap)
+ (modules test_picos_dscheck picos_bootstrap)
  (build_if
   (>= %{ocaml_version} 5))
  (libraries picos.exn_bt backoff traced_atomic dscheck alcotest))
@@ -74,4 +72,4 @@
   (flags --enable=effects))
  (build_if
   (<> %{architecture} i386))
- (libraries picos))
+ (libraries picos picos.threaded))

@@ -17,7 +17,7 @@ let () =
   foundation
   (select scheduler.ml from
    (schedulers -> scheduler.ocaml5.ml)
-   (           -> scheduler.ocaml4.ml))
+   (picos.threaded -> scheduler.ocaml4.ml))
   multicore-bench
   multicore-magic |}
   ^ maybe_domain_shims ^ {| ))

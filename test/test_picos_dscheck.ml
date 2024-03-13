@@ -2,7 +2,7 @@
     interleavings of [Atomic] operations performed by different [Atomic.spawn]ed
     fibers. *)
 
-open Picos_private_bootstrap
+open Picos_bootstrap
 
 let sum_as fn xs = Array.fold_left (fun sum x -> sum + fn x) 0 xs
 let ( += ) x y = x := !x + y
@@ -56,9 +56,7 @@ let test_computation_contract () =
        in
        let () =
          Atomic.spawn @@ fun () ->
-         if
-           Computation.try_cancel computation
-             (Picos_exn_bt.get_callstack 1 Exit)
+         if Computation.try_cancel computation (Exn_bt.get_callstack 1 Exit)
          then incr cancels
        in
        let triggers = Array.init 2 @@ fun _ -> Trigger.create () in

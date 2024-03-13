@@ -2,22 +2,22 @@
  (name picos)
  (public_name picos)
  (libraries
-  (re_export picos_exn_bt)
-  picos_private_bootstrap
+  (re_export picos.exn_bt)
+  picos_bootstrap
   (select
    picos.ml
    from
-   (picos_private_ocaml4 -> picos.common.ml)
-   (picos_private_ocaml5 -> picos.common.ml))
+   (picos_ocaml4 -> picos.common.ml)
+   (picos_ocaml5 -> picos.common.ml))
   (select
    intf.ml
    from
-   (picos_private_ocaml4 -> intf.ocaml4.ml)
-   (picos_private_ocaml5 -> intf.ocaml5.ml))))
+   (picos_ocaml4 -> intf.ocaml4.ml)
+   (picos_ocaml5 -> intf.ocaml5.ml))))
 
 (mdx
  (package picos)
  (deps
   (package picos))
- (libraries picos picos_exn_bt domain_shims)
+ (libraries picos picos.exn_bt picos.threaded domain_shims)
  (files picos.mli))
