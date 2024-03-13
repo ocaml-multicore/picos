@@ -52,21 +52,6 @@ end
 module Computation = struct
   include Picos_private_bootstrap.Computation
 
-  let rec await t =
-    match Atomic.get t with
-    | Returned value -> value
-    | Canceled exn_bt -> Exn_bt.raise exn_bt
-    | Continue _ ->
-        let trigger = Picos_private_bootstrap.Trigger.create () in
-        if try_attach t trigger then begin
-          match Trigger.await trigger with
-          | None -> await t
-          | Some exn_bt ->
-              detach t trigger;
-              Exn_bt.raise exn_bt
-        end
-        else await t
-
   type _ Effect.t +=
     | Cancel_after : {
         seconds : float;
