@@ -1,3 +1,6 @@
+(** A minimalistic domain API available both on OCaml 5 and on OCaml 4 for
+    {!Picos}. *)
+
 val at_exit : (unit -> unit) -> unit
 (** [at_exit action] registers [action] to be called when the current domain
     exits.

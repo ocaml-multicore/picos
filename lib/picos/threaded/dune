@@ -1,0 +1,34 @@
+(library
+ (name picos_threaded)
+ (public_name picos.threaded)
+ (js_of_ocaml
+  (javascript_files thread.js))
+ (libraries
+  (re_export picos)
+  (re_export picos.exn_bt)
+  picos.tls
+  picos.domain
+  (select
+   select.ml
+   from
+   (picos.select -> select.some.ml)
+   (-> select.none.ml))
+  (select
+   systhreads.ml
+   from
+   (threads.posix -> systhreads.posix.ml)
+   (-> systhreads.none.ml))))
+
+(rule
+ (enabled_if
+  (< %{ocaml_version} 5.0.0))
+ (action
+  (progn
+   (copy thread.ocaml4.js thread.js))))
+
+(rule
+ (enabled_if
+  (>= %{ocaml_version} 5.0.0))
+ (action
+  (progn
+   (copy thread.ocaml5.js thread.js))))

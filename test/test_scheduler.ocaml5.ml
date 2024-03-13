@@ -1,13 +1,11 @@
 let[@alert "-handler"] on_unhandled =
-  let module Default = Picos_default.Make (Picos) in
   let try_handle :
       type a. a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option =
     function
     | Picos.Computation.Cancel_after r ->
         Some
           (fun k ->
-            Default.Computation.cancel_after r.computation ~seconds:r.seconds
-              r.exn_bt;
+            Picos_select.cancel_after r.computation ~seconds:r.seconds r.exn_bt;
             Effect.Deep.continue k ())
     | _ -> None
   in

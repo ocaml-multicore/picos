@@ -219,7 +219,19 @@
 
 (** {2 Modules reference}
 
+    We first open the {!Picos} module
+
     {[open Picos]}
+
+    and set the Picos {{!implementations} implementation} to use on OCaml 4
+
+    {[
+      if String.starts_with ~prefix:"4." Sys.ocaml_version then
+        Picos.set_picos_implementation Picos_threaded.implementation
+    ]}
+
+    to {{!Picos_threaded.implementation} the basic thread based implementation}
+    for the example code snippets in this documentation.
 
     {3 Auxiliary modules} *)
 
@@ -331,8 +343,8 @@ module Trigger : sig
       ℹ️ The behavior is that, {i unless [await] can return immediately},
 
       - on OCaml 5, [await] will perform the {!Await} effect, and
-      - on OCaml 4, [await] will suspend the underlying system level thread
-        using a per thread [Mutex] and [Condition] variable.
+      - on OCaml 4, [await] will call the {{!Implementation.Trigger.await}
+        [await] operation} of the {{!set_picos_implementation} implementation}.
 
       @raise Invalid_argument if the trigger was in the awaiting state, which
         means that multiple concurrent calls of [await] are being made. *)
@@ -648,13 +660,15 @@ module Computation : sig
       backtrace.  Completion of the computation before the specified time
       effectively cancels the timeout.
 
-      ℹ️ The behaviour is that [cancel_after] first checks that [seconds] is not
+      ℹ️ The behavior is that [cancel_after] first checks that [seconds] is not
       negative, and then
 
       - on OCaml 5, [cancel_after] will perform the {!Cancel_after}
         effect, and
-      - on OCaml 4, [cancel_after] registers the timeout to a background
-        [Thread] running a [Unix.select] loop.
+      - on OCaml 4, [cancel_after] will next call {!Fiber.current} and will
+        finally call the {{!Implementation.Computation.cancel_after}
+        [cancel_after] operation} of the {{!set_picos_implementation}
+        implementation}.
 
       @raise Invalid_argument if [seconds] is negative or too large as
         determined by the scheduler. *)
@@ -783,7 +797,9 @@ module Fiber : sig
       ℹ️ The behavior is that
 
       - on OCaml 5, [yield] perform the {!Yield} effect, and
-      - on OCaml 4, [yield] calls [Thread.yield ()]. *)
+      - on OCaml 4, [yield] will next call {!Fiber.current} and will finally
+        call the {{!Implementation.Fiber.yield} [yield] operation} of the
+        {{!set_picos_implementation} implementation}. *)
 
   (** {2 Interface for spawning} *)
 
@@ -806,7 +822,9 @@ module Fiber : sig
       ℹ️ The behavior is that
 
       - on OCaml 5, [spawn] performs the {!Spawn} effect, and
-      - on OCaml 4, [spawn] creates a new [Thread] for each fiber. *)
+      - on OCaml 4, [spawn] will next call {!Fiber.current} and will finally
+        call the {{!Implementation.Fiber.spawn} [spawn] operation} of the
+        {{!set_picos_implementation} implementation}. *)
 
   (** {2 Interface for current fiber} *)
 
@@ -828,7 +846,9 @@ module Fiber : sig
       ℹ️ The behavior is that
 
       - on OCaml 5, [current] performs the {!Current} effect, and
-      - on OCaml 4, [current] obtains the fiber from [Thread]-local storage. *)
+      - on OCaml 4, [current] will call the {{!Implementation.Fiber.current}
+        [current] operation} of the {{!set_picos_implementation}
+        implementation}. *)
 
   val has_forbidden : t -> bool
   (** [has_forbidden fiber] determines whether the fiber {!forbid}s or
@@ -1015,39 +1035,47 @@ module Fiber : sig
       next. *)
 end
 
-(** {2 Advanced topics}
+(** {2 Implementations}
 
-    {3 Default behaviors}
+    OCaml 4 does not have effect handlers.  It is, however, possible to
+    implement the effects based operations of Picos in terms of threads. *)
 
-    All of the effects based operations
+module type Implementation = sig
+  (** Signature for an implementation of the primitive effects based operations of
+      Picos.
 
-    - {!Trigger.await},
-    - {!Computation.cancel_after},
-    - {!Fiber.current},
-    - {!Fiber.yield}, and
-    - {!Fiber.spawn}
+      ℹ️ On OCaml 4 most of the effects based operations will call
+      {!Fiber.current} implicitly to check for cancelation before finally
+      calling the set {{!set_picos_implementation} implementation}. *)
 
-    have default behaviors on OCaml 4.
+  (** Implements primitive effects based operations of {!Picos.Fiber}. *)
+  module Fiber : sig
+    val current : unit -> Fiber.t
+    (** See {!Picos.Fiber.current}. *)
 
-    The underlying idea behind the defaults is to make it so that a fiber
-    corresponds to a [Thread].
+    val spawn : forbid:bool -> 'a Computation.t -> (unit -> unit) list -> unit
+    (** See {!Picos.Fiber.spawn}. *)
 
-    Briefly:
+    val yield : unit -> unit
+    (** See {!Picos.Fiber.yield}. *)
+  end
 
-    - The default {{!Fiber.spawn} [spawn]} creates a thread for each fiber.
-    - The default {{!Fiber.current} [current]} uses {!Picos_tls} to store the current
-      fiber.
-    - The default {{!Fiber.yield} [yield]} just calls [Thread.yield].
-    - The default {{!Trigger.await} [await]} uses {!Picos_tls} to store a [Mutex] and
-      [Condition] to suspend the thread.
-    - The default {{!Computation.cancel_after} [cancel_after]} uses
-      {!Picos_domain.DLS} to store a priority queue of timeouts and a per-domain
-      background timeout thread that runs a [Unix.select] loop to cancel
-      computations.
+  (** Implements primitive effects based operations of {!Picos.Computation}. *)
+  module Computation : sig
+    val cancel_after : 'a Computation.t -> seconds:float -> Exn_bt.t -> unit
+    (** See {!Picos.Computation.cancel_after}. *)
+  end
 
-    The default behaviors initialize their resources, per-thread, and per-domain
-    state and the background timeout thread, only when actually used.  If the
-    default {{!Computation.cancel_after} [cancel_after]} is not used, no
-    background timeout thread will be created and no per-domain state will be
-    used.  If none of the defaults are used, no per-thread state will be
-    used. *)
+  (** Implements primitive effects based operations of {!Picos.Trigger}. *)
+  module Trigger : sig
+    val await : Trigger.t -> Exn_bt.t option
+    (** See {!Picos.Trigger.await}. *)
+  end
+end
+
+val set_picos_implementation : (module Implementation) -> unit
+(** [set_picos_implementation (module Implementation)] sets the implementation
+    of the primitive effects based operations of Picos.
+
+    ⚠️ This must be called exactly once in a program only on OCaml 4 before using
+    any effects based operations of Picos. *)
