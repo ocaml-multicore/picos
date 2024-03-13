@@ -7,8 +7,8 @@
   (select
    picos.ml
    from
-   (picos_private_ocaml4 -> picos.ocaml4.ml)
-   (picos_private_ocaml5 -> picos.ocaml5.ml))
+   (picos_private_ocaml4 -> picos.common.ml)
+   (picos_private_ocaml5 -> picos.common.ml))
   (select
    intf.ml
    from
