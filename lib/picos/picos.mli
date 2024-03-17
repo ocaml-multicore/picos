@@ -722,7 +722,7 @@ module Computation : sig
 
   (** {2 Interface for propagating cancelation} *)
 
-  val canceler : from:'a t -> into:'b t -> Trigger.t
+  val canceler : from:_ t -> into:_ t -> Trigger.t
   (** [canceler ~from ~into] creates a trigger that propagates cancelation
       [from] one computation [into] another on {{:Trigger.signal} signal}.  The
       returned trigger is not attached to any computation.
