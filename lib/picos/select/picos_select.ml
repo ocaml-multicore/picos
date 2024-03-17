@@ -1,17 +1,3 @@
-let[@poll error] [@inline never] compare_and_set x before after =
-  !x == before
-  && begin
-       x := after;
-       true
-     end
-
-let[@poll error] [@inline never] exchange x after =
-  let before = !x in
-  x := after;
-  before
-
-(* *)
-
 open Picos
 
 type cancel_at =
@@ -178,9 +164,9 @@ and select_thread_continue s rd wr ex (rd_fds, wr_fds, ex_fds) =
         let n = Unix.read s.pipe_inn s.byte 0 1 in
         assert (n = 1)
   end;
-  let rd = process_fds rd_fds rd (exchange s.new_rd []) in
-  let wr = process_fds wr_fds wr (exchange s.new_wr []) in
-  let ex = process_fds ex_fds ex (exchange s.new_ex []) in
+  let rd = process_fds rd_fds rd (Picos_thread_atomic.exchange s.new_rd []) in
+  let wr = process_fds wr_fds wr (Picos_thread_atomic.exchange s.new_wr []) in
+  let ex = process_fds ex_fds ex (Picos_thread_atomic.exchange s.new_ex []) in
   let tos = process_timeouts s in
   select_thread s tos rd wr ex
 
@@ -265,7 +251,8 @@ let wakeup_action _trigger s _s = wakeup s `Alive
 let[@alert "-handler"] rec insert_fd s fds (Return_on r as op) =
   let before = !fds in
   if Computation.is_running r.computation then
-    if compare_and_set fds before (Return_on r :: before) then
+    if Picos_thread_atomic.compare_and_set fds before (Return_on r :: before)
+    then
       let _ : bool =
         Computation.try_attach r.computation
           (Trigger.from_action s s wakeup_action)

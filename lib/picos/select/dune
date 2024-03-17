@@ -6,6 +6,7 @@
   (re_export picos)
   (re_export picos.exn_bt)
   picos.domain
+  picos_thread_atomic
   threads.posix
   psq
   mtime
