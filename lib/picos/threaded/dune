@@ -6,8 +6,8 @@
  (libraries
   (re_export picos)
   (re_export picos.exn_bt)
-  picos.tls
   picos.domain
+  picos.ptmc
   (select
    select.ml
    from

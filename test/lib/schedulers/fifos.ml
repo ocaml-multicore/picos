@@ -5,7 +5,7 @@ type t = {
   ready : (unit -> unit) Mpsc_queue.t;
   needs_wakeup : bool Atomic.t;
   num_alive_fibers : int ref;
-  mc : Mutex_and_condition.t;
+  mc : Picos_ptmc.t;
   on_unhandled : unit Try_handle.t option;
 }
 
@@ -15,13 +15,11 @@ let rec next t =
   | exception Mpsc_queue.Empty ->
       if !(t.num_alive_fibers) <> 0 then begin
         if Atomic.get t.needs_wakeup then begin
-          Mutex_and_condition.lock t.mc;
-          match
-            if Atomic.get t.needs_wakeup then Mutex_and_condition.wait t.mc
-          with
-          | () -> Mutex_and_condition.unlock t.mc
+          Picos_ptmc.lock t.mc;
+          match if Atomic.get t.needs_wakeup then Picos_ptmc.wait t.mc with
+          | () -> Picos_ptmc.unlock t.mc
           | exception exn ->
-              Mutex_and_condition.unlock t.mc;
+              Picos_ptmc.unlock t.mc;
               raise exn
         end
         else Atomic.set t.needs_wakeup true;
@@ -33,7 +31,7 @@ let run ?on_unhandled ~forbid main =
     let ready = Mpsc_queue.create () in
     let needs_wakeup = Atomic.make false in
     let num_alive_fibers = ref 1 in
-    let mc = Mutex_and_condition.get () in
+    let mc = Picos_ptmc.get () in
     { ready; needs_wakeup; num_alive_fibers; mc; on_unhandled }
   in
   let resume trigger fiber k =
@@ -58,7 +56,7 @@ let run ?on_unhandled ~forbid main =
     if
       Atomic.get t.needs_wakeup
       && Atomic.compare_and_set t.needs_wakeup true false
-    then Mutex_and_condition.broadcast t.mc
+    then Picos_ptmc.broadcast t.mc
   in
   let rec fork fiber main =
     let current = Some (fun k -> Fiber.continue fiber k fiber)

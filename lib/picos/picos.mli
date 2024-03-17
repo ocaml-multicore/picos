@@ -223,15 +223,19 @@
 
     {[open Picos]}
 
-    and set the Picos {{!implementations} implementation} to use on OCaml 4
+    and define a simple scheduler
 
     {[
-      if String.starts_with ~prefix:"4." Sys.ocaml_version then
-        Picos.set_picos_implementation Picos_threaded.implementation
+      let run main =
+        Handler.using
+          Picos_threaded.handler
+          (Picos_threaded.create ~forbid:false (Computation.create ()))
+          main
     ]}
 
-    to {{!Picos_threaded.implementation} the basic thread based implementation}
-    for the example code snippets in this documentation.
+    using {{!Picos_threaded.handler} the basic thread based implementation} that
+    comes with Picos for running the example code snippets in this
+    documentation.
 
     {3 Auxiliary modules} *)
 
@@ -254,25 +258,27 @@ module Trigger : sig
 
       Here is a simple example:
 
-      {@ocaml version<5.0.0[
-        let trigger = Trigger.create () in
+      {[
+        run begin fun () ->
+          let trigger = Trigger.create () in
 
-        let signaler =
-          Domain.spawn @@ fun () ->
-            Trigger.signal trigger
-        in
-        let finally () =
-          Domain.join signaler
-        in
-        Fun.protect ~finally @@ fun () ->
+          let signaler =
+            Domain.spawn @@ fun () ->
+              Trigger.signal trigger
+          in
+          let finally () =
+            Domain.join signaler
+          in
+          Fun.protect ~finally @@ fun () ->
 
-        match Trigger.await trigger with
-        | None ->
-          (* We were resumed normally. *)
-          ()
-        | Some exn_bt ->
-          (* We were canceled. *)
-          Exn_bt.raise exn_bt
+          match Trigger.await trigger with
+          | None ->
+            (* We were resumed normally. *)
+            ()
+          | Some exn_bt ->
+            (* We were canceled. *)
+            Exn_bt.raise exn_bt
+        end
       ]}
 
       ⚠️ Typically we need to cleanup after {!await}, but in the above example we
@@ -335,8 +341,8 @@ module Trigger : sig
       ℹ️ The behavior is that, {i unless [await] can return immediately},
 
       - on OCaml 5, [await] will perform the {!Await} effect, and
-      - on OCaml 4, [await] will call the {{!Implementation.Trigger.await}
-        [await] operation} of the {{!set_picos_implementation} implementation}.
+      - on OCaml 4, [await] will call the [await] operation of the {{!Handler}
+        current handler}.
 
       @raise Invalid_argument if the trigger was in the awaiting state, which
         means that multiple concurrent calls of [await] are being made. *)
@@ -530,39 +536,41 @@ module Computation : sig
 
       Here is an example:
 
-      {@ocaml version<5.0.0[
-        let computation =
-          Computation.create ()
-        in
-        let computer =
-          Domain.spawn @@ fun () ->
-            let rec fib i =
-              Computation.check computation;
-              if i <= 1 then
-                i
-              else
-                fib (i - 1) + fib (i - 2)
-            in
-            Computation.capture computation
-              fib 10
-        in
-        let finally () =
-          Domain.join computer
-        in
-        Fun.protect ~finally @@ fun () ->
+      {[
+        run begin fun () ->
+          let computation =
+            Computation.create ()
+          in
+          let computer =
+            Domain.spawn @@ fun () ->
+              let rec fib i =
+                Computation.check computation;
+                if i <= 1 then
+                  i
+                else
+                  fib (i - 1) + fib (i - 2)
+              in
+              Computation.capture computation
+                fib 10
+          in
+          let finally () =
+            Domain.join computer
+          in
+          Fun.protect ~finally @@ fun () ->
 
-        let canceler =
-          Domain.spawn @@ fun () ->
-            Unix.sleepf 0.1;
-            Computation.cancel computation
-            @@ Exn_bt.get_callstack 2 Exit
-        in
-        let finally () =
-          Domain.join canceler
-        in
-        Fun.protect ~finally @@ fun () ->
+          let canceler =
+            Domain.spawn @@ fun () ->
+              Unix.sleepf 0.1;
+              Computation.cancel computation
+              @@ Exn_bt.get_callstack 2 Exit
+          in
+          let finally () =
+            Domain.join canceler
+          in
+          Fun.protect ~finally @@ fun () ->
 
-        Computation.await computation
+          Computation.await computation
+        end
       ]}
 
       In this framework, a fiber is always associated with {{!Fiber.computation}
@@ -668,12 +676,9 @@ module Computation : sig
       ℹ️ The behavior is that [cancel_after] first checks that [seconds] is not
       negative, and then
 
-      - on OCaml 5, [cancel_after] will perform the {!Cancel_after}
-        effect, and
-      - on OCaml 4, [cancel_after] will next call {!Fiber.current} and will
-        finally call the {{!Implementation.Computation.cancel_after}
-        [cancel_after] operation} of the {{!set_picos_implementation}
-        implementation}.
+      - on OCaml 5, [cancel_after] will perform the {!Cancel_after} effect, and
+      - on OCaml 4, [cancel_after] will call the [cancel_after] operation of the
+        {{!Handler} current handler}.
 
       @raise Invalid_argument if [seconds] is negative or too large as
         determined by the scheduler. *)
@@ -805,9 +810,8 @@ module Fiber : sig
       ℹ️ The behavior is that
 
       - on OCaml 5, [yield] perform the {!Yield} effect, and
-      - on OCaml 4, [yield] will next call {!Fiber.current} and will finally
-        call the {{!Implementation.Fiber.yield} [yield] operation} of the
-        {{!set_picos_implementation} implementation}. *)
+      - on OCaml 4, [yield] will call the [yield] operation of the {{!Handler}
+        current handler}. *)
 
   (** {2 Interface for spawning} *)
 
@@ -830,9 +834,8 @@ module Fiber : sig
       ℹ️ The behavior is that
 
       - on OCaml 5, [spawn] performs the {!Spawn} effect, and
-      - on OCaml 4, [spawn] will next call {!Fiber.current} and will finally
-        call the {{!Implementation.Fiber.spawn} [spawn] operation} of the
-        {{!set_picos_implementation} implementation}. *)
+      - on OCaml 4, [spawn] will call the [spawn] operation of the {{!Handler}
+        current handler}. *)
 
   (** {2 Interface for current fiber} *)
 
@@ -854,9 +857,8 @@ module Fiber : sig
       ℹ️ The behavior is that
 
       - on OCaml 5, [current] performs the {!Current} effect, and
-      - on OCaml 4, [current] will call the {{!Implementation.Fiber.current}
-        [current] operation} of the {{!set_picos_implementation}
-        implementation}. *)
+      - on OCaml 4, [current] will call the [current] operation of the
+        {{!Handler} current handler}. *)
 
   val has_forbidden : t -> bool
   (** [has_forbidden fiber] determines whether the fiber {!forbid}s or
@@ -1043,47 +1045,38 @@ module Fiber : sig
       next. *)
 end
 
-(** {2 Implementations}
+module Handler : sig
+  (** Handler for the effects based operations of Picos for OCaml 4. *)
 
-    OCaml 4 does not have effect handlers.  It is, however, possible to
-    implement the effects based operations of Picos in terms of threads. *)
+  type 'c t = {
+    current : 'c -> Fiber.t;  (** See {!Picos.Fiber.current}. *)
+    spawn :
+      'a. 'c -> forbid:bool -> 'a Computation.t -> (unit -> unit) list -> unit;
+        (** See {!Picos.Fiber.spawn}. *)
+    yield : 'c -> unit;  (** See {!Picos.Fiber.yield}. *)
+    cancel_after :
+      'a. 'c -> 'a Computation.t -> seconds:float -> Exn_bt.t -> unit;
+        (** See {!Picos.Computation.cancel_after}. *)
+    await : 'c -> Trigger.t -> Exn_bt.t option;
+        (** See {!Picos.Trigger.await}. *)
+  }
+  (** A record of implementations of the primitive effects based operations of
+      Picos.  The operations take a context of type ['c] as an argument. *)
 
-module type Implementation = sig
-  (** Signature for an implementation of the primitive effects based operations of
-      Picos.
+  val using : 'c t -> 'c -> (unit -> 'a) -> 'a
+  (** [using handler context thunk] sets the [handler] and the [context] for the
+      handler of the primitive effects based operations of Picos while running
+      [thunk].
 
-      ℹ️ On OCaml 4 most of the effects based operations will call
-      {!Fiber.current} implicitly to check for cancelation before finally
-      calling the set {{!set_picos_implementation} implementation}. *)
+      ℹ️ The behavior is that
 
-  (** Implements primitive effects based operations of {!Picos.Fiber}. *)
-  module Fiber : sig
-    val current : unit -> Fiber.t
-    (** See {!Picos.Fiber.current}. *)
+      - on OCaml 4, [using] stores the [handler] in {{!Picos_tls} [TLS]}, which
+        allows the operations to be accessed during the execution of the
+        [thunk], and
+      - on OCaml 5, [using] runs [thunk] with a deep effect handler that
+        delegates to the operations of the [handler].
 
-    val spawn : forbid:bool -> 'a Computation.t -> (unit -> unit) list -> unit
-    (** See {!Picos.Fiber.spawn}. *)
-
-    val yield : unit -> unit
-    (** See {!Picos.Fiber.yield}. *)
-  end
-
-  (** Implements primitive effects based operations of {!Picos.Computation}. *)
-  module Computation : sig
-    val cancel_after : 'a Computation.t -> seconds:float -> Exn_bt.t -> unit
-    (** See {!Picos.Computation.cancel_after}. *)
-  end
-
-  (** Implements primitive effects based operations of {!Picos.Trigger}. *)
-  module Trigger : sig
-    val await : Trigger.t -> Exn_bt.t option
-    (** See {!Picos.Trigger.await}. *)
-  end
+      ⚠️ While this works on OCaml 5, you usually want to use a scheduler that
+      implements an effect handler directly, because that is likely to perform
+      better. *)
 end
-
-val set_picos_implementation : (module Implementation) -> unit
-(** [set_picos_implementation (module Implementation)] sets the implementation
-    of the primitive effects based operations of Picos.
-
-    ⚠️ This must be called exactly once in a program only on OCaml 4 before using
-    any effects based operations of Picos. *)

@@ -29,6 +29,7 @@ module Fiber = struct
   include Picos_ocaml.Fiber
 end
 
-module type Implementation = Picos_bootstrap.Implementation
-
-let set_picos_implementation = Picos_ocaml.set_picos_implementation
+module Handler = struct
+  include Picos_bootstrap.Handler
+  include Picos_ocaml.Handler
+end
