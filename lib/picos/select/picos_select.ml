@@ -273,8 +273,16 @@ let[@alert "-handler"] rec insert_fd s fds (Return_on r as op) =
       wakeup s `Alive
     else insert_fd s fds op
 
-let return_on computation file_descr event value =
+let return_on computation file_descr op value =
   let s = get () in
   insert_fd s
-    (match event with `R -> s.new_rd | `W -> s.new_wr | `E -> s.new_ex)
+    (match op with `R -> s.new_rd | `W -> s.new_wr | `E -> s.new_ex)
     (Return_on { computation; file_descr; value })
+
+let await_on file_descr op =
+  let computation = Computation.create () in
+  return_on computation file_descr op file_descr;
+  try Computation.await computation
+  with exn ->
+    Computation.cancel computation exit_exn_bt;
+    raise exn
