@@ -1,0 +1,10 @@
+(library
+ (name picos_ptmc)
+ (public_name picos.ptmc)
+ (libraries
+  picos.tls
+  (select
+   picos_ptmc.ml
+   from
+   (threads.posix -> picos_ptmc.common.ml)
+   (-> picos_ptmc.common.ml))))

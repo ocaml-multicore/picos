@@ -1,3 +1,3 @@
 (library
  (name foundation)
- (libraries picos backoff threads.posix multicore-magic thread-local-storage))
+ (libraries picos backoff multicore-magic))

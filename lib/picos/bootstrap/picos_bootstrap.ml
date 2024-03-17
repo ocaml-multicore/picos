@@ -308,18 +308,14 @@ module Fiber = struct
   end
 end
 
-module type Implementation = sig
-  module Fiber : sig
-    val current : unit -> Fiber.t
-    val spawn : forbid:bool -> 'a Computation.t -> (unit -> unit) list -> unit
-    val yield : unit -> unit
-  end
-
-  module Computation : sig
-    val cancel_after : 'a Computation.t -> seconds:float -> Exn_bt.t -> unit
-  end
-
-  module Trigger : sig
-    val await : Trigger.t -> Exn_bt.t option
-  end
+module Handler = struct
+  type 'c t = {
+    current : 'c -> Fiber.t;
+    spawn :
+      'a. 'c -> forbid:bool -> 'a Computation.t -> (unit -> unit) list -> unit;
+    yield : 'c -> unit;
+    cancel_after :
+      'a. 'c -> 'a Computation.t -> seconds:float -> Exn_bt.t -> unit;
+    await : 'c -> Trigger.t -> Exn_bt.t option;
+  }
 end
