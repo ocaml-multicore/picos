@@ -14,9 +14,9 @@
 
     The operations initialize their resources, per-thread, and per-domain state
     and {{!Picos_select} background timeout thread}, only when actually used.
-    If the default {{!Computation.cancel_after} [cancel_after]} is not used, no
-    background timeout thread will be created and no per-domain state will be
-    used.  If none of the defaults are used, no per-thread state will be
+    If the default {{!Picos.Computation.cancel_after} [cancel_after]} is not
+    used, no background timeout thread will be created and no per-domain state
+    will be used.  If none of the defaults are used, no per-thread state will be
     used.
 
     ⚠️ This implementation is probably suitable for simple applications that do
