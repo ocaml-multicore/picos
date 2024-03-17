@@ -297,14 +297,6 @@ module Trigger : sig
   val create : unit -> t
   (** [create ()] allocates a new trigger in the initial state. *)
 
-  val is_initial : t -> bool
-  (** [is_initial trigger] determines whether the trigger is in the initial
-      state.
-
-      ℹ️ Consider using {!is_signaled} instead of [is_initial] as in some
-      contexts a trigger might reasonably be either in the initial or the
-      awaiting state depending on the order in which things are being done. *)
-
   val is_signaled : t -> bool
   (** [is_signaled trigger] determines whether the trigger is in the signaled
       state.
@@ -368,6 +360,16 @@ module Trigger : sig
       ⚠️ Do not call [signal] from an effect handler in a scheduler. *)
 
   (** {2 Interface for schedulers} *)
+
+  val is_initial : t -> bool
+  (** [is_initial trigger] determines whether the trigger is in the initial
+      or in the signaled state.
+
+      ℹ️ Consider using {!is_signaled} instead of [is_initial] as in some
+      contexts a trigger might reasonably be either in the initial or the
+      awaiting state depending on the order in which things are being done.
+
+      @raise Invalid_argument if the trigger was in the awaiting state. *)
 
   val on_signal : t -> 'x -> 'y -> (t -> 'x -> 'y -> unit) -> bool
   [@@alert
