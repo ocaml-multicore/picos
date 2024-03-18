@@ -22,6 +22,7 @@ type return_on =
       file_descr : Unix.file_descr;
       value : 'a;
       computation : 'a Computation.t;
+      mutable alive : bool;
     }
       -> return_on
 
@@ -115,6 +116,7 @@ let rec process_fds ht unique_fds ops = function
       if Computation.is_running r.computation then begin
         match Ht.find ht r.file_descr with
         | `Return ->
+            r.alive <- false;
             Computation.return r.computation r.value;
             process_fds ht unique_fds ops ops_todo
         | `Alive -> process_fds ht unique_fds (op :: ops) ops_todo
@@ -246,7 +248,7 @@ let[@alert "-handler"] cancel_after computation ~seconds exn_bt =
 
 (* *)
 
-let wakeup_action _trigger s _s = wakeup s `Alive
+let wakeup_action _trigger s (Return_on r) = if r.alive then wakeup s `Alive
 
 let[@alert "-handler"] rec insert_fd s fds (Return_on r as op) =
   let before = !fds in
@@ -255,7 +257,7 @@ let[@alert "-handler"] rec insert_fd s fds (Return_on r as op) =
     then
       let _ : bool =
         Computation.try_attach r.computation
-          (Trigger.from_action s s wakeup_action)
+          (Trigger.from_action s op wakeup_action)
       in
       wakeup s `Alive
     else insert_fd s fds op
@@ -264,7 +266,7 @@ let return_on computation file_descr op value =
   let s = get () in
   insert_fd s
     (match op with `R -> s.new_rd | `W -> s.new_wr | `E -> s.new_ex)
-    (Return_on { computation; file_descr; value })
+    (Return_on { computation; file_descr; value; alive = true })
 
 let await_on file_descr op =
   let computation = Computation.create () in
