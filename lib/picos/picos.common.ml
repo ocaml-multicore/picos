@@ -21,6 +21,7 @@ module Computation = struct
     else t
 
   let await t = get_or block t
+  let wait t = if is_running t then ignore (block t)
 end
 
 module Fiber = struct

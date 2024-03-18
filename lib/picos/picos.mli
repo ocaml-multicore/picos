@@ -725,6 +725,9 @@ module Computation : sig
       ℹ️ If the computation has already completed, then [await] returns or raises
       immediately without performing any effects. *)
 
+  val wait : _ t -> unit
+  (** [wait computation] waits for the computation to complete. *)
+
   (** {2 Interface for propagating cancelation} *)
 
   val canceler : from:_ t -> into:_ t -> Trigger.t
