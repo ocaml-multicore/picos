@@ -60,6 +60,9 @@ let test_trigger_basics () =
 let test_computation_basics () =
   Test_scheduler.run @@ fun () ->
   let computation = Computation.create () in
+  Computation.cancel computation (Exn_bt.get Exit);
+  Computation.wait computation;
+  let computation = Computation.create () in
   let@ _ =
     finally Domain.join @@ fun () ->
     Domain.spawn @@ fun () ->
