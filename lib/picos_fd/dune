@@ -1,0 +1,6 @@
+(library
+ (name picos_fd)
+ (public_name picos.fd)
+ (libraries
+  (re_export unix)
+  picos.rc))
