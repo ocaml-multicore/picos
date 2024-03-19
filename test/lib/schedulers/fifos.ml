@@ -95,6 +95,9 @@ let run ?on_unhandled ~forbid main =
              potentially allows us to make better/different decisions here. *)
           Some
             (fun k ->
+              (* The non-blocking logic below for suspending a fiber with
+                 support for parallelism safe cancelation is somewhat intricate.
+                 Hopefully the comments help to understand it. *)
               if Fiber.has_forbidden fiber then begin
                 (* Fiber has forbidden propagation of cancelation.  This is the
                    easy case to handle. *)
