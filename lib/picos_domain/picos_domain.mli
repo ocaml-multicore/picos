@@ -1,5 +1,7 @@
 (** A minimalistic domain API available both on OCaml 5 and on OCaml 4 for
-    {!Picos}. *)
+    {!Picos}.
+
+    ℹ️ On OCaml 4 there is always only a single domain. *)
 
 val at_exit : (unit -> unit) -> unit
 (** [at_exit action] registers [action] to be called when the current domain
@@ -9,9 +11,7 @@ val at_exit : (unit -> unit) -> unit
     [Stdlib.at_exit]. *)
 
 module DLS : sig
-  (** Domain-local storage for Picos.
-
-      On OCaml 4 there is always only a single domain. *)
+  (** Domain-local storage for Picos. *)
 
   type 'a key
   (** Represents a key for storing values of type ['a] in storage associated with

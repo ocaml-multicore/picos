@@ -1,5 +1,5 @@
 (** A basic [Thread] based implementation of the effects based operations of
-    {!Picos}.
+    {!Picos} for OCaml 4.
 
     Briefly:
 
@@ -12,10 +12,15 @@
     - [await] uses {{!Picos_ptmc} a per thread mutex and condition} to suspend
       the thread.
 
-    ⚠️ This implementation is probably suitable for simple applications that do
-    not spawn a lot of fibers.  If an application uses a lot of short lived
-    fibers, then a more sophisticated implementation using some sort of thread
-    pool will likely perform significantly better. *)
+    ⚠️ This scheduler implementation is mostly meant as an example and is
+    probably suitable for simple applications that do not spawn a lot of fibers.
+    If an application uses a lot of short lived fibers, then a more
+    sophisticated scheduler implementation using some sort of thread pool will
+    likely perform significantly better.
+
+    ⚠️ This scheduler implementation also works on OCaml 5, of course, but on
+    OCaml 5 a scheduler that implements an effect handler directly is likely to
+    perform better. *)
 
 open Picos
 
