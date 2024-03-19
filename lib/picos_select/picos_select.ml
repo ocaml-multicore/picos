@@ -19,7 +19,7 @@ module Q =
 
 type return_on =
   | Return_on : {
-      file_descr : Unix.file_descr;
+      file_descr : Unix.file_descr Picos_rc.t;
       value : 'a;
       computation : 'a Computation.t;
       mutable alive : bool;
@@ -114,17 +114,22 @@ let rec process_fds ht unique_fds ops = function
       else { n = Ht.length ht; unique_fds; ops }
   | (Return_on r as op) :: ops_todo ->
       if Computation.is_running r.computation then begin
-        match Ht.find ht r.file_descr with
+        let file_descr = Picos_rc.unsafe_get r.file_descr in
+        match Ht.find ht file_descr with
         | `Return ->
+            Picos_rc.decr r.file_descr;
             r.alive <- false;
             Computation.return r.computation r.value;
             process_fds ht unique_fds ops ops_todo
         | `Alive -> process_fds ht unique_fds (op :: ops) ops_todo
         | exception Not_found ->
-            Ht.add ht r.file_descr `Alive;
-            process_fds ht (r.file_descr :: unique_fds) (op :: ops) ops_todo
+            Ht.add ht file_descr `Alive;
+            process_fds ht (file_descr :: unique_fds) (op :: ops) ops_todo
       end
-      else process_fds ht unique_fds ops ops_todo
+      else begin
+        Picos_rc.decr r.file_descr;
+        process_fds ht unique_fds ops ops_todo
+      end
 
 let process_fds unique_fds fos new_ops =
   if fos.ops == [] && new_ops == [] then fos_empty
@@ -152,9 +157,13 @@ let rec process_timeouts s =
 let rec select_thread s timeout rd wr ex =
   if s.state == `Alive then
     if Atomic.compare_and_set s.phase `Continue `Select then
-      Unix.select
-        (s.pipe_inn :: rd.unique_fds)
-        wr.unique_fds ex.unique_fds timeout
+      begin
+        try
+          Unix.select
+            (s.pipe_inn :: rd.unique_fds)
+            wr.unique_fds ex.unique_fds timeout
+        with Unix.Unix_error (EINTR, _, _) -> ([], [], [])
+      end
       |> select_thread_continue s rd wr ex
     else select_thread_continue s rd wr ex ([], [], [])
 
@@ -261,16 +270,19 @@ let[@alert "-handler"] rec insert_fd s fds (Return_on r as op) =
       in
       wakeup s `Alive
     else insert_fd s fds op
+  else Picos_rc.decr r.file_descr
 
 let return_on computation file_descr op value =
-  let s = get () in
-  insert_fd s
-    (match op with `R -> s.new_rd | `W -> s.new_wr | `E -> s.new_ex)
-    (Return_on { computation; file_descr; value; alive = true })
+  if Picos_rc.try_incr file_descr then
+    let s = get () in
+    insert_fd s
+      (match op with `R -> s.new_rd | `W -> s.new_wr | `E -> s.new_ex)
+      (Return_on { computation; file_descr; value; alive = true })
+  else Computation.return computation value
 
 let await_on file_descr op =
   let computation = Computation.create () in
-  return_on computation file_descr op file_descr;
+  return_on computation file_descr op ();
   try Computation.await computation
   with exn ->
     Computation.cancel computation exit_exn_bt;

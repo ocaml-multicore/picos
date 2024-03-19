@@ -51,7 +51,7 @@
 (test
  (name test_server_and_client)
  (modules test_server_and_client)
- (libraries test_scheduler elements foundation))
+ (libraries test_scheduler picos.stdio elements foundation))
 
 ;;
 
@@ -61,6 +61,17 @@
  (modules test_mpsc_queue)
  (libraries
   picos.mpsc_queue
+  qcheck-core
+  qcheck-multicoretests-util
+  qcheck-stm.stm
+  stm_run))
+
+(test
+ (name test_htbl)
+ (package picos)
+ (modules test_htbl)
+ (libraries
+  picos.htbl
   qcheck-core
   qcheck-multicoretests-util
   qcheck-stm.stm

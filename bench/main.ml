@@ -11,6 +11,7 @@ let benchmarks =
     ("Picos Cancel_after with Picos_select", Bench_cancel_after.run_suite);
     ("Ref with Picos_sync.Mutex", Bench_ref_mutex.run_suite);
     ("Foundation Mpsc_queue", Bench_mpsc_queue.run_suite);
+    ("Picos_htbl", Bench_htbl.run_suite);
   ]
 
 let () = Multicore_bench.Cmd.run ~benchmarks ()
