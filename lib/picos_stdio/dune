@@ -1,0 +1,8 @@
+(library
+ (name picos_stdio)
+ (public_name picos.stdio)
+ (root_module Deps)
+ (libraries
+  (re_export unix)
+  (re_export picos.fd)
+  picos.select))

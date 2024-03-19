@@ -20,16 +20,14 @@ val cancel_after : _ Computation.t -> seconds:float -> Exn_bt.t -> unit
 
 (** {1 IO} *)
 
-val return_on :
-  'a Computation.t -> Unix.file_descr -> [ `R | `W | `E ] -> 'a -> unit
-(** [return_on computation file_descr op value] arranges for [computation] to be
-    {{!Picos.Computation.return} returned} with given [value] when [file_descr]
-    becomes available for [op].  Completion of the [computation] before the
-    [file_descr] becomes available for [op] effectively cancels the await.
+val return_on : 'a Computation.t -> Picos_fd.t -> [ `R | `W | `E ] -> 'a -> unit
+(** [return_on computation fd op value] arranges for [computation] to be
+    {{!Picos.Computation.return} returned} with given [value] when [fd] becomes
+    available for [op].  Completion of the [computation] before the [fd] becomes
+    available for [op] effectively cancels the await.
 
     ℹ️ Using {!Unix.set_nonblock} and [return_on] you can implement direct-style
     transparently asynchronous IO on top of the [Unix] module. *)
 
-val await_on : Unix.file_descr -> [ `R | `W | `E ] -> Unix.file_descr
-(** [await_on file_descr op] awaits until [file_descr] becomes available for
-    [op]. *)
+val await_on : Picos_fd.t -> [ `R | `W | `E ] -> Picos_fd.t
+(** [await_on fd op] awaits until [fd] becomes available for [op]. *)

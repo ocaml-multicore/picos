@@ -2,6 +2,4 @@
  (name elements)
  (libraries
   (re_export picos)
-  picos.select
-  backoff
-  unix))
+  backoff))

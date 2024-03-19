@@ -6,6 +6,7 @@
  (libraries
   picos
   picos.mpsc_queue
+  picos.htbl
   picos.sync
   picos.domain
   picos.tls
