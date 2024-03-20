@@ -1,53 +1,87 @@
-open Foundation
+module Queue = Picos_mpsc_queue
 
 module Spec = struct
-  type cmd = Enq of int | Deq
+  type cmd = Push of int | Push_head of int | Pop
 
   let show_cmd c =
-    match c with Enq i -> "Enq " ^ string_of_int i | Deq -> "Deq"
+    match c with
+    | Push i -> "Push " ^ string_of_int i
+    | Push_head i -> "Push_head " ^ string_of_int i
+    | Pop -> "Pop"
 
   type state = int list
-  type sut = int Mpsc_queue.t
+  type sut = int Queue.t
+
+  let producer_cmd _s =
+    QCheck.(
+      make ~print:show_cmd
+        (Gen.oneof
+           [
+             Gen.map (fun i -> Push i) Gen.nat;
+             Gen.map (fun i -> Push_head i) Gen.nat;
+           ]))
 
   let arb_cmd _s =
     QCheck.(
       make ~print:show_cmd
-        (Gen.oneof [ Gen.map (fun i -> Enq i) Gen.nat; Gen.return Deq ]))
+        (Gen.oneof
+           [
+             Gen.map (fun i -> Push i) Gen.nat;
+             Gen.map (fun i -> Push_head i) Gen.nat;
+             Gen.return Pop;
+           ]))
 
   let init_state = []
-  let init_sut () = Mpsc_queue.create ()
+  let init_sut () = Queue.create ()
   let cleanup _ = ()
 
   let next_state c s =
     match c with
-    | Enq i -> s @ [ i ]
-    | Deq -> ( match s with _ :: s -> s | [] -> [])
+    | Push i -> s @ [ i ]
+    | Push_head i -> i :: s
+    | Pop -> ( match s with _ :: s -> s | [] -> [])
 
   let precond _ _ = true
 
   let run c d =
     let open STM in
     match c with
-    | Enq i -> Res (unit, Mpsc_queue.enqueue d i)
-    | Deq ->
+    | Push i -> Res (unit, Queue.push d i)
+    | Push_head i -> Res (unit, Queue.push_head d i)
+    | Pop ->
         Res
           ( option int,
-            match Mpsc_queue.dequeue d with
+            match Queue.pop_exn d with
             | i -> Some i
-            | exception Mpsc_queue.Empty -> None )
+            | exception Queue.Empty -> None )
 
   let postcond c (s : state) res =
     let open STM in
     match (c, res) with
-    | Enq _, Res ((Unit, _), ()) -> true
-    | Deq, Res ((Option Int, _), res) ->
+    | Push _, Res ((Unit, _), ()) -> true
+    | Push_head _, Res ((Unit, _), ()) -> true
+    | Pop, Res ((Option Int, _), res) ->
         (match s with [] -> None | x :: _ -> Some x) = res
     | _, _ -> false
 end
 
-module Seq = STM_sequential.Make (Spec)
-
 let () =
-  let count = 1000 in
-  QCheck_base_runner.run_tests_main
-    [ Seq.agree_test ~count ~name:"STM Mpsc_queue test sequential" ]
+  let make_domain ~count ~name
+      (module Dom : Stm_run.STM_domain
+        with type Spec.cmd = Spec.cmd
+         and type Spec.state = Spec.state
+         and type Spec.sut = Spec.sut) =
+    let arb_cmds_par =
+      Dom.arb_triple 20 12 Spec.arb_cmd Spec.arb_cmd Spec.producer_cmd
+    in
+    let agree_test_par_asym ~count ~name =
+      let rep_count = 50 in
+      QCheck.Test.make ~retries:10 ~count ~name arb_cmds_par @@ fun triple ->
+      QCheck.assume (Dom.all_interleavings_ok triple);
+      Util.repeat rep_count Dom.agree_prop_par_asym triple
+    in
+    [ agree_test_par_asym ~count ~name:(name ^ " parallel") ]
+  in
+  Stm_run.run ~count:1000 ~name:"Picos_mpsc_queue" ~verbose:true ~make_domain
+    (module Spec)
+  |> exit

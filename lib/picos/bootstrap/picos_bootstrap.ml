@@ -63,6 +63,11 @@ module Computation = struct
     let balance_and_mode = Bool.to_int (mode == `FIFO) in
     Atomic.make (Continue { balance_and_mode; triggers = [] })
 
+  let is_canceled t =
+    match Atomic.get t with
+    | Canceled _ -> true
+    | Returned _ | Continue _ -> false
+
   let canceled t =
     match Atomic.get t with
     | Canceled exn_bt -> Some exn_bt
@@ -204,6 +209,9 @@ module Fiber = struct
 
   let create ~forbid computation = Fiber { computation; forbid; fls = [||] }
   let has_forbidden (Fiber r) = r.forbid
+
+  let is_canceled (Fiber r) =
+    (not r.forbid) && Computation.is_canceled r.computation
 
   let canceled (Fiber r) =
     if r.forbid then None else Computation.canceled r.computation

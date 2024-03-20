@@ -16,8 +16,19 @@
    (picos_ocaml5 -> intf.ocaml5.ml))))
 
 (mdx
+ (enabled_if
+  (< %{ocaml_version} 5.0.0))
  (package picos)
  (deps
   (package picos))
  (libraries picos picos.exn_bt picos.threaded domain_shims)
+ (files picos.mli))
+
+(mdx
+ (enabled_if
+  (>= %{ocaml_version} 5.0.0))
+ (package picos)
+ (deps
+  (package picos))
+ (libraries picos picos.exn_bt picos.fifos)
  (files picos.mli))

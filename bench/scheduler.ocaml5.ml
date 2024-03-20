@@ -1,3 +1,1 @@
-open Schedulers
-
-let run action = Fifos.run ~forbid:false action
+let run main = Picos_fifos.run ~forbid:false main

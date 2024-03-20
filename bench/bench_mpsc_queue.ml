@@ -1,17 +1,17 @@
 open Multicore_bench
-module Queue = Foundation.Mpsc_queue
+module Queue = Picos_mpsc_queue
 
 let run_one_domain ~budgetf ?(n_msgs = 50 * Util.iter_factor) () =
   let t = Queue.create () in
 
   let op push =
-    if push then Queue.enqueue t 101
-    else match Queue.dequeue t with _ -> () | exception Queue.Empty -> ()
+    if push then Queue.push t 101
+    else match Queue.pop_exn t with _ -> () | exception Queue.Empty -> ()
   in
 
   let init _ =
     assert (
-      match Queue.dequeue t with _ -> false | exception Queue.Empty -> true);
+      match Queue.pop_exn t with _ -> false | exception Queue.Empty -> true);
     Util.generate_push_and_pop_sequence n_msgs
   in
   let work _ bits = Util.Bits.iter op bits in
@@ -31,7 +31,7 @@ let run_one ~budgetf ~n_adders () =
 
   let init _ =
     assert (
-      match Queue.dequeue t with _ -> false | exception Queue.Empty -> true);
+      match Queue.pop_exn t with _ -> false | exception Queue.Empty -> true);
     Atomic.set n_msgs_to_add n_msgs
   in
   let work i () =
@@ -40,7 +40,7 @@ let run_one ~budgetf ~n_adders () =
         let n = Util.alloc n_msgs_to_add in
         if 0 < n then begin
           for i = 1 to n do
-            Queue.enqueue t i
+            Queue.push t i
           done;
           work ()
         end
@@ -49,7 +49,7 @@ let run_one ~budgetf ~n_adders () =
     else
       let rec loop n =
         if 0 < n then
-          match Queue.dequeue t with
+          match Queue.pop_exn t with
           | _ -> loop (n - 1)
           | exception Queue.Empty ->
               Domain.cpu_relax ();
@@ -64,7 +64,6 @@ let run_one ~budgetf ~n_adders () =
     in
     Printf.sprintf "%s, 1 nb taker" (format "nb adder" n_adders)
   in
-
   Times.record ~budgetf ~n_domains ~init ~work ()
   |> Times.to_thruput_metrics ~n:n_msgs ~singular:"message" ~config
 

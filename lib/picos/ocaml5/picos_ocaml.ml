@@ -7,6 +7,9 @@ module Trigger = struct
 end
 
 module Fiber = struct
+  let resume t k = Effect.Deep.continue k (Fiber.canceled t)
+  let resume_with t k h = Effect.Shallow.continue_with k (Fiber.canceled t) h
+
   let continue t k v =
     match Fiber.canceled t with
     | None -> Effect.Deep.continue k v

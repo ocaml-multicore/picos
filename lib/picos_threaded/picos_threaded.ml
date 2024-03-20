@@ -1,9 +1,5 @@
 open Picos
 
-type t = Fiber.t
-
-let create = Fiber.create
-
 let block trigger ptmc =
   (* We block fibers (or threads) on a per thread mutex and condition. *)
   Picos_ptmc.lock ptmc;
@@ -84,14 +80,14 @@ and yield fiber =
   Fiber.check fiber;
   Systhreads.yield ()
 
-and cancel_after : type a. t -> a Computation.t -> _ =
+and cancel_after : type a. _ -> a Computation.t -> _ =
  (* We need an explicit type signature to allow OCaml to generalize the tyoe as
     all of the handlers are in a single recursive definition. *)
  fun fiber computation ~seconds exn_bt ->
   Fiber.check fiber;
   Select.cancel_after computation ~seconds exn_bt
 
-and spawn : type a. t -> forbid:bool -> a Computation.t -> _ =
+and spawn : type a. _ -> forbid:bool -> a Computation.t -> _ =
  fun fiber ~forbid computation mains ->
   Fiber.check fiber;
   mains
@@ -100,8 +96,11 @@ and spawn : type a. t -> forbid:bool -> a Computation.t -> _ =
        (fun () ->
          (* We need to (recursively) install the handler on each new thread
             that we create. *)
-         Handler.using handler (create ~forbid computation) main)
+         Handler.using handler (Fiber.create ~forbid computation) main)
        ()
      |> ignore
 
 and handler = Handler.{ current; spawn; yield; cancel_after; await }
+
+let run ~forbid main =
+  Handler.using handler (Fiber.create ~forbid (Computation.create ())) main

@@ -223,19 +223,24 @@
 
     {[open Picos]}
 
-    and define a simple scheduler
+    and define a simple scheduler for running the examples in this document on
+    OCaml 4
 
-    {[
+    {@ocaml version<5.0.0[
       let run main =
-        Handler.using
-          Picos_threaded.handler
-          (Picos_threaded.create ~forbid:false (Computation.create ()))
-          main
+        Picos_threaded.run ~forbid:false main
     ]}
 
-    using {{!Picos_threaded.handler} the basic thread based implementation} that
-    comes with Picos for running the example code snippets in this
-    documentation.
+    using {{!Picos_threaded} the basic thread based scheduler}
+    and on OCaml 5
+
+    {@ocaml version>=5.0.0[
+      let run main =
+        Picos_fifos.run ~forbid:false main
+    ]}
+
+    using {{!Picos_fifos} the basic effects based scheduler} that come with
+    Picos as samples.
 
     {3 Auxiliary modules} *)
 
@@ -689,6 +694,10 @@ module Computation : sig
   (** [is_running computation] determines whether the computation is in the
       running state meaning that it has not yet been completed. *)
 
+  val is_canceled : 'a t -> bool
+  (** [is_canceled computation] determines whether the computation is in the
+      canceled state. *)
+
   val canceled : 'a t -> Exn_bt.t option
   (** [canceled computation] returns the exception that the computation has been
       canceled with or returns [None] in case the computation has not been
@@ -899,6 +908,20 @@ module Fiber : sig
 
       ⚠️ It is only safe to call [permit] from the fiber itself. *)
 
+  val is_canceled : t -> bool
+  (** [is_canceled fiber] is equivalent to
+      {@ocaml skip[
+        not (Fiber.has_forbidden fiber) &&
+        let (Packed computation) =
+          Fiber.computation fiber
+        in
+        Computation.is_canceled computation
+      ]}
+
+      ℹ️ This is mostly useful in the effect handlers of schedulers.
+
+      ⚠️ It is only safe to call [is_canceled] from the fiber itself. *)
+
   val canceled : t -> Exn_bt.t option
   (** [canceled fiber] is equivalent to:
       {@ocaml skip[
@@ -1016,7 +1039,10 @@ module Fiber : sig
   (** [create ~forbid computation] creates a new fiber. *)
 
   include
-    Intf.Fiber with type t := t with type 'a computation := 'a Computation.t
+    Intf.Fiber
+      with type t := t
+      with type 'a computation := 'a Computation.t
+      with type exn_bt := Exn_bt.t
 
   (** {2 Design rationale}
 
