@@ -11,4 +11,5 @@ end
 module type Fiber = sig
   type t
   type _ computation
+  type exn_bt
 end

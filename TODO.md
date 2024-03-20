@@ -10,8 +10,6 @@
 
 - JavaScript scheduler
 
-- Change example scheduler to give priority to canceled fibers
-
 - Should cancelation exception be raised only once?
 
 - Test what performance of `Fiber.current` could be with TLS

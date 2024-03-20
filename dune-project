@@ -32,11 +32,10 @@
    (>= 2.0.0))
   (psq
    (>= 0.2.1))
-  ;; Test dependencies
+  ;; For mpsc queue
   (multicore-magic
-   (and
-    (>= 2.1.0)
-    :with-test))
+   (>= 2.1.0))
+  ;; Test dependencies
   (multicore-bench
    (and
     (>= 0.1.2)
@@ -50,6 +49,10 @@
     (>= 0.21.2)
     :with-test))
   (qcheck-stm
+   (and
+    (>= 0.3)
+    :with-test))
+  (qcheck-multicoretests-util
    (and
     (>= 0.3)
     :with-test))

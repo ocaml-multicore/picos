@@ -6,7 +6,7 @@
   (select
    test_scheduler.ml
    from
-   (picos.select schedulers -> test_scheduler.ocaml5.ml)
+   (picos.fifos -> test_scheduler.ocaml5.ml)
    (picos.threaded -> test_scheduler.ocaml4.ml))))
 
 ;;
@@ -53,13 +53,11 @@
  (package picos)
  (modules test_mpsc_queue)
  (libraries
-  foundation
+  picos_mpsc_queue
   qcheck-core
-  qcheck-core.runner
+  qcheck-multicoretests-util
   qcheck-stm.stm
-  qcheck-stm.sequential)
- (action
-  (run %{test} --verbose)))
+  stm_run))
 
 ;;
 

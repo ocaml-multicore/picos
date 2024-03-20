@@ -1,6 +1,1 @@
-open Picos
-
-let run action =
-  Handler.using Picos_threaded.handler
-    (Picos_threaded.create ~forbid:false (Computation.create ()))
-    action
+let run main = Picos_threaded.run ~forbid:false main
