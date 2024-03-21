@@ -25,7 +25,13 @@ type t = {
 let rec next t =
   match Queue.pop_exn t.ready with
   | Spawn (fiber, main) ->
-      let current = Some (fun k -> Fiber.continue fiber k fiber)
+      let current =
+        Some
+          (fun k ->
+            (* The current handler must never propagate cancelation, but it
+               would be possible to continue some other fiber and resume the
+               current fiber later. *)
+            Effect.Deep.continue k fiber)
       and yield =
         Some
           (fun k ->

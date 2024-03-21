@@ -95,7 +95,7 @@
     {{!Fiber.permit} permit} the scheduler from propagating cancelation to it.
     This is important for the implementation of some key concurrent abstractions
     such as condition variables, where it is necessary to forbid cancelation
-    when the associated mutex is re-acquired.
+    when the associated mutex is reacquired.
 
     Each fiber has an associated {!Computation}.  A computation is something
     that needs to be completed either by {{!Computation.return} returning} a
@@ -814,7 +814,7 @@ module Fiber : sig
   (** {2 Interface for rescheduling} *)
 
   val yield : unit -> unit
-  (** [yield ()] asks the current fiber to be re-scheduled.
+  (** [yield ()] asks the current fiber to be rescheduled.
 
       ℹ️ The behavior is that
 
@@ -867,7 +867,11 @@ module Fiber : sig
 
       - on OCaml 5, [current] performs the {!Current} effect, and
       - on OCaml 4, [current] will call the [current] operation of the
-        {{!Handler} current handler}. *)
+        {{!Handler} current handler}.
+
+      ⚠️ The [current] operation must always resume the fiber without propagating
+      cancelation.  A scheduler may, of course, decide to reschedule the current
+      fiber to be resumed later. *)
 
   val has_forbidden : t -> bool
   (** [has_forbidden fiber] determines whether the fiber {!forbid}s or
@@ -889,7 +893,7 @@ module Fiber : sig
       abstractions that may have to {{!Trigger.await} await} for something, or
       may need to perform other effects, and must not be canceled while doing
       so.  For example, the wait operation on a condition variable typically
-      re-acquires the associated mutex before returning, which may require
+      reacquires the associated mutex before returning, which may require
       awaiting for the owner of the mutex to release it.
 
       ℹ️ [forbid] does not prevent the fiber or the associated {!computation}
