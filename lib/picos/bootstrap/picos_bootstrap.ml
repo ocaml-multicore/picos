@@ -193,32 +193,42 @@ end
 module Fiber = struct
   type non_float = [ `Non_float of non_float ]
 
-  type t =
+  type _ tdt =
+    | Nothing : [> `Nothing ] tdt
     | Fiber : {
         computation : 'a Computation.t;
         mutable forbid : bool;
         mutable fls : non_float array;
       }
-        -> t
+        -> [> `Fiber ] tdt
+
+  type t = [ `Fiber ] tdt
 
   let create ~forbid computation = Fiber { computation; forbid; fls = [||] }
-  let has_forbidden (Fiber r) = r.forbid
+  let has_forbidden (Fiber r : t) = r.forbid
 
-  let is_canceled (Fiber r) =
+  let is_canceled (Fiber r : t) =
     (not r.forbid) && Computation.is_canceled r.computation
 
-  let canceled (Fiber r) =
+  let canceled (Fiber r : t) =
     if r.forbid then None else Computation.canceled r.computation
 
-  let try_attach (Fiber r) trigger =
+  let try_attach (Fiber r : t) trigger =
     Computation.try_attach r.computation trigger
 
-  let detach (Fiber r) trigger = Computation.detach r.computation trigger
+  let detach (Fiber r : t) trigger = Computation.detach r.computation trigger
   let[@inline] equal t1 t2 = t1 == t2
-  let computation (Fiber r) = Computation.Packed r.computation
-  let check (Fiber r) = if not r.forbid then Computation.check r.computation
+  let computation (Fiber r : t) = Computation.Packed r.computation
+  let check (Fiber r : t) = if not r.forbid then Computation.check r.computation
 
-  let explicitly (Fiber r) body ~forbid =
+  let exchange (Fiber r : t) ~forbid =
+    let before = r.forbid in
+    r.forbid <- forbid;
+    before
+
+  let set (Fiber r : t) ~forbid = r.forbid <- forbid
+
+  let explicitly (Fiber r : t) body ~forbid =
     if r.forbid = forbid then body ()
     else
       match body (r.forbid <- forbid) with
@@ -232,7 +242,7 @@ module Fiber = struct
   let forbid t body = explicitly t body ~forbid:true
   let permit t body = explicitly t body ~forbid:false
 
-  let try_suspend (Fiber r) trigger x y resume =
+  let try_suspend (Fiber r : t) trigger x y resume =
     if not r.forbid then begin
       if Computation.try_attach r.computation trigger then
         Trigger.on_signal trigger x y resume
@@ -283,7 +293,7 @@ module Fiber = struct
           { index; default; compute }
       | Computed compute -> { index; default = unique; compute }
 
-    let get (type a) (Fiber r) (key : a key) =
+    let get (type a) (Fiber r : t) (key : a key) =
       let fls = r.fls in
       if key.index < Array.length fls then begin
         let value = Array.unsafe_get fls key.index in
@@ -313,7 +323,7 @@ module Fiber = struct
             (Sys.opaque_identity (Obj.magic value : non_float));
           value
 
-    let set (type a) (Fiber r) (key : a key) (value : a) =
+    let set (type a) (Fiber r : t) (key : a key) (value : a) =
       let fls = r.fls in
       if key.index < Array.length fls then
         Array.unsafe_set fls key.index

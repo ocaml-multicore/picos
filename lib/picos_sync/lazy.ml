@@ -1,5 +1,6 @@
 open Picos
-open Foundation
+
+exception Undefined = Stdlib.Lazy.Undefined
 
 type 'a state =
   | Fun of (unit -> 'a)
@@ -17,7 +18,7 @@ let rec cleanup t trigger backoff =
   | Val _ | Exn _ -> ()
   | Fun _ -> failwith "impossible"
   | Run r as before -> begin
-      match List.drop_first_or_not_found trigger r.triggers with
+      match List_ext.drop_first_or_not_found trigger r.triggers with
       | triggers ->
           let after = Run { r with triggers } in
           if not (Atomic.compare_and_set t before after) then
@@ -47,7 +48,7 @@ let rec force t fiber backoff =
       end
       else force t fiber (Backoff.once backoff)
   | Run r as before ->
-      if Fiber.equal r.fiber fiber then raise Stdlib.Lazy.Undefined
+      if Fiber.equal r.fiber fiber then raise Undefined
       else
         let trigger = Trigger.create () in
         let triggers = trigger :: r.triggers in
@@ -65,6 +66,20 @@ let force t =
   match Atomic.get t with
   | Val v -> v
   | Exn r -> Printexc.raise_with_backtrace r.exn r.trace
-  | Fun _ | Run _ -> force t (Fiber.current ()) Backoff.default
+  | Fun _ | Run _ ->
+      let fiber = Fiber.current () in
+      Fiber.check fiber;
+      force t fiber Backoff.default
 
 let map f t = from_fun @@ fun () -> f (force t)
+
+let is_val t =
+  match Atomic.get t with Val _ -> true | Fun _ | Run _ | Exn _ -> false
+
+let map_val f t =
+  match Atomic.get t with
+  | Val x -> from_val (f x)
+  | Exn { exn; trace } -> Printexc.raise_with_backtrace exn trace
+  | _ -> map f t
+
+let force_val = force

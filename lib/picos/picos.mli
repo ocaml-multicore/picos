@@ -855,6 +855,9 @@ module Fiber : sig
       typically {i not} concurrency or parallelism safe, because the fiber is
       considered to be owned by a single thread of execution. *)
 
+  type fiber := t
+  (** Type alias for {!Fiber.t} within this signature. *)
+
   val current : unit -> t
   (** [current ()] returns the current fiber.
 
@@ -957,6 +960,14 @@ module Fiber : sig
 
       ⚠️ It is only safe to call [check] from the fiber itself. *)
 
+  val exchange : t -> forbid:bool -> bool
+  (** [exchange fiber ~forbid] sets the bit that tells the scheduler whether to
+      propagate cancelation or not and returns the previous state. *)
+
+  val set : t -> forbid:bool -> unit
+  (** [set fiber ~forbid] sets the bit that tells the scheduler whether to
+      propagate cancelation or not. *)
+
   module FLS : sig
     (** Fiber local storage
 
@@ -1036,6 +1047,70 @@ module Fiber : sig
   val detach : t -> Trigger.t -> unit
   (** [detach fiber trigger] is equivalent to
       [let Packed c = computation fiber in Computation.detach c trigger]. *)
+
+  module Maybe : sig
+    (** An unboxed optional {{!Fiber.t} fiber}. *)
+
+    type t
+    (** Either a {{!Fiber.t} fiber} or {!nothing}. *)
+
+    val nothing : t
+    (** Not a fiber. *)
+
+    val of_fiber : fiber -> t
+    (** [of_fiber fiber] casts the fiber into an optional fiber.
+
+        🏎️ This performs no allocations. *)
+
+    val current_if : bool option -> t
+    (** [current_if checked] returns {!nothing} in case [checked] is
+        [Some false] and otherwise [of_fiber (Fiber.current ())]. *)
+
+    val current_and_check_if : bool option -> t
+    (** [current_check_if checked] returns {!nothing} in case [checked] is
+        [Some false] and otherwise [of_fiber (Fiber.current ())] and also calls
+        {!Fiber.check} on the fiber. *)
+
+    val or_current : t -> t
+    (** [or_current maybe] returns [of_fiber (Fiber.current ())] in case [maybe]
+        is {!nothing} and otherwise returns [maybe]. *)
+
+    val to_fiber_or_current : t -> fiber
+    (** [to_fiber_or_current maybe] returns [Fiber.current ()] in case [maybe]
+        is {!nothing} and otherwise returns the fiber that [maybe] was cast
+        from. *)
+
+    val check : t -> unit
+    (** [check maybe] returns immediately if [maybe] is [nothing] and otherwise
+        calls {!Fiber.check} on the fiber. *)
+
+    val equal : t -> t -> bool
+    (** [equal l r] determines whether [l] and [r] are maybe equal.
+        Specifically, if either [l] or [r] or both is {!nothing}, then they are
+        considered (maybe) equal.  Otherwise [l] and [r] are compared for
+        {{!Fiber.equal} physical equality}. *)
+
+    val unequal : t -> t -> bool
+    (** [equal l r] determines whether [l] and [r] are maybe unequal.
+        Specifically, if either [l] or [r] or both is {!nothing}, then they are
+        considered (maybe) unequal.  Otherwise [l] and [r] are compared for
+        {{!Fiber.equal} physical equality}. *)
+
+    (** {2 Design rationale}
+
+        The fiber identity is often needed only for the purpose of dynamically
+        checking against programming errors.  Unfortunately it can be relative
+        expensive to obtain the {{!Fiber.current} current} fiber.
+
+        As a data point, in a benchmark that increments an [int ref] protected
+        by a mutex, obtaining the fiber identity for the lock and unlock
+        operations — that only need it for error checking purposes — roughly
+        tripled the cost of an increment on a machine.
+
+        Using GADTs internally allows an optional fiber to be provided without
+        adding overhead to operations on non-optional fibers and allows optional
+        fibers to used without allocations at a very low cost. *)
+  end
 
   (** {2 Interface for schedulers} *)
 

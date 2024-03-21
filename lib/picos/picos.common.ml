@@ -27,6 +27,37 @@ end
 module Fiber = struct
   include Picos_bootstrap.Fiber
   include Picos_ocaml.Fiber
+
+  module Maybe = struct
+    type t = T : [< `Nothing | `Fiber ] tdt -> t [@@unboxed]
+
+    let[@inline] to_fiber_or_current = function
+      | T Nothing -> current ()
+      | T (Fiber r) -> Fiber r
+
+    let[@inline] or_current t = T (to_fiber_or_current t)
+    let nothing = T Nothing
+    let[@inline] equal x y = x == y || x == nothing || y == nothing
+    let[@inline] unequal x y = x != y || x == nothing
+    let[@inline] of_fiber t = T t
+
+    let[@inline] current_if checked =
+      match checked with
+      | None | Some true -> of_fiber (current ())
+      | Some false -> nothing
+
+    let[@inline] current_and_check_if checked =
+      match checked with
+      | None | Some true ->
+          let fiber = current () in
+          check fiber;
+          of_fiber fiber
+      | Some false -> nothing
+
+    let[@inline] check = function
+      | T Nothing -> ()
+      | T (Fiber r) -> check (Fiber r)
+  end
 end
 
 module Handler = struct
