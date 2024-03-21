@@ -72,11 +72,13 @@ let[@alert "-handler"] rec await fiber trigger =
   end
 
 and current fiber =
-  (* In each handler we need to account for cancelation. *)
-  Fiber.check fiber;
+  (* The current handler must never propagate cancelation, but it would be
+     possible to yield here to run some other fiber before resuming the current
+     fiber. *)
   fiber
 
 and yield fiber =
+  (* In other handlers we need to account for cancelation. *)
   Fiber.check fiber;
   Systhreads.yield ()
 

@@ -86,11 +86,11 @@ module type Fiber = sig
   (** Schedulers may handle the {!Current} effect to customize the behavior of
       [current].
 
-      A handler should eventually either continue the fiber or discontinue it in
-      case the fiber permits propagation of cancelation and the associated
-      computation has been canceled.
+      ⚠️ A handler should eventually resume the fiber without propagating
+      cancelation.  A scheduler may, of course, decide to reschedule the current
+      fiber to be resumed later.
 
-      Note that in typical use cases of [current] it makes sense to give
+      Note that in typical use cases of {!current} it makes sense to give
       priority to the fiber performing {!Current}, but this is not required. *)
   type _ Effect.t += private Current : t Effect.t
 
