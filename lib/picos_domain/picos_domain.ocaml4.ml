@@ -1,4 +1,5 @@
 let at_exit = Stdlib.at_exit
+let recommended_domain_count () = 1
 
 module DLS = struct
   type 'a state = Value of { mutable value : 'a } | Default of (unit -> 'a)

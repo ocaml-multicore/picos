@@ -10,6 +10,10 @@ val at_exit : (unit -> unit) -> unit
     On OCaml 5 this calls [Domain.at_exit].  On OCaml 4 this calls
     [Stdlib.at_exit]. *)
 
+val recommended_domain_count : unit -> int
+(** [recommended_domain_count ()] returns [1] on OCaml 4 and
+    [Domain.recommended_domain_count ()] on OCaml 5.  *)
+
 module DLS : sig
   (** Domain-local storage for Picos. *)
 

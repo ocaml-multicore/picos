@@ -26,6 +26,14 @@
 
 ;;
 
+(test
+ (name test_sync)
+ (package picos)
+ (modules test_sync)
+ (libraries picos picos.sync test_scheduler alcotest domain_shims))
+
+;;
+
 (rule
  (action
   (progn

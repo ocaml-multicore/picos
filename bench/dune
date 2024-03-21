@@ -6,6 +6,8 @@
  (libraries
   picos
   picos.mpsc_queue
+  picos.sync
+  picos.domain
   (select
    scheduler.ml
    from
