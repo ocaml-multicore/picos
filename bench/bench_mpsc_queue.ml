@@ -52,7 +52,7 @@ let run_one ~budgetf ~n_adders () =
           match Queue.pop_exn t with
           | _ -> loop (n - 1)
           | exception Queue.Empty ->
-              Domain.cpu_relax ();
+              Backoff.once Backoff.default |> ignore;
               loop n
       in
       loop n_msgs
