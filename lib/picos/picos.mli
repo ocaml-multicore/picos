@@ -1018,8 +1018,8 @@ module Fiber : sig
   (** {2 Interface for foreign fiber} *)
 
   val equal : t -> t -> bool
-  (** [equal fiber1 fiber2] determines whether [fiber1] and [fiber2] are one and
-      the same fiber.
+  (** [equal fiber1 fiber2] is physical equality for fibers, i.e. it determines
+      whether [fiber1] and [fiber2] are one and the same fiber.
 
       ℹ️ One use case of [equal] is in the implementation of concurrent
       primitives like mutexes where it makes sense to check that acquire and
