@@ -73,22 +73,20 @@ module Computation = struct
     | Canceled exn_bt -> Some exn_bt
     | Returned _ | Continue _ -> None
 
-  open struct
-    (** [gc] is called when balance becomes negative by both [try_attach] and
-        [detach].  This ensures that the [O(n)] lazy removal done by [gc] cannot
-        cause starvation, because the only reason that CAS fails after [gc] is
-        that someone else completed the [gc]. *)
-    let rec gc balance_and_mode triggers = function
-      | [] ->
-          let triggers =
-            if balance_and_mode <= one + fifo_bit then triggers
-            else List.rev triggers
-          in
-          Continue { balance_and_mode; triggers }
-      | r :: rs ->
-          if Trigger.is_signaled r then gc balance_and_mode triggers rs
-          else gc (balance_and_mode + one) (r :: triggers) rs
-  end
+  (** [gc] is called when balance becomes negative by both [try_attach] and
+      [detach].  This ensures that the [O(n)] lazy removal done by [gc] cannot
+      cause starvation, because the only reason that CAS fails after [gc] is
+      that someone else completed the [gc]. *)
+  let rec gc balance_and_mode triggers = function
+    | [] ->
+        let triggers =
+          if balance_and_mode <= one + fifo_bit then triggers
+          else List.rev triggers
+        in
+        Continue { balance_and_mode; triggers }
+    | r :: rs ->
+        if Trigger.is_signaled r then gc balance_and_mode triggers rs
+        else gc (balance_and_mode + one) (r :: triggers) rs
 
   let rec try_attach t trigger backoff =
     match Atomic.get t with
@@ -134,20 +132,18 @@ module Computation = struct
     | Canceled _ | Returned _ -> false
     | Continue _ -> true
 
-  open struct
-    let rec try_terminate t after backoff =
-      match Atomic.get t with
-      | Returned _ | Canceled _ -> false
-      | Continue r as before ->
-          if Atomic.compare_and_set t before after then begin
-            List.iter Trigger.signal
-              (if r.balance_and_mode land fifo_bit = fifo_bit then
-                 List.rev r.triggers
-               else r.triggers);
-            true
-          end
-          else try_terminate t after (Backoff.once backoff)
-  end
+  let rec try_terminate t after backoff =
+    match Atomic.get t with
+    | Returned _ | Canceled _ -> false
+    | Continue r as before ->
+        if Atomic.compare_and_set t before after then begin
+          List.iter Trigger.signal
+            (if r.balance_and_mode land fifo_bit = fifo_bit then
+               List.rev r.triggers
+             else r.triggers);
+          true
+        end
+        else try_terminate t after (Backoff.once backoff)
 
   let returned_unit = Returned ()
   let finished = Atomic.make returned_unit
@@ -176,13 +172,10 @@ module Computation = struct
     | Returned value -> Some (Ok value)
     | Continue _ -> None
 
-  open struct
-    let propagate _ from into =
-      match Atomic.get from with
-      | Returned _ | Continue _ -> ()
-      | Canceled _ as after ->
-          try_terminate into after Backoff.default |> ignore
-  end
+  let propagate _ from into =
+    match Atomic.get from with
+    | Returned _ | Continue _ -> ()
+    | Canceled _ as after -> try_terminate into after Backoff.default |> ignore
 
   let canceler ~from ~into = Trigger.from_action from into propagate
 
@@ -224,18 +217,16 @@ module Fiber = struct
   let computation (Fiber r) = Computation.Packed r.computation
   let check (Fiber r) = if not r.forbid then Computation.check r.computation
 
-  open struct
-    let explicitly ~forbid (Fiber r) body =
-      if r.forbid = forbid then body ()
-      else
-        match body (r.forbid <- forbid) with
-        | value ->
-            r.forbid <- not forbid;
-            value
-        | exception exn ->
-            r.forbid <- not forbid;
-            raise exn
-  end
+  let explicitly ~forbid (Fiber r) body =
+    if r.forbid = forbid then body ()
+    else
+      match body (r.forbid <- forbid) with
+      | value ->
+          r.forbid <- not forbid;
+          value
+      | exception exn ->
+          r.forbid <- not forbid;
+          raise exn
 
   let forbid t body = explicitly ~forbid:true t body
   let permit t body = explicitly ~forbid:false t body
@@ -243,25 +234,23 @@ module Fiber = struct
   module FLS = struct
     type 'a key = { index : int; default : non_float; compute : unit -> 'a }
 
-    open struct
-      let compute () = failwith "impossible"
-      let counter = Atomic.make 0
-      let unique = Sys.opaque_identity (Obj.magic counter : non_float)
+    let compute () = failwith "impossible"
+    let counter = Atomic.make 0
+    let unique = Sys.opaque_identity (Obj.magic counter : non_float)
 
-      let ceil_pow_2_minus_1 n =
-        let n = n lor (n lsr 1) in
-        let n = n lor (n lsr 2) in
-        let n = n lor (n lsr 4) in
-        let n = n lor (n lsr 8) in
-        let n = n lor (n lsr 16) in
-        if Sys.int_size > 32 then n lor (n lsr 32) else n
+    let ceil_pow_2_minus_1 n =
+      let n = n lor (n lsr 1) in
+      let n = n lor (n lsr 2) in
+      let n = n lor (n lsr 4) in
+      let n = n lor (n lsr 8) in
+      let n = n lor (n lsr 16) in
+      if Sys.int_size > 32 then n lor (n lsr 32) else n
 
-      let grow old_fls i =
-        let new_length = ceil_pow_2_minus_1 (i + 1) in
-        let new_fls = Array.make new_length unique in
-        Array.blit old_fls 0 new_fls 0 (Array.length old_fls);
-        new_fls
-    end
+    let grow old_fls i =
+      let new_length = ceil_pow_2_minus_1 (i + 1) in
+      let new_fls = Array.make new_length unique in
+      Array.blit old_fls 0 new_fls 0 (Array.length old_fls);
+      new_fls
 
     type 'a initial = Constant of 'a | Computed of (unit -> 'a)
 
