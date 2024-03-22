@@ -217,7 +217,7 @@ module Fiber = struct
   let computation (Fiber r) = Computation.Packed r.computation
   let check (Fiber r) = if not r.forbid then Computation.check r.computation
 
-  let explicitly ~forbid (Fiber r) body =
+  let explicitly (Fiber r) body ~forbid =
     if r.forbid = forbid then body ()
     else
       match body (r.forbid <- forbid) with
@@ -228,8 +228,8 @@ module Fiber = struct
           r.forbid <- not forbid;
           raise exn
 
-  let forbid t body = explicitly ~forbid:true t body
-  let permit t body = explicitly ~forbid:false t body
+  let forbid t body = explicitly t body ~forbid:true
+  let permit t body = explicitly t body ~forbid:false
 
   module FLS = struct
     type 'a key = { index : int; default : non_float; compute : unit -> 'a }
