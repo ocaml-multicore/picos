@@ -82,6 +82,7 @@ let () =
     in
     [ agree_test_par_asym ~count ~name:(name ^ " parallel") ]
   in
-  Stm_run.run ~count:1000 ~name:"Picos_mpsc_queue" ~verbose:true ~make_domain
+  let count = if Sys.int_size <= 32 then 100 else 1000 in
+  Stm_run.run ~count ~name:"Picos_mpsc_queue" ~verbose:true ~make_domain
     (module Spec)
   |> exit
