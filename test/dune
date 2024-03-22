@@ -53,7 +53,7 @@
  (package picos)
  (modules test_mpsc_queue)
  (libraries
-  picos_mpsc_queue
+  picos.mpsc_queue
   qcheck-core
   qcheck-multicoretests-util
   qcheck-stm.stm

@@ -5,7 +5,7 @@
  (package picos)
  (libraries
   picos
-  picos_mpsc_queue
+  picos.mpsc_queue
   (select
    scheduler.ml
    from
