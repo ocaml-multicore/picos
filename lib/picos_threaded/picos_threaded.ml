@@ -15,61 +15,16 @@ let block trigger ptmc =
       Picos_ptmc.unlock ptmc;
       raise exn
 
-let release _ _ ptmc =
+let resume trigger fiber ptmc =
+  let _is_canceled : bool = Fiber.unsuspend fiber trigger in
   (* This will be called when the trigger is signaled.  We simply broadcast on
      the per thread condition variable. *)
   Picos_ptmc.broadcast ptmc
 
 let[@alert "-handler"] rec await fiber trigger =
-  (* The non-blocking logic below for suspending a fiber with support for
-     parallelism safe cancelation is somewhat intricate.  Hopefully the comments
-     help to understand it. *)
-  if Fiber.has_forbidden fiber then begin
-    (* Fiber has forbidden propagation of cancelation.  This is the easy case to
-       handle. *)
-    let ptmc = Picos_ptmc.get () in
-    (* We could also have stored the per thread mutex and condition in the
-       context and avoid getting it here, but this is likely cheap enough at
-       this point anyway and makes the context trivial. *)
-    if Trigger.on_signal trigger () ptmc release then begin
-      (* Fiber is now suspended and can be resumed through the trigger.  We
-         block the thread on the per thread mutex and condition waiting for the
-         trigger. *)
-      block trigger ptmc
-    end;
-    (* We return to continue the fiber. *)
-    None
-  end
-  else begin
-    (* Fiber permits propagation of cancelation.  We support cancelation and so
-       first try to attach the trigger to the computation of the fiber. *)
-    if Fiber.try_attach fiber trigger then
-      (* The trigger was successfully attached, which means the computation has
-         not been canceled. *)
-      let ptmc = Picos_ptmc.get () in
-      if Trigger.on_signal trigger () ptmc release then begin
-        (* Fiber is now suspended and can be resumed through the trigger.  That
-           can now happen by signaling the trigger directly or by canceling the
-           computation of the fiber, which will also signal the trigger.  We
-           block the thread on the per thread mutex and condition waiting for
-           the trigger. *)
-        block trigger ptmc
-      end
-      else begin
-        (* The trigger was already signaled.  We first need to ensure that the
-           trigger is detached from the computation of the fiber. *)
-        Fiber.detach fiber trigger
-      end
-    else begin
-      (* We could not attach the trigger to the computation of the fiber, which
-         means that either the computation has been canceled or the trigger has
-         been signaled.  We still need to ensure that the trigger really is put
-         into the signaled state before the fiber is continued. *)
-      Trigger.dispose trigger
-    end;
-    (* We return to continue or discontinue the fiber. *)
-    Fiber.canceled fiber
-  end
+  let ptmc = Picos_ptmc.get () in
+  if Fiber.try_suspend fiber trigger fiber ptmc resume then block trigger ptmc;
+  Fiber.canceled fiber
 
 and current fiber =
   (* The current handler must never propagate cancelation, but it would be

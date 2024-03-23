@@ -108,9 +108,10 @@ module Computation = struct
 
   let try_attach t trigger = try_attach t trigger Backoff.default
 
-  let rec detach t backoff =
+  let rec unsafe_unsuspend t backoff =
     match Atomic.get t with
-    | Returned _ | Canceled _ -> ()
+    | Returned _ -> true
+    | Canceled _ -> false
     | Continue r as before ->
         let after =
           if fifo_bit <= r.balance_and_mode then
@@ -118,12 +119,12 @@ module Computation = struct
               { r with balance_and_mode = r.balance_and_mode - (2 * one) }
           else gc (r.balance_and_mode land fifo_bit) [] r.triggers
         in
-        if not (Atomic.compare_and_set t before after) then
-          detach t (Backoff.once backoff)
+        Atomic.compare_and_set t before after
+        || unsafe_unsuspend t (Backoff.once backoff)
 
   let detach t trigger =
     Trigger.signal trigger;
-    detach t Backoff.default
+    unsafe_unsuspend t Backoff.default |> ignore
 
   type packed = Packed : 'a t -> packed
 
@@ -230,6 +231,26 @@ module Fiber = struct
 
   let forbid t body = explicitly t body ~forbid:true
   let permit t body = explicitly t body ~forbid:false
+
+  let try_suspend (Fiber r) trigger x y resume =
+    if not r.forbid then begin
+      if Computation.try_attach r.computation trigger then
+        Trigger.on_signal trigger x y resume
+        || begin
+             Computation.detach r.computation trigger;
+             false
+           end
+      else if Computation.is_canceled r.computation then begin
+        Trigger.dispose trigger;
+        false
+      end
+      else Trigger.on_signal trigger x y resume
+    end
+    else Trigger.on_signal trigger x y resume
+
+  let[@inline] unsuspend (Fiber r : t) trigger =
+    assert (Trigger.is_signaled trigger);
+    r.forbid || Computation.unsafe_unsuspend r.computation Backoff.default
 
   module FLS = struct
     type 'a key = { index : int; default : non_float; compute : unit -> 'a }
