@@ -1042,6 +1042,25 @@ module Fiber : sig
   val create : forbid:bool -> 'a Computation.t -> t
   (** [create ~forbid computation] creates a new fiber. *)
 
+  val try_suspend :
+    t -> Trigger.t -> 'x -> 'y -> (Trigger.t -> 'x -> 'y -> unit) -> bool
+  (** [try_suspend fiber trigger x y resume] tries to suspend the [fiber] to
+      await for the [trigger] to be {{!Trigger.signal} signaled}.  If the result
+      is [false], then the [trigger] is guaranteed to be in the signaled state
+      and the fiber should be eventually resumed.  If the result is [true], then
+      the fiber was suspended, meaning that the [trigger] will have had the
+      [resume] action {{!Trigger.on_signal} attached} to it and the trigger has
+      potentially been {{!Computation.try_attach} attached} to the
+      {!computation} of the fiber. *)
+
+  val unsuspend : t -> Trigger.t -> bool
+  (** [unsuspend fiber trigger] makes sure that the [trigger] will not be
+      attached to the computation of the [fiber].  Returns [false] in case the
+      fiber has been canceled and propagation of cancelation is not forbidden.
+      Otherwise returns [true].
+
+      ⚠️ The trigger must be in the signaled state! *)
+
   include
     Intf.Fiber
       with type t := t
