@@ -760,6 +760,9 @@ module Computation : sig
       ⚠️ The returned trigger will be in the awaiting state, which means that it
       is an error to call {!Trigger.await} or {!Trigger.on_signal} on it. *)
 
+  val attach_canceler : from:_ t -> into:_ t -> Trigger.t
+  (** TODO *)
+
   (** {2 Interface for schedulers} *)
 
   include Intf.Computation with type 'a t := 'a t with type exn_bt := Exn_bt.t
@@ -1014,6 +1017,11 @@ module Fiber : sig
 
         ⚠️ It is only safe to call [set] from the fiber itself. *)
   end
+
+  (** {2 Interface for structuring} *)
+
+  val attach_as_child : t -> 'a Computation.t -> Trigger.t
+  (** TODO *)
 
   (** {2 Interface for foreign fiber} *)
 

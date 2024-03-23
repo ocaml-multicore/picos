@@ -49,6 +49,8 @@ module Computation = struct
   let[@inline never] negative_or_nan () =
     invalid_arg "Computation: seconds must be non-negative"
 
+  let[@inline never] returned () = invalid_arg "Computation: already returned"
+
   type 'a state =
     | Canceled of Exn_bt.t
     | Returned of 'a
@@ -188,6 +190,14 @@ module Computation = struct
     | Returned value -> value
     | Canceled exn_bt -> Exn_bt.raise exn_bt
     | Continue _ -> get_or block (block t)
+
+  let attach_canceler ~from ~into =
+    let canceler = canceler ~from ~into in
+    if try_attach from canceler then canceler
+    else begin
+      check from;
+      returned ()
+    end
 end
 
 module Fiber = struct
@@ -217,6 +227,9 @@ module Fiber = struct
   let[@inline] equal t1 t2 = t1 == t2
   let computation (Fiber r) = Computation.Packed r.computation
   let check (Fiber r) = if not r.forbid then Computation.check r.computation
+
+  let attach_as_child (Fiber r) child =
+    Computation.attach_canceler ~from:r.computation ~into:child
 
   let explicitly (Fiber r) body ~forbid =
     if r.forbid = forbid then body ()
