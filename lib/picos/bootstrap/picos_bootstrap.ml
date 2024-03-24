@@ -196,15 +196,15 @@ module Fiber = struct
   type _ tdt =
     | Nothing : [> `Nothing ] tdt
     | Fiber : {
-        computation : 'a Computation.t;
         mutable forbid : bool;
+        computation : 'a Computation.t;
         mutable fls : non_float array;
       }
         -> [> `Fiber ] tdt
 
   type t = [ `Fiber ] tdt
 
-  let create ~forbid computation = Fiber { computation; forbid; fls = [||] }
+  let create ~forbid computation = Fiber { forbid; computation; fls = [||] }
   let has_forbidden (Fiber r : t) = r.forbid
 
   let is_canceled (Fiber r : t) =
