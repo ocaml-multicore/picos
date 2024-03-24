@@ -11,7 +11,7 @@ module Mutex : sig
       🏎️ The optional [checked] argument taken by most of the operations defaults
       to [true].  When explicitky specified as [~checked:false] the mutex
       implementation may avoid having to obtain the {{!Picos.Fiber.current}
-      current fiber}, which expensive relative to locking or unlocking an
+      current fiber}, which can be expensive relative to locking or unlocking an
       uncontested mutex.  Note that specifying [~checked:false] on an operation
       may prevent error checking also on a subsequent operation. *)
 
