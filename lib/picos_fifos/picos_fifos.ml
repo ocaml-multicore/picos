@@ -19,24 +19,32 @@ type t = {
     Fiber.t ->
     (Exn_bt.t option, unit) Effect.Deep.continuation ->
     unit;
+  retc : unit -> unit;
 }
+
+let rec spawn t n forbid computation = function
+  | [] -> Atomic.fetch_and_add t.num_alive_fibers n |> ignore
+  | main :: mains ->
+      let fiber = Fiber.create ~forbid computation in
+      Queue.push t.ready (Spawn (fiber, main));
+      spawn t (n + 1) forbid computation mains
+
+let continue = Some (fun k -> Effect.Deep.continue k ())
 
 let rec next t =
   match Queue.pop_exn t.ready with
   | Spawn (fiber, main) ->
       let current =
-        Some
-          (fun k ->
-            (* The current handler must never propagate cancelation, but it
-               would be possible to continue some other fiber and resume the
-               current fiber later. *)
-            Effect.Deep.continue k fiber)
+        (* The current handler must never propagate cancelation, but it would be
+           possible to continue some other fiber and resume the current fiber
+           later. *)
+        Some (fun k -> Effect.Deep.continue k fiber)
       and yield =
         Some
           (fun k ->
             Queue.push t.ready (Continue (fiber, k));
             next t)
-      in
+      and discontinue = Some (fun k -> Fiber.continue fiber k ()) in
       let[@alert "-handler"] effc (type a) :
           a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option = function
         | Fiber.Current ->
@@ -44,48 +52,31 @@ let rec next t =
                sensitive effect. *)
             current
         | Fiber.Spawn r ->
-            Some
-              (fun k ->
-                (* We check cancelation status once and then either perform the
-                   whole operation or discontinue the fiber. *)
-                match Fiber.canceled fiber with
-                | None ->
-                    r.mains
-                    |> List.iter (fun main ->
-                           let fiber =
-                             Fiber.create ~forbid:r.forbid r.computation
-                           in
-                           Queue.push t.ready (Spawn (fiber, main));
-                           Atomic.incr t.num_alive_fibers);
-                    (* We intentionally do not check cancelation status
-                       again. *)
-                    Effect.Deep.continue k ()
-                | Some exn_bt -> Exn_bt.discontinue k exn_bt)
+            (* We check cancelation status once and then either perform the
+               whole operation or discontinue the fiber. *)
+            if Fiber.is_canceled fiber then discontinue
+            else begin
+              spawn t 0 r.forbid r.computation r.mains;
+              continue
+            end
         | Fiber.Yield -> yield
         | Computation.Cancel_after r ->
-            Some
-              (fun k ->
-                (* We check cancelation status once and then either perform the
-                   whole operation or discontinue the fiber. *)
-                match Fiber.canceled fiber with
-                | None ->
-                    Picos_select.cancel_after r.computation ~seconds:r.seconds
-                      r.exn_bt;
-                    (* We intentionally do not check cancelation status
-                       again. *)
-                    Effect.Deep.continue k ()
-                | Some exn_bt -> Exn_bt.discontinue k exn_bt)
+            (* We check cancelation status once and then either perform the
+               whole operation or discontinue the fiber. *)
+            if Fiber.is_canceled fiber then discontinue
+            else begin
+              Picos_select.cancel_after r.computation ~seconds:r.seconds
+                r.exn_bt;
+              continue
+            end
         | Trigger.Await trigger ->
             Some
               (fun k ->
                 if Fiber.try_suspend fiber trigger fiber k t.resume then next t
                 else Fiber.resume fiber k)
         | _ -> None
-      and retc () =
-        Atomic.decr t.num_alive_fibers;
-        next t
       in
-      Effect.Deep.match_with main () { retc; exnc = raise; effc }
+      Effect.Deep.match_with main () { retc = t.retc; exnc = raise; effc }
   | Continue (fiber, k) -> Fiber.continue fiber k ()
   | Resume (fiber, k) -> Fiber.resume fiber k
   | exception Queue.Empty ->
@@ -107,7 +98,10 @@ let run ~forbid main =
   and needs_wakeup = Atomic.make false
   and num_alive_fibers = Atomic.make 1
   and mc = Picos_ptmc.get () in
-  let rec t = { ready; needs_wakeup; num_alive_fibers; mc; resume }
+  let rec t = { ready; needs_wakeup; num_alive_fibers; mc; resume; retc }
+  and retc () =
+    Atomic.decr t.num_alive_fibers;
+    next t
   and resume trigger fiber k =
     let resume = Resume (fiber, k) in
     if Fiber.unsuspend fiber trigger then
