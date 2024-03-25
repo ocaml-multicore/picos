@@ -7,15 +7,17 @@ val at_exit : (unit -> unit) -> unit
 (** [at_exit action] registers [action] to be called when the current domain
     exits.
 
-    On OCaml 5 this calls [Domain.at_exit].  On OCaml 4 this calls
-    [Stdlib.at_exit]. *)
+    On OCaml 5 this calls {!Domain.at_exit}.  On OCaml 4 this calls
+    {!Stdlib.at_exit}. *)
 
 val recommended_domain_count : unit -> int
-(** [recommended_domain_count ()] returns [1] on OCaml 4 and
-    [Domain.recommended_domain_count ()] on OCaml 5.  *)
+(** [recommended_domain_count ()] returns [1] on OCaml 4 and calls
+    {!Domain.recommended_domain_count} on OCaml 5.  *)
 
 module DLS : sig
-  (** Domain-local storage for Picos. *)
+  (** Domain-local storage for Picos.
+
+      ℹ️ On OCaml 4 there is always only a single domain. *)
 
   type 'a key
   (** Represents a key for storing values of type ['a] in storage associated with
