@@ -8,6 +8,7 @@
   picos.mpsc_queue
   picos.sync
   picos.domain
+  picos.tls
   (select
    scheduler.ml
    from
