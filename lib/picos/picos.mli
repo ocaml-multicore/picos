@@ -39,10 +39,10 @@
     - You may find it useful that Picos provides parallelism safe building
       blocks for cancelation, which is a particularly tricky problem to get
       right.
-    - You may find it useful that you don't have to reinvent many of the basic
-      communication and synchronization abstractions such as mutexes and
-      condition variables, promises, concurrent bounded queues, channels, and
-      what not.
+    - You may find it useful that you don't have to reinvent many of the
+      {{!Picos_sync} basic communication and synchronization abstractions} such
+      as mutexes and condition variables, promises, concurrent bounded queues,
+      channels, and what not.
     - You may benefit from further non-trivial libraries, such as IO libraries,
       that you don't have to reimplement.
     - Potential users of your work may be reassured and benefit from the ability
@@ -75,8 +75,10 @@
     both effectively and safely?
 
     - To be effective, cancelation should take effect as soon as possible.  In
-      this case, cancelation should take effect even during the [Mutex.lock]
-      inside [Mutex.protect] and the [Condition.wait] operations when the fiber
+      this case, cancelation should take effect even during the
+      {{!Picos_sync.Mutex.lock} [Mutex.lock]} inside
+      {{!Picos_sync.Mutex.protect} [Mutex.protect]} and the
+      {{!Picos_sync.Condition.wait} [Condition.wait]} operations when the fiber
       might be in a suspended state awaiting for a signal to continue.
     - To be safe, cancelation should not leave the program in an invalid state
       or cause the program to leak memory.  In this case, the ownership of the
@@ -84,9 +86,10 @@
       references to unused objects must be left in the mutex or the condition
       variable.
 
-    Picos allows [Mutex] and [Condition] to be implemented such that cancelation
-    may safely take effect at or during calls to [Mutex.lock] and
-    [Condition.wait].
+    Picos allows {{!Picos_sync.Mutex} [Mutex]} and {{!Picos_sync.Condition}
+    [Condition]} to be implemented such that cancelation may safely take effect
+    at or during calls to {{!Picos_sync.Mutex.lock} [Mutex.lock]} and
+    {{!Picos_sync.Condition.wait} [Condition.wait]}.
 
     {4 Cancelation in Picos}
 
@@ -250,7 +253,7 @@ module Exn_bt = Picos_exn_bt
 (** {3 Core modules}
 
     Please note that the example code snippets in this documentation may
-    e.g. use the [Domain] and [Unix] modules in order to be able to describe
+    e.g. use the {!Domain} and [Unix] modules in order to be able to describe
     Picos concepts in isolation in the absence of a Picos compatible
     scheduler. *)
 

@@ -1,9 +1,9 @@
-(** A basic [Unix.select] based IO event loop for {!Picos}.
+(** A basic {!Unix.select} based IO event loop for {!Picos}.
 
-    The operations in this module automatically manage a [Thread] per domain
-    that runs a [Unix.select] loop to support the operations.
+    The operations in this module automatically manage a {!Thread} per domain
+    that runs a {!Unix.select} loop to support the operations.
 
-    ⚠️ All the usual limitations of the [Unix] module apply. *)
+    ⚠️ All the usual limitations of the {!Unix} module apply. *)
 
 open Picos
 
@@ -27,7 +27,7 @@ val return_on :
     becomes available for [op].  Completion of the [computation] before the
     [file_descr] becomes available for [op] effectively cancels the await.
 
-    ℹ️ Using [Unix.set_nonblock] and [return_on] you can implement direct-style
+    ℹ️ Using {!Unix.set_nonblock} and [return_on] you can implement direct-style
     transparently asynchronous IO on top of the [Unix] module. *)
 
 val await_on : Unix.file_descr -> [ `R | `W | `E ] -> Unix.file_descr

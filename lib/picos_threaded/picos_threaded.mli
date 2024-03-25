@@ -1,4 +1,4 @@
-(** A basic [Thread] based {!Picos} compatible scheduler for OCaml 4.
+(** A basic {!Thread} based {!Picos} compatible scheduler for OCaml 4.
 
     ℹ️ This scheduler implementation is mostly meant as an example and for use in
     testing libraries implemented in {!Picos}.
@@ -7,7 +7,7 @@
 
     - [current] returns the current fiber from the per thread state.
     - [spawn] creates a new [Thread] for each fiber.
-    - [yield] just calls [Thread.yield].
+    - [yield] just calls {!Thread.yield}.
     - [cancel_after] uses a per-domain {{!Picos_select} background thread} that
       runs a [Unix.select] loop to cancel computations.
     - [await] uses {{!Picos_ptmc} a per thread mutex and condition} to suspend
