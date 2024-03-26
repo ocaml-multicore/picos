@@ -1,3 +1,2 @@
 (library
- (name foundation)
- (libraries picos backoff multicore-magic))
+ (name foundation))

@@ -1,3 +1,7 @@
 (library
  (name elements)
- (libraries picos picos.domain picos.select foundation backoff unix))
+ (libraries
+  (re_export picos)
+  picos.select
+  backoff
+  unix))

@@ -3,4 +3,8 @@
  (public_name picos.fifos)
  (enabled_if
   (>= %{ocaml_version} 5.0.0))
- (libraries picos picos.ptmc picos.select picos.mpsc_queue))
+ (libraries
+  (re_export picos)
+  picos.ptmc
+  picos.select
+  picos.mpsc_queue))

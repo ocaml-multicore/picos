@@ -2,7 +2,7 @@
  (name test_scheduler)
  (modules test_scheduler)
  (libraries
-  picos
+  (re_export picos)
   (select
    test_scheduler.ml
    from
@@ -16,7 +16,6 @@
  (package picos)
  (modules test_picos)
  (libraries
-  picos
   test_scheduler
   foundation
   alcotest
@@ -30,7 +29,7 @@
  (name test_sync)
  (package picos)
  (modules test_sync)
- (libraries picos picos.sync test_scheduler alcotest domain_shims))
+ (libraries picos.sync test_scheduler alcotest domain_shims))
 
 ;;
 

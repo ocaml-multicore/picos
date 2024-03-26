@@ -1,5 +1,7 @@
 (** A promise implementation for Picos *)
 
+open Picos
+
 (** {2 Interface for awaiting} *)
 
 type !'a t
@@ -8,7 +10,7 @@ type !'a t
 val await : 'a t -> 'a
 (** *)
 
-val of_computation : 'a Picos.Computation.t -> 'a t
+val of_computation : 'a Computation.t -> 'a t
 (** *)
 
 val peek : 'a t -> 'a option
@@ -20,7 +22,7 @@ val both : unit t -> unit t -> unit t
 val any : 'a t list -> 'a t
 (** *)
 
-val try_cancel : 'a t -> Picos.Exn_bt.t -> bool
+val try_cancel : 'a t -> Exn_bt.t -> bool
 (** *)
 
 module Infix : sig

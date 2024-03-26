@@ -5,10 +5,10 @@
  (libraries
   (re_export picos)
   (re_export picos.exn_bt)
+  (re_export unix)
   picos.domain
   picos_thread_atomic
   threads.posix
   psq
   mtime
-  mtime.clock.os
-  unix))
+  mtime.clock.os))
