@@ -1,0 +1,6 @@
+
+(library
+ (name picos_alt)
+ (synopsis "Alternatives for picos")
+ (public_name picos.alt)
+ (libraries picos))
