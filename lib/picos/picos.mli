@@ -43,8 +43,8 @@
       {{!Picos_sync} basic communication and synchronization abstractions} such
       as mutexes and condition variables, promises, concurrent bounded queues,
       channels, and what not.
-    - You may benefit from further non-trivial libraries, such as IO libraries,
-      that you don't have to reimplement.
+    - You may benefit from further non-trivial libraries, such as
+      {{!Picos_stdio} IO libraries}, that you don't have to reimplement.
     - Potential users of your work may be reassured and benefit from the ability
       to mix-and-match your work with other Picos compatible libraries and
       frameworks.

@@ -5,6 +5,7 @@
  (libraries
   (re_export picos)
   (re_export picos.exn_bt)
+  (re_export picos.rc)
   (re_export unix)
   picos.domain
   picos_thread_atomic

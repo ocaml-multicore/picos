@@ -1,0 +1,6 @@
+(library
+ (name picos_stdio)
+ (public_name picos.stdio)
+ (libraries
+  (re_export unix)
+  picos.select))
