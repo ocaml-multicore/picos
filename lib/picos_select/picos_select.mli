@@ -27,7 +27,7 @@ val return_on : 'a Computation.t -> Picos_fd.t -> [ `R | `W | `E ] -> 'a -> unit
     available for [op] effectively cancels the await.
 
     ℹ️ Using {!Unix.set_nonblock} and [return_on] you can implement direct-style
-    transparently asynchronous IO on top of the [Unix] module. *)
+    transparently asynchronous IO on top of the {!Unix} module. *)
 
 val await_on : Picos_fd.t -> [ `R | `W | `E ] -> Picos_fd.t
 (** [await_on fd op] awaits until [fd] becomes available for [op]. *)

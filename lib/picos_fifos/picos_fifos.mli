@@ -11,7 +11,7 @@
     - [yield] pushes the current fiber to the back of the internal queue and
       takes the next fiber to run from the head of the internal queue.
     - [cancel_after] uses a per-domain {{!Picos_select} background thread} that
-      runs a [Unix.select] loop to cancel computations.
+      runs a {!Unix.select} loop to cancel computations.
     - [await] stores the current fiber to be resumed through the trigger and
       takes next fiber to run from the head of the internal queue.
 

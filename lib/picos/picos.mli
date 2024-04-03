@@ -253,7 +253,7 @@ module Exn_bt = Picos_exn_bt
 (** {3 Core modules}
 
     Please note that the example code snippets in this documentation may
-    e.g. use the {!Domain} and [Unix] modules in order to be able to describe
+    e.g. use the {!Domain} and {!Unix} modules in order to be able to describe
     Picos concepts in isolation in the absence of a Picos compatible
     scheduler. *)
 

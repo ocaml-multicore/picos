@@ -6,10 +6,10 @@
     Briefly:
 
     - [current] returns the current fiber from the per thread state.
-    - [spawn] creates a new [Thread] for each fiber.
+    - [spawn] creates a new {!Thread} for each fiber.
     - [yield] just calls {!Thread.yield}.
     - [cancel_after] uses a per-domain {{!Picos_select} background thread} that
-      runs a [Unix.select] loop to cancel computations.
+      runs a {!Unix.select} loop to cancel computations.
     - [await] uses {{!Picos_ptmc} a per thread mutex and condition} to suspend
       the thread.
 

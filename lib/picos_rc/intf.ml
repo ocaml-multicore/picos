@@ -1,5 +1,5 @@
 module type Resource = sig
-  (** A resource that must be explicitly {{!dispose} disposed}. *)
+  (** A resource that must be explicitly {{!val-dispose} disposed}. *)
 
   type t
   (** Represents a disposable resource. *)
@@ -42,8 +42,8 @@ module type S = sig
 
       The optional [dispose] argument defaults to [true].  When explicitly
       specified as [~dispose:false], the resource will not be
-      {{!Resource.dispose} disposed} when the reference count becomes zero.
-      This is intended for special cases where a resource is e.g. managed
+      {{!module-Resource.dispose} disposed} when the reference count becomes
+      zero.  This is intended for special cases where a resource is e.g. managed
       outside of the control of the user program. *)
 
   val unsafe_get : t -> Resource.t
@@ -66,8 +66,8 @@ module type S = sig
   (** [decr opaque_resource] tries to find the entry for the resource and
       decrement the reference count.  If the reference count becomes zero, the
       entry for the resource will be removed and the resource will be
-      {{!Resource.dispose} disposed}, unless [~dispose:false] was specified for
-      {!create}.
+      {{!module-Resource.dispose} disposed}, unless [~dispose:false] was
+      specified for {!create}.
 
       The optional [close] argument defaults to [false].  When explicitly
       specified as [~close:true] the resource will be marked as closed and
