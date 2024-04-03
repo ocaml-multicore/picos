@@ -31,3 +31,32 @@ val return_on : 'a Computation.t -> Picos_fd.t -> [ `R | `W | `E ] -> 'a -> unit
 
 val await_on : Picos_fd.t -> [ `R | `W | `E ] -> Picos_fd.t
 (** [await_on fd op] awaits until [fd] becomes available for [op]. *)
+
+module Intr : sig
+  (** A mechanism to interrupt blocking {!Unix} IO operations.
+
+      ⚠️ The mechanism uses the {!Sys.sigusr2} signal which should not be used
+      for other purposes at the same time. *)
+
+  type t
+  (** Represents an optional interrupt request. *)
+
+  val nothing : t
+  (** A constant for a no request.  {{!clr} [clr nothing]} does nothing. *)
+
+  val req : seconds:float -> t
+  (** [req ~seconds] requests an interrupt in the form of a signal delivered to
+      the thread that made the request within the specified number of [seconds].
+      Blocking {!Unix} IO calls typically raise an error with the {{!Unix.EINTR}
+      [Unix.EINTR]} error code when they are interrupted by a signal.
+
+      Regardless of whether the signal gets triggered or a system call gets
+      interrupted, the request must be {{!clr} cleared}.
+
+      ⚠️ Due to limitations of the OCaml system modules and unlike with typical
+      timeout mechanisms, the interrupt may also be triggered sooner. *)
+
+  val clr : t -> unit
+  (** [clr req] either cancels or acknowledges the interrupt request.  Every
+      {!req} must be cleared! *)
+end

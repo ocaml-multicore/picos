@@ -2,6 +2,20 @@ open Foundation.Finally
 open Elements
 open Picos_stdio
 
+let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
+
+let use_nonblock =
+  Sys.win32
+  || begin
+       Random.self_init ();
+       Random.bool ()
+     end
+
+let set_nonblock fd =
+  if use_nonblock then
+    try Unix.set_nonblock fd
+    with _exn -> Printf.printf "  (Failed to set_nonblock)\n%!"
+
 let main () =
   Bundle.run @@ fun bundle ->
   let n = 100 in
@@ -16,12 +30,14 @@ let main () =
         finally Unix.close @@ fun () ->
         Unix.socket ~cloexec:true PF_INET SOCK_STREAM 0
       in
+      set_nonblock socket;
       Unix.bind socket Unix.(ADDR_INET (inet_addr_loopback, 0));
       server_addr := Some (Unix.getsockname socket);
       Unix.listen socket 1;
       Printf.printf "  Server listening\n%!";
       Unix.accept ~cloexec:true socket |> fst
     in
+    set_nonblock client;
     let bytes = Bytes.create n in
     let n = Unix.read client bytes 0 (Bytes.length bytes) in
     Printf.printf "  Server read %d\n%!" n;
@@ -36,6 +52,7 @@ let main () =
       finally Unix.close @@ fun () ->
       Unix.socket ~cloexec:true PF_INET SOCK_STREAM 0
     in
+    set_nonblock socket;
     let server_addr =
       let rec loop retries =
         match !server_addr with
@@ -61,5 +78,7 @@ let main () =
   Printf.printf "Server and Client test: OK\n%!"
 
 let () =
-  Printf.printf "Using fibers on OCaml 5 and threads on OCaml 4:\n%!";
+  Printf.printf "Using %sblocking sockets and %s:\n%!"
+    (if use_nonblock then "non-" else "")
+    (if is_ocaml4 then "threads on OCaml 4" else "fibers on OCaml 5");
   Test_scheduler.run main

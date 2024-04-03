@@ -1,27 +1,22 @@
-(** Basic IO facilities based on OCaml standard libraries for {!Picos}.
-
-    🚧 This library is currently considered experimental and unfinished.  Please
-    report any problems and issues you might encounter. *)
+(** Basic IO facilities based on OCaml standard libraries for {!Picos}. *)
 
 module Unix : sig
   (** A transparently asynchronous replacement for a subset of the {{!Deps.Unix}
       [Unix]} module that comes with OCaml.
 
-      All the operations in this module that return file descriptors implicitly
-      set the {{!file_descr} file descriptors} to {{!Deps.Unix.set_nonblock}
-      non-blocking mode} and operations on file descriptors, such as {!read} and
+      In this module operations on file descriptors, such as {!read} and
       {!write} and others, implicitly block, in a scheduler friendly manner, to
-      await for the file descriptor to become available for the operation.
+      await for the file descriptor to become available for the operation.  This
+      works best with file descriptors {{!set_nonblock} set to non-blocking mode}.
 
       ⚠️ Beware that this does not currently try to work around any limitations
-      of the {{!Deps.Unix} [Unix]} module that comes with OCaml.  For example,
-      on Windows, only sockets can be put into non-blocking mode.
+      of the {{!Deps.Unix} [Unix]} module that comes with OCaml.  In particular,
+      on Windows, only sockets can be put into non-blocking mode.  Also, on
+      Windows, scheduler friendly blocking only works properly with non-blocking
+      file descriptors, i.e. sockets.
 
       Please consult the documentation of the {{!Deps.Unix} [Unix]} module that
-      comes with OCaml.
-
-      🚧 This module is currently considered experimental and unfinished.
-      Please report any problems and issues you might encounter. *)
+      comes with OCaml. *)
 
   type file_descr = Picos_fd.t
   (** Opaque type alias for {{!Deps.Unix.file_descr} [Unix.file_descr]}.
@@ -259,10 +254,8 @@ module Unix : sig
   val access : string -> access_permission list -> unit
   val dup : ?cloexec:bool -> file_descr -> file_descr
   val dup2 : ?cloexec:bool -> file_descr -> file_descr -> unit
-
-  (*val set_nonblock : file_descr -> unit*)
-  (*val clear_nonblock : file_descr -> unit*)
-
+  val set_nonblock : file_descr -> unit
+  val clear_nonblock : file_descr -> unit
   val set_close_on_exec : file_descr -> unit
   val clear_close_on_exec : file_descr -> unit
   val mkdir : string -> file_perm -> unit

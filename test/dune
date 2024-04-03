@@ -56,6 +56,13 @@
 ;;
 
 (test
+ (name test_select)
+ (modules test_select)
+ (libraries picos.threaded picos.select alcotest domain_shims))
+
+;;
+
+(test
  (name test_mpsc_queue)
  (package picos)
  (modules test_mpsc_queue)

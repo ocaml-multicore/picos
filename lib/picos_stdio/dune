@@ -5,4 +5,5 @@
  (libraries
   (re_export unix)
   (re_export picos.fd)
+  picos.htbl
   picos.select))
