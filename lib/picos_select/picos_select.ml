@@ -1,5 +1,10 @@
 open Picos
 
+let intr_sig = Sys.sigusr2
+let is_intr_sig s = s == intr_sig
+let intr_sigs = [ intr_sig ]
+let intr_pending = Atomic.make 0
+
 type cancel_at =
   | Cancel_at : {
       time : Mtime.span;
@@ -174,9 +179,19 @@ and select_thread_continue s rd wr ex (rd_fds, wr_fds, ex_fds) =
   let wr = process_fds wr_fds wr (Picos_thread_atomic.exchange s.new_wr []) in
   let ex = process_fds ex_fds ex (Picos_thread_atomic.exchange s.new_ex []) in
   let tos = process_timeouts s in
+  let tos =
+    let n = Atomic.get intr_pending in
+    if n = 0 then tos
+    else begin
+      Unix.kill (Unix.getpid ()) intr_sig;
+      let idle = 0.000_001 (* 1μs *) in
+      if tos < 0.0 || idle <= tos then idle else tos
+    end
+  in
   select_thread s tos rd wr ex
 
 let select_thread s =
+  if not Sys.win32 then Thread.sigmask SIG_BLOCK intr_sigs |> ignore;
   begin
     try
       let pipe_inn, pipe_out = Unix.pipe ~cloexec:true () in
@@ -283,3 +298,92 @@ let await_on file_descr op =
   with exn ->
     Computation.cancel computation exit_exn_bt;
     raise exn
+
+(* *)
+
+module Intr = struct
+  type intr_status = Cleared | Signaled
+
+  type _ tdt =
+    | Nothing : [> `Nothing ] tdt
+    | Req : {
+        state : state;
+        mutable computation : intr_status Computation.t;
+      }
+        -> [> `Req ] tdt
+
+  type t = T : [< `Nothing | `Req ] tdt -> t [@@unboxed]
+
+  let cleared =
+    let computation = Computation.create () in
+    Computation.return computation Cleared;
+    computation
+
+  let intr_key =
+    Picos_tls.new_key @@ fun () : [ `Req ] tdt ->
+    Req { state = get (); computation = cleared }
+
+  let handle _ =
+    let (Req r) = Picos_tls.get intr_key in
+    Computation.return r.computation Signaled
+
+  let intr_action trigger (Req r : [ `Req ] tdt) id =
+    match Computation.await r.computation with
+    | Cleared ->
+        (* No signal needs to be delivered. *)
+        remove_action trigger r.state id
+    | Signaled ->
+        (* Signal was delivered before timeout. *)
+        remove_action trigger r.state id;
+        if Atomic.fetch_and_add intr_pending 1 = 0 then begin
+          (* We need to make sure at least one select thread will keep on
+             triggering interrupts. *)
+          wakeup r.state `Alive
+        end
+    | exception Exit ->
+        (* The timeout was triggered.  This must have been called from the
+           select thread, which will soon trigger an interrupt. *)
+        Atomic.incr intr_pending
+
+  let () =
+    if not Sys.win32 then begin
+      let previously_blocked = Thread.sigmask SIG_BLOCK intr_sigs in
+      assert (not (List.exists is_intr_sig previously_blocked));
+      let old_behavior = Sys.signal intr_sig (Sys.Signal_handle handle) in
+      assert (old_behavior == Signal_default)
+    end
+
+  let nothing = T Nothing
+
+  let[@alert "-handler"] req ~seconds =
+    if Sys.win32 then
+      invalid_arg "Picos_select.Intr is not supported on Windows"
+    else begin
+      let time = to_deadline ~seconds in
+      let (Req r as req) = Picos_tls.get intr_key in
+      assert (not (Computation.is_running r.computation));
+      let id = next_id r.state in
+      let computation = Computation.with_action req id intr_action in
+      r.computation <- computation;
+      let entry = Cancel_at { time; exn_bt = exit_exn_bt; computation } in
+      add_timeout r.state id entry;
+      let was_blocked : int list = Thread.sigmask SIG_UNBLOCK intr_sigs in
+      assert (List.exists is_intr_sig was_blocked);
+      T req
+    end
+
+  let clr = function
+    | T Nothing -> ()
+    | T (Req r) ->
+        let was_blocked : int list = Thread.sigmask SIG_BLOCK intr_sigs in
+        assert (not (List.exists is_intr_sig was_blocked));
+        if not (Computation.try_return r.computation Cleared) then begin
+          while
+            let count = Atomic.get intr_pending in
+            count <= 0
+            || not (Atomic.compare_and_set intr_pending count (count - 1))
+          do
+            Thread.yield ()
+          done
+        end
+end

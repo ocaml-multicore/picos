@@ -8,6 +8,7 @@
   (re_export picos.fd)
   (re_export unix)
   picos.domain
+  picos.tls
   picos_thread_atomic
   threads.posix
   psq

@@ -1,67 +1,141 @@
+let nonblock_fds = Picos_htbl.create ~hashed_type:(module Picos_fd.Resource) ()
+
 module Unix = struct
   include Unix
 
   type file_descr = Picos_fd.t
 
   let is_oob flag = MSG_OOB == flag
+  let is_nonblock flag = O_NONBLOCK == flag
 
   (* The retry wrappers below are written to avoid closure allocations. *)
 
+  (* [EAGAIN] (and [EWOULDBLOCK]) indicates that the operation would have
+     blocked and so we await using the [select] thread for the file descriptor.
+
+     [EINTR] indicates that the operation was interrupted by a signal, which
+     usually shouldn't happen with non-blocking operations.  We don't want to
+     block, so we do the same thing as with [EAGAIN]. *)
+
+  let intr_req fd =
+    if Sys.win32 || Picos_htbl.mem nonblock_fds (Picos_fd.unsafe_get fd) then
+      Picos_select.Intr.nothing
+    else Picos_select.Intr.req ~seconds:0.000_001 (* 1μs *)
+
+  let intr_clr = Picos_select.Intr.clr
+
+  let rec again_0 fd fn op =
+    let intr = intr_req fd in
+    match fn (Picos_fd.unsafe_get fd) with
+    | result ->
+        intr_clr intr;
+        result
+    | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
+        intr_clr intr;
+        again_0 (Picos_select.await_on fd op) fn op
+    | exception exn ->
+        intr_clr intr;
+        raise exn
+
+  let rec again_cloexec_0 ?cloexec fd fn op =
+    let intr = intr_req fd in
+    match fn ?cloexec (Picos_fd.unsafe_get fd) with
+    | result ->
+        intr_clr intr;
+        result
+    | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
+        intr_clr intr;
+        again_cloexec_0 ?cloexec (Picos_select.await_on fd op) fn op
+    | exception exn ->
+        intr_clr intr;
+        raise exn
+
+  let rec again_3 fd x1 x2 x3 fn op =
+    let intr = intr_req fd in
+    match fn (Picos_fd.unsafe_get fd) x1 x2 x3 with
+    | result ->
+        intr_clr intr;
+        result
+    | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
+        intr_clr intr;
+        again_3 (Picos_select.await_on fd op) x1 x2 x3 fn op
+    | exception exn ->
+        intr_clr intr;
+        raise exn
+
+  let rec again_4 fd x1 x2 x3 x4 fn op =
+    let intr = intr_req fd in
+    match fn (Picos_fd.unsafe_get fd) x1 x2 x3 x4 with
+    | result ->
+        intr_clr intr;
+        result
+    | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
+        intr_clr intr;
+        again_4 (Picos_select.await_on fd op) x1 x2 x3 x4 fn op
+    | exception exn ->
+        intr_clr intr;
+        raise exn
+
+  let rec again_5 fd x1 x2 x3 x4 x5 fn op =
+    let intr = intr_req fd in
+    match fn (Picos_fd.unsafe_get fd) x1 x2 x3 x4 x5 with
+    | result ->
+        intr_clr intr;
+        result
+    | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
+        intr_clr intr;
+        again_5 (Picos_select.await_on fd op) x1 x2 x3 x4 x5 fn op
+    | exception exn ->
+        intr_clr intr;
+        raise exn
+
+  (* [EINPROGRESS] indicates that a socket operation is being performed
+     asynchronously.  We await using the [select] thread for the operation to
+     complete and then get the error from the socket. *)
+
   let progress_1 fd x1 fn op name =
-    try fn (Picos_fd.unsafe_get fd) x1
-    with
-    (* The documentation of [bind] and [connect] does not mention [EAGAIN] or
-       [EWOULDBLOCK], but on Windows we get those errors. *)
-    | Unix.Unix_error ((EAGAIN | EINPROGRESS | EWOULDBLOCK), _, _) ->
+    let intr = intr_req fd in
+    match fn (Picos_fd.unsafe_get fd) x1 with
+    | () -> intr_clr intr
+    | exception
+        Unix.Unix_error ((EAGAIN | EINPROGRESS | EINTR | EWOULDBLOCK), _, _) ->
       begin
+        (* The documentation of [bind] and [connect] does not mention [EAGAIN]
+           (or [EWOULDBLOCK]), but on Windows we do seem to get those errors
+           from [connect].
+
+           The documentation of [bind] does not mention [EINTR].  Matching on
+           that shouldn't cause issues with [bind].
+
+           For [connect] both [EINPROGRESS] and [EINTR] mean that connection
+           will be established asynchronously and we use [select] to wait. *)
+        intr_clr intr;
         let fd = Picos_select.await_on fd op in
         match Unix.getsockopt_error (Picos_fd.unsafe_get fd) with
         | None -> ()
         | Some error -> raise (Unix.Unix_error (error, name, ""))
       end
+    | exception exn ->
+        intr_clr intr;
+        raise exn
 
-  let rec again_0 fd fn op =
-    try fn (Picos_fd.unsafe_get fd)
-    with Unix.Unix_error ((EAGAIN | EWOULDBLOCK), _, _) ->
-      again_0 (Picos_select.await_on fd op) fn op
-
-  let rec again_cloexec_0 ?cloexec fd fn op =
-    try fn ?cloexec (Picos_fd.unsafe_get fd)
-    with Unix.Unix_error ((EAGAIN | EWOULDBLOCK), _, _) ->
-      again_cloexec_0 ?cloexec (Picos_select.await_on fd op) fn op
-
-  let rec again_3 fd x1 x2 x3 fn op =
-    try fn (Picos_fd.unsafe_get fd) x1 x2 x3
-    with Unix.Unix_error ((EAGAIN | EWOULDBLOCK), _, _) ->
-      again_3 (Picos_select.await_on fd op) x1 x2 x3 fn op
-
-  let rec again_4 fd x1 x2 x3 x4 fn op =
-    try fn (Picos_fd.unsafe_get fd) x1 x2 x3 x4
-    with Unix.Unix_error ((EAGAIN | EWOULDBLOCK), _, _) ->
-      again_4 (Picos_select.await_on fd op) x1 x2 x3 x4 fn op
-
-  let rec again_5 fd x1 x2 x3 x4 x5 fn op =
-    try fn (Picos_fd.unsafe_get fd) x1 x2 x3 x4 x5
-    with Unix.Unix_error ((EAGAIN | EWOULDBLOCK), _, _) ->
-      again_5 (Picos_select.await_on fd op) x1 x2 x3 x4 x5 fn op
-
-  let rcn ?dispose fd =
-    let fd = Picos_fd.create ?dispose fd in
-    match Unix.set_nonblock (Picos_fd.unsafe_get fd) with
-    | () -> fd
-    | exception Unix.Unix_error (Unix.ENOTSOCK, _, _) when Sys.win32 ->
-        (* TODO: Non-blocking is supported only on sockets on Windows. *)
-        fd
-
-  let stdin = rcn ~dispose:false Unix.stdin
-  and stdout = rcn ~dispose:false Unix.stdout
-  and stderr = rcn ~dispose:false Unix.stderr
+  let stdin = Picos_fd.create ~dispose:false Unix.stdin
+  and stdout = Picos_fd.create ~dispose:false Unix.stdout
+  and stderr = Picos_fd.create ~dispose:false Unix.stderr
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/open.html *)
-  let openfile path flags file_perm = rcn (Unix.openfile path flags file_perm)
+  let openfile path flags file_perm =
+    let fd = Unix.openfile path flags file_perm in
+    if List.exists is_nonblock flags then
+      Picos_htbl.try_add nonblock_fds fd () |> ignore;
+    Picos_fd.create fd
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/close.html *)
-  let close fd = Picos_fd.decr ~close:true fd
+  let close fd =
+    let _ : bool =
+      Picos_htbl.try_remove nonblock_fds (Picos_fd.unsafe_get fd)
+    in
+    Picos_fd.decr ~close:true fd
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/fsync.html *)
   let fsync fd = again_0 fd Unix.fsync `W
@@ -141,14 +215,20 @@ module Unix = struct
   (* *)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/dup.html *)
-  let dup ?cloexec fd = rcn (Unix.dup ?cloexec (Picos_fd.unsafe_get fd))
+  let dup ?cloexec fd =
+    Picos_fd.create (Unix.dup ?cloexec (Picos_fd.unsafe_get fd))
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/dup.html *)
   let dup2 ?cloexec src dst =
     Unix.dup2 ?cloexec (Picos_fd.unsafe_get src) (Picos_fd.unsafe_get dst)
 
-  (*let set_nonblock _ = failwith "TODO"*)
-  (*let clear_nonblock _ = failwith "TODO"*)
+  let set_nonblock fd =
+    Unix.set_nonblock (Picos_fd.unsafe_get fd);
+    Picos_htbl.try_add nonblock_fds (Picos_fd.unsafe_get fd) () |> ignore
+
+  let clear_nonblock fd =
+    Unix.clear_nonblock (Picos_fd.unsafe_get fd);
+    Picos_htbl.try_remove nonblock_fds (Picos_fd.unsafe_get fd) |> ignore
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/fcntl.html *)
   let set_close_on_exec fd = Unix.set_close_on_exec (Picos_fd.unsafe_get fd)
@@ -161,7 +241,7 @@ module Unix = struct
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/pipe.html *)
   let pipe ?cloexec () =
     let inn, out = Unix.pipe ?cloexec () in
-    (rcn inn, rcn out)
+    (Picos_fd.create inn, Picos_fd.create out)
 
   (* *)
 
@@ -208,17 +288,17 @@ module Unix = struct
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/socket.html *)
   let socket ?cloexec socket_domain socket_type protocol =
-    rcn (Unix.socket ?cloexec socket_domain socket_type protocol)
+    Picos_fd.create (Unix.socket ?cloexec socket_domain socket_type protocol)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/socketpair.html *)
   let socketpair ?cloexec socket_domain socket_type mystery =
     let fst, snd = Unix.socketpair ?cloexec socket_domain socket_type mystery in
-    (rcn fst, rcn snd)
+    (Picos_fd.create fst, Picos_fd.create snd)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/accept.html *)
   let accept ?cloexec fd =
     let fd, sockaddr = again_cloexec_0 ?cloexec fd Unix.accept `R in
-    (rcn fd, sockaddr)
+    (Picos_fd.create fd, sockaddr)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/bind.html *)
   let bind fd sockaddr = progress_1 fd sockaddr Unix.bind `W "bind"
