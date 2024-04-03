@@ -1,4 +1,4 @@
-(** A multi-producer, single-consumer queue.
+(** Multi-producer, single-consumer queue.
 
     🏎️ This data structure is optimized for use as a scheduler's ready queue. *)
 

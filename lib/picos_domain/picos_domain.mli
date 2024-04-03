@@ -1,5 +1,4 @@
-(** A minimalistic domain API available both on OCaml 5 and on OCaml 4 for
-    {!Picos}.
+(** Minimalistic domain API available both on OCaml 5 and on OCaml 4.
 
     ℹ️ On OCaml 4 there is always only a single domain. *)
 

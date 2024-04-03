@@ -1,5 +1,4 @@
-(** A library of basic communication and synchronization primitives for
-    {!Picos}. *)
+(** Basic communication and synchronization primitives for {!Picos}. *)
 
 module Mutex : sig
   (** A mutex implementation for {!Picos}.

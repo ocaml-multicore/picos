@@ -1,3 +1,3 @@
-(** A wrapper for exceptions with backtraces for {!Picos}. *)
+(** Wrapper for exceptions with backtraces. *)
 
 include Common.Intf
