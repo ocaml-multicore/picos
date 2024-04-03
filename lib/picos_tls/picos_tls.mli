@@ -1,4 +1,4 @@
-(** Thread-local storage for {!Picos}.
+(** Thread-local storage.
 
     Note that here "thread" refers to system level threads rather than fibers or
     domains.  In case a system level thread implementation, i.e. the

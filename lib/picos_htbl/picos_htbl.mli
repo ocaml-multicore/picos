@@ -1,4 +1,4 @@
-(** A lock-free hash table for {!Picos}.
+(** Lock-free hash table.
 
     🏎️ Single key reads with this hash table are actually wait-free rather than
     just lock-free.  Internal resizing automatically uses all the threads that

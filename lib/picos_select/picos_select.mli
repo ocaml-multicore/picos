@@ -1,4 +1,4 @@
-(** A basic {!Unix.select} based IO event loop for {!Picos}.
+(** Basic {!Unix.select} based IO event loop for {!Picos}.
 
     The operations in this module automatically manage a {!Thread} per domain
     that runs a {!Unix.select} loop to support the operations.

@@ -1,5 +1,5 @@
-(** A basic single-threaded effects based {!Picos} compatible scheduler for
-    OCaml 5.
+(** Basic single-threaded effects based {!Picos} compatible scheduler for OCaml
+    5.
 
     ℹ️ This scheduler implementation is mostly meant as an example and for use in
     testing libraries implemented in {!Picos}.

@@ -1,4 +1,4 @@
-(** A basic {!Thread} based {!Picos} compatible scheduler for OCaml 4.
+(** Basic {!Thread} based {!Picos} compatible scheduler for OCaml 4.
 
     ℹ️ This scheduler implementation is mostly meant as an example and for use in
     testing libraries implemented in {!Picos}.

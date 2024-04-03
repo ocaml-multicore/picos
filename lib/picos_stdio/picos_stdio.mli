@@ -1,5 +1,4 @@
-(** A library of basic IO facilities based on OCaml standard libraries for
-    {!Picos}.
+(** Basic IO facilities based on OCaml standard libraries for {!Picos}.
 
     🚧 This library is currently considered experimental and unfinished.  Please
     report any problems and issues you might encounter. *)
