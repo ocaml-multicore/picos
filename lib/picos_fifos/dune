@@ -5,6 +5,5 @@
   (>= %{ocaml_version} 5.0.0))
  (libraries
   (re_export picos)
-  picos.ptmc
   picos.select
   picos.mpsc_queue))

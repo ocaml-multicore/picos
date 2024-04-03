@@ -12,8 +12,8 @@ type t = {
   ready : ready Queue.t;
   needs_wakeup : bool Atomic.t;
   num_alive_fibers : int Atomic.t;
-  mc : Picos_ptmc.t;
-      (** We must store this for [resume], which may come from any thread. *)
+  mutex : Mutex.t;
+  condition : Condition.t;
   resume :
     Trigger.t ->
     Fiber.t ->
@@ -82,11 +82,13 @@ let rec next t =
   | exception Queue.Empty ->
       if Atomic.get t.num_alive_fibers <> 0 then begin
         if Atomic.get t.needs_wakeup then begin
-          Picos_ptmc.lock t.mc;
-          match if Atomic.get t.needs_wakeup then Picos_ptmc.wait t.mc with
-          | () -> Picos_ptmc.unlock t.mc
+          Mutex.lock t.mutex;
+          match
+            if Atomic.get t.needs_wakeup then Condition.wait t.condition t.mutex
+          with
+          | () -> Mutex.unlock t.mutex
           | exception exn ->
-              Picos_ptmc.unlock t.mc;
+              Mutex.unlock t.mutex;
               raise exn
         end
         else Atomic.set t.needs_wakeup true;
@@ -97,8 +99,10 @@ let run ~forbid main =
   let ready = Queue.create ()
   and needs_wakeup = Atomic.make false
   and num_alive_fibers = Atomic.make 1
-  and mc = Picos_ptmc.get () in
-  let rec t = { ready; needs_wakeup; num_alive_fibers; mc; resume; retc }
+  and mutex = Mutex.create ()
+  and condition = Condition.create () in
+  let rec t =
+    { ready; needs_wakeup; num_alive_fibers; mutex; condition; resume; retc }
   and retc () =
     Atomic.decr t.num_alive_fibers;
     next t
@@ -117,7 +121,11 @@ let run ~forbid main =
     if
       Atomic.get t.needs_wakeup
       && Atomic.compare_and_set t.needs_wakeup true false
-    then Picos_ptmc.broadcast t.mc
+    then begin
+      Mutex.lock t.mutex;
+      Mutex.unlock t.mutex;
+      Condition.broadcast t.condition
+    end
   in
   let computation = Computation.create () in
   let fiber = Fiber.create ~forbid computation in
