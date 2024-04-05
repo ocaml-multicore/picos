@@ -197,8 +197,9 @@ let test_lazy_cancelation () =
   let c = Fiber.start @@ fun () -> Lazy.force s in
   Trigger.await to_signal |> ignore;
   Computation.cancel c (Exn_bt.get_callstack 0 Exit);
-  Trigger.signal to_await;
-  match Lazy.force s with _ -> assert false | exception Exit -> ()
+  match Lazy.force s with
+  | _ -> assert false
+  | exception Exit -> Trigger.signal to_await
 
 let () =
   [
