@@ -233,20 +233,22 @@ let rec remove_action _trigger s id =
   if not (Atomic.compare_and_set s.timeouts before after) then
     remove_action (Obj.magic ()) s id
 
-let[@alert "-handler"] cancel_after computation ~seconds exn_bt =
+let to_deadline ~seconds =
   match Mtime.Span.of_float_ns (seconds *. 1_000_000_000.) with
   | None ->
       invalid_arg
         "Picos_select: seconds should be between 0 to pow(2, 53) nanoseconds"
-  | Some span ->
-      let s = get () in
-      let time = Mtime.Span.add (Mtime_clock.elapsed ()) span in
-      let entry = Cancel_at { time; exn_bt; computation } in
-      let id = next_id s in
-      add_timeout s id entry;
-      let remover = Trigger.from_action s id remove_action in
-      if not (Computation.try_attach computation remover) then
-        Trigger.signal remover
+  | Some span -> Mtime.Span.add (Mtime_clock.elapsed ()) span
+
+let[@alert "-handler"] cancel_after computation ~seconds exn_bt =
+  let time = to_deadline ~seconds in
+  let entry = Cancel_at { time; exn_bt; computation } in
+  let s = get () in
+  let id = next_id s in
+  add_timeout s id entry;
+  let remover = Trigger.from_action s id remove_action in
+  if not (Computation.try_attach computation remover) then
+    Trigger.signal remover
 
 (* *)
 
