@@ -17,76 +17,74 @@ module Unix = struct
      usually shouldn't happen with non-blocking operations.  We don't want to
      block, so we do the same thing as with [EAGAIN]. *)
 
-  let intr_req fd =
+  let[@inline] intr_req fd =
     if Sys.win32 || Picos_htbl.mem nonblock_fds (Picos_fd.unsafe_get fd) then
       Picos_select.Intr.nothing
-    else Picos_select.Intr.req ~seconds:0.000_001 (* 1μs *)
-
-  let intr_clr = Picos_select.Intr.clr
+    else Picos_select.Intr.req ~seconds:0.000_01 (* 10μs - TODO *)
 
   let rec again_0 fd fn op =
     let intr = intr_req fd in
     match fn (Picos_fd.unsafe_get fd) with
     | result ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         result
     | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         again_0 (Picos_select.await_on fd op) fn op
     | exception exn ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         raise exn
 
   let rec again_cloexec_0 ?cloexec fd fn op =
     let intr = intr_req fd in
     match fn ?cloexec (Picos_fd.unsafe_get fd) with
     | result ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         result
     | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         again_cloexec_0 ?cloexec (Picos_select.await_on fd op) fn op
     | exception exn ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         raise exn
 
   let rec again_3 fd x1 x2 x3 fn op =
     let intr = intr_req fd in
     match fn (Picos_fd.unsafe_get fd) x1 x2 x3 with
     | result ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         result
     | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         again_3 (Picos_select.await_on fd op) x1 x2 x3 fn op
     | exception exn ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         raise exn
 
   let rec again_4 fd x1 x2 x3 x4 fn op =
     let intr = intr_req fd in
     match fn (Picos_fd.unsafe_get fd) x1 x2 x3 x4 with
     | result ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         result
     | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         again_4 (Picos_select.await_on fd op) x1 x2 x3 x4 fn op
     | exception exn ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         raise exn
 
   let rec again_5 fd x1 x2 x3 x4 x5 fn op =
     let intr = intr_req fd in
     match fn (Picos_fd.unsafe_get fd) x1 x2 x3 x4 x5 with
     | result ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         result
     | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         again_5 (Picos_select.await_on fd op) x1 x2 x3 x4 x5 fn op
     | exception exn ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         raise exn
 
   (* [EINPROGRESS] indicates that a socket operation is being performed
@@ -96,7 +94,7 @@ module Unix = struct
   let progress_1 fd x1 fn op name =
     let intr = intr_req fd in
     match fn (Picos_fd.unsafe_get fd) x1 with
-    | () -> intr_clr intr
+    | () -> Picos_select.Intr.clr intr
     | exception
         Unix.Unix_error ((EAGAIN | EINPROGRESS | EINTR | EWOULDBLOCK), _, _) ->
       begin
@@ -109,14 +107,14 @@ module Unix = struct
 
            For [connect] both [EINPROGRESS] and [EINTR] mean that connection
            will be established asynchronously and we use [select] to wait. *)
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         let fd = Picos_select.await_on fd op in
         match Unix.getsockopt_error (Picos_fd.unsafe_get fd) with
         | None -> ()
         | Some error -> raise (Unix.Unix_error (error, name, ""))
       end
     | exception exn ->
-        intr_clr intr;
+        Picos_select.Intr.clr intr;
         raise exn
 
   let stdin = Picos_fd.create ~dispose:false Unix.stdin

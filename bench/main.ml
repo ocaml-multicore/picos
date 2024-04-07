@@ -12,6 +12,7 @@ let benchmarks =
     ("Ref with Picos_sync.Mutex", Bench_ref_mutex.run_suite);
     ("Foundation Mpsc_queue", Bench_mpsc_queue.run_suite);
     ("Picos_htbl", Bench_htbl.run_suite);
+    ("Picos_stdio", Bench_stdio.run_suite);
   ]
 
 let () = Multicore_bench.Cmd.run ~benchmarks ()

@@ -26,7 +26,8 @@ let run_one ~budgetf ~at_a_time () =
   in
 
   let config = Printf.sprintf "%d at a time" at_a_time in
-  Times.record ~budgetf ~n_domains:1 ~init ~wrap ~work ()
+  Times.record ~budgetf ~n_domains:1 ~n_warmups:1 ~n_runs_min:1 ~init ~wrap
+    ~work ()
   |> Times.to_thruput_metrics ~n:n_spawns ~singular:"spawn" ~config
 
 let run_suite ~budgetf =
