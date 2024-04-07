@@ -26,8 +26,10 @@ type return_on =
     }
       -> return_on
 
+type phase = Continue | Select | Waking_up | Process
+
 type state = {
-  phase : [ `Select | `Continue | `Process ] Atomic.t;
+  phase : phase Atomic.t;
   mutable state : [ `Initial | `Starting | `Alive | `Stopping | `Stopped ];
   mutable exn_bt : Exn_bt.t;
   mutable pipe_inn : Unix.file_descr;
@@ -47,7 +49,7 @@ let exit_exn_bt = Exn_bt.get_callstack 0 Exit
 let key =
   Picos_domain.DLS.new_key @@ fun () ->
   {
-    phase = Atomic.make `Continue;
+    phase = Atomic.make Continue;
     state = `Initial;
     exn_bt = exit_exn_bt;
     pipe_inn = Unix.stdin;
@@ -74,11 +76,11 @@ let[@poll error] [@inline never] transition s into =
 
 let rec wakeup s from =
   match Atomic.get s.phase with
-  | `Process ->
+  | Process | Waking_up ->
       (* The thread will process the fds and timeouts before next select. *)
       ()
-  | `Continue ->
-      if Atomic.compare_and_set s.phase `Continue `Process then
+  | Continue ->
+      if Atomic.compare_and_set s.phase Continue Process then
         (* We managed to signal the wakeup before the thread was ready to call
            select and the thread will notice this without us needing to write to
            the pipe. *)
@@ -87,8 +89,8 @@ let rec wakeup s from =
         (* Either the thread called select or another wakeup won the race.  We
            need to retry. *)
         wakeup s from
-  | `Select ->
-      if Atomic.compare_and_set s.phase `Select `Continue then
+  | Select ->
+      if Atomic.compare_and_set s.phase Select Waking_up then
         if s.state == from then
           (* We are now responsible for writing to the pipe to force the thread to
              exit the select. *)
@@ -149,7 +151,7 @@ let rec process_timeouts s =
 
 let rec select_thread s timeout rd wr ex =
   if s.state == `Alive then
-    if Atomic.compare_and_set s.phase `Continue `Select then
+    if Atomic.compare_and_set s.phase Continue Select then
       begin
         try
           Unix.select
@@ -162,9 +164,9 @@ let rec select_thread s timeout rd wr ex =
 
 and select_thread_continue s rd wr ex (rd_fds, wr_fds, ex_fds) =
   begin
-    match Atomic.exchange s.phase `Continue with
-    | `Select | `Process -> ()
-    | `Continue ->
+    match Atomic.exchange s.phase Continue with
+    | Select | Process | Continue -> ()
+    | Waking_up ->
         let n = Unix.read s.pipe_inn s.byte 0 1 in
         assert (n = 1)
   end;
