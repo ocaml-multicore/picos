@@ -63,6 +63,11 @@ module Computation = struct
     let balance_and_mode = Bool.to_int (mode == `FIFO) in
     Atomic.make (Continue { balance_and_mode; triggers = [] })
 
+  let with_action ?(mode : [ `FIFO | `LIFO ] = `FIFO) x y action =
+    let balance_and_mode = one + Bool.to_int (mode == `FIFO) in
+    let trigger = Trigger.from_action x y action in
+    Atomic.make (Continue { balance_and_mode; triggers = [ trigger ] })
+
   let is_canceled t =
     match Atomic.get t with
     | Canceled _ -> true

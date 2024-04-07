@@ -767,6 +767,27 @@ module Computation : sig
 
   include Intf.Computation with type 'a t := 'a t with type exn_bt := Exn_bt.t
 
+  val with_action :
+    ?mode:[ `FIFO | `LIFO ] ->
+    'x ->
+    'y ->
+    (Trigger.t -> 'x -> 'y -> unit) ->
+    'a t
+  [@@alert
+    handler
+      "This is an escape hatch for experts implementing schedulers or \
+       structured concurrency mechanisms.  If you know what you are doing, use \
+       [@alert \"-handler\"]."]
+  (** [with_action x y resume] is equivalent to
+      {@ocaml skip[
+        let computation = create () in
+        let trigger = Trigger.from_action x y resume in
+        let _ : bool = try_attach computation trigger in
+        computation
+      ]}
+
+      ⚠️ The same warnings as with {!Trigger.from_action} apply. *)
+
   (** {2 Design rationale}
 
       The computation concept can be seen as a kind of single-shot atomic event
