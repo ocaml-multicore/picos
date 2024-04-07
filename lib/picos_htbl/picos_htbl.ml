@@ -300,31 +300,36 @@ let[@inline] get t =
 
 (* *)
 
-let rec assoc_exn t key = function
-  | Nil -> raise_notrace Not_found
-  | Cons r -> if t r.key key then r.value else assoc_exn t key r.rest
+let rec assoc_node t key = function
+  | Nil -> (Nil : (_, _, [< `Nil | `Cons ]) tdt)
+  | Cons r as cons -> if t r.key key then cons else assoc_node t key r.rest
 
-let find_exn t key =
+let find_node t key =
   (* Reads can proceed in parallel with writes. *)
   let r = Atomic.get t in
   let h = r.hash key in
   let mask = Array.length r.buckets - 1 in
   let i = h land mask in
   match Atomic.get (Array.unsafe_get r.buckets i) with
-  | B Nil -> raise_notrace Not_found
-  | B (Cons cons_r) ->
-      if r.equal cons_r.key key then cons_r.value
-      else assoc_exn r.equal key cons_r.rest
+  | B Nil -> Nil
+  | B (Cons cons_r as cons) ->
+      if r.equal cons_r.key key then cons
+      else assoc_node r.equal key cons_r.rest
   | B (Resize resize_r) ->
       (* A resize is in progress.  The spine of the resize still holds what was
          in the bucket before resize reached that bucket. *)
-      assoc_exn r.equal key resize_r.spine
+      assoc_node r.equal key resize_r.spine
 
 (* *)
 
-let rec mem t key = function
-  | Nil -> false
-  | Cons r -> t key r.key || mem t key r.rest
+let find_exn t key =
+  match find_node t key with
+  | Nil -> raise_notrace Not_found
+  | Cons r -> r.value
+
+let mem t key = find_node t key != Nil
+
+(* *)
 
 let rec try_add t key value backoff =
   let r = get t in
@@ -339,7 +344,7 @@ let rec try_add t key value backoff =
         adjust_estimated_size t r mask 1
       else try_add t key value (Backoff.once backoff)
   | B (Cons _ as before) ->
-      if mem r.equal key before then false
+      if assoc_node r.equal key before != Nil then false
       else
         let after = Cons { key; value; rest = before } in
         if Atomic.compare_and_set b (B before) (B after) then

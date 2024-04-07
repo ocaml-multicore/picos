@@ -23,6 +23,10 @@ val find_exn : ('k, 'v) t -> 'k -> 'v
 (** [find_exn htbl key] returns the current binding of [key] in the hash table
     [htbl] or raises {!Not_found} if no such binding exists. *)
 
+val mem : ('k, 'v) t -> 'k -> bool
+(** [mem htbl key] determines whether the hash table [htbl] has a binding for
+    the [key]. *)
+
 val try_add : ('k, 'v) t -> 'k -> 'v -> bool
 (** [try_add htbl key value] tries to add a new binding of [key] to [value] to
     the hash table [htbl]. Returns [true] on success and [false] in case the
