@@ -38,7 +38,7 @@ struct
       created ()
     end
 
-  let unsafe_get t = t
+  let unsafe_get = Fun.id
 
   let rec incr t entry backoff =
     let before = Atomic.get entry in
