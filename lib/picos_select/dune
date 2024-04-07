@@ -10,6 +10,7 @@
   picos.domain
   picos.tls
   picos_thread_atomic
+  backoff
   threads.posix
   psq
   mtime

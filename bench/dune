@@ -10,6 +10,7 @@
   picos.sync
   picos.domain
   picos.tls
+  picos.stdio
   (select
    scheduler.ml
    from

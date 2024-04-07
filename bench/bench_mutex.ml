@@ -65,7 +65,8 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
       (if use_domains then "domain" else "fiber")
       (if n_fibers = 1 then "" else "s")
   in
-  Times.record ~budgetf ~n_domains ~init ~wrap ~work ()
+  Times.record ~budgetf ~n_domains ~n_warmups:1 ~n_runs_min:1 ~init ~wrap ~work
+    ()
   |> Times.to_thruput_metrics ~n:n_ops ~singular:"locked yield" ~config
 
 let run_suite ~budgetf =

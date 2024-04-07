@@ -32,7 +32,8 @@ let run_round_trip ~budgetf ~n_domains () =
   let config =
     Printf.sprintf "%d worker%s" n_domains (if n_domains = 1 then "" else "s")
   in
-  Times.record ~budgetf ~n_domains ~init ~wrap ~work ()
+  Times.record ~budgetf ~n_domains ~init ~n_warmups:1 ~n_runs_min:1 ~wrap ~work
+    ()
   |> Times.to_thruput_metrics ~n:n_ops ~singular:"round-trip" ~config
 
 let run_async ~budgetf ~n_domains () =
@@ -81,7 +82,8 @@ let run_async ~budgetf ~n_domains () =
   let config =
     Printf.sprintf "%d worker%s" n_domains (if n_domains = 1 then "" else "s")
   in
-  Times.record ~budgetf ~n_domains ~init ~wrap ~work ()
+  Times.record ~budgetf ~n_domains ~n_warmups:1 ~n_runs_min:1 ~init ~wrap ~work
+    ()
   |> Times.to_thruput_metrics ~n:n_ops ~singular:"async round-trip" ~config
 
 let run_suite ~budgetf =

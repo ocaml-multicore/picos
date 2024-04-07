@@ -27,7 +27,8 @@ let run_one ~budgetf ~n_fibers () =
   let config =
     Printf.sprintf "%d fiber%s" n_fibers (if n_fibers = 1 then "" else "s")
   in
-  Times.record ~budgetf ~n_domains:1 ~init ~wrap ~work ()
+  Times.record ~budgetf ~n_domains:1 ~n_warmups:1 ~n_runs_min:1 ~init ~wrap
+    ~work ()
   |> Times.to_thruput_metrics ~n:n_yields ~singular:"yield" ~config
 
 let run_suite ~budgetf =

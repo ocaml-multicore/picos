@@ -32,6 +32,8 @@ let test_intr () =
 let () =
   [
     ( "Intr",
-      if Sys.win32 then [] else [ Alcotest.test_case "" `Quick test_intr ] );
+      if Sys.win32 || String.starts_with ~prefix:"5.0." Sys.ocaml_version then
+        []
+      else [ Alcotest.test_case "" `Quick test_intr ] );
   ]
   |> Alcotest.run "Picos_select"

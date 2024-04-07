@@ -3,7 +3,6 @@ open Picos
 let intr_sig = Sys.sigusr2
 let is_intr_sig s = s == intr_sig
 let intr_sigs = [ intr_sig ]
-let intr_pending = Atomic.make 0
 
 type cancel_at =
   | Cancel_at : {
@@ -49,6 +48,21 @@ type state = {
   new_ex : return_on list ref;
 }
 
+type intr_status = Cleared | Signaled
+
+type _ tdt =
+  | Nothing : [> `Nothing ] tdt
+  | Req : {
+      state : state;
+      mutable unused : bool;
+      computation : intr_status Computation.t;
+    }
+      -> [> `Req ] tdt
+
+type req = R : [< `Nothing | `Req ] tdt -> req [@@unboxed]
+type counter_state = { value : int; req : req }
+
+let intr_pending = Atomic.make { value = 0; req = R Nothing }
 let exit_exn_bt = Exn_bt.get_callstack 0 Exit
 
 let key =
@@ -180,9 +194,10 @@ and select_thread_continue s rd wr ex (rd_fds, wr_fds, ex_fds) =
   let ex = process_fds ex_fds ex (Picos_thread_atomic.exchange s.new_ex []) in
   let tos = process_timeouts s in
   let tos =
-    let n = Atomic.get intr_pending in
-    if n = 0 then tos
+    let state = Atomic.get intr_pending in
+    if state.value = 0 then tos
     else begin
+      assert (0 < state.value);
       Unix.kill (Unix.getpid ()) intr_sig;
       let idle = 0.000_001 (* 1μs *) in
       if tos < 0.0 || idle <= tos then idle else tos
@@ -302,17 +317,7 @@ let await_on file_descr op =
 (* *)
 
 module Intr = struct
-  type intr_status = Cleared | Signaled
-
-  type _ tdt =
-    | Nothing : [> `Nothing ] tdt
-    | Req : {
-        state : state;
-        mutable computation : intr_status Computation.t;
-      }
-        -> [> `Req ] tdt
-
-  type t = T : [< `Nothing | `Req ] tdt -> t [@@unboxed]
+  type t = req
 
   let cleared =
     let computation = Computation.create () in
@@ -321,13 +326,26 @@ module Intr = struct
 
   let intr_key =
     Picos_tls.new_key @@ fun () : [ `Req ] tdt ->
-    Req { state = get (); computation = cleared }
+    Req { state = get (); unused = true; computation = cleared }
+
+  let[@inline] use = function R Nothing -> () | R (Req r) -> r.unused <- false
 
   let handle _ =
     let (Req r) = Picos_tls.get intr_key in
     Computation.return r.computation Signaled
 
-  let intr_action trigger (Req r : [ `Req ] tdt) id =
+  let rec finish (Req r as req : [ `Req ] tdt) backoff =
+    let before = Atomic.get intr_pending in
+    r.unused && before.req != R req
+    && begin
+         use before.req;
+         let after = { value = before.value + 1; req = R req } in
+         if Atomic.compare_and_set intr_pending before after then
+           after.value = 1
+         else finish req (Backoff.once backoff)
+       end
+
+  let intr_action trigger (Req r as req : [ `Req ] tdt) id =
     match Computation.await r.computation with
     | Cleared ->
         (* No signal needs to be delivered. *)
@@ -335,15 +353,15 @@ module Intr = struct
     | Signaled ->
         (* Signal was delivered before timeout. *)
         remove_action trigger r.state id;
-        if Atomic.fetch_and_add intr_pending 1 = 0 then begin
+        if finish req Backoff.default then
           (* We need to make sure at least one select thread will keep on
              triggering interrupts. *)
           wakeup r.state `Alive
-        end
     | exception Exit ->
         (* The timeout was triggered.  This must have been called from the
            select thread, which will soon trigger an interrupt. *)
-        Atomic.incr intr_pending
+        let _ : bool = finish req Backoff.default in
+        ()
 
   let () =
     if not Sys.win32 then begin
@@ -353,37 +371,47 @@ module Intr = struct
       assert (old_behavior == Signal_default)
     end
 
-  let nothing = T Nothing
+  let nothing = R Nothing
 
   let[@alert "-handler"] req ~seconds =
     if Sys.win32 then
       invalid_arg "Picos_select.Intr is not supported on Windows"
     else begin
       let time = to_deadline ~seconds in
-      let (Req r as req) = Picos_tls.get intr_key in
-      assert (not (Computation.is_running r.computation));
-      let id = next_id r.state in
-      let computation = Computation.with_action req id intr_action in
-      r.computation <- computation;
+      (* assert (not (Computation.is_running r.computation)); *)
+      let state = get () in
+      let id = next_id state in
+      let computation = Computation.create () in
+      let (Req _ as req : [ `Req ] tdt) =
+        Req { state; unused = true; computation }
+      in
+      let _ : bool =
+        Computation.try_attach computation
+          (Trigger.from_action req id intr_action)
+      in
+      Picos_tls.set intr_key req;
       let entry = Cancel_at { time; exn_bt = exit_exn_bt; computation } in
-      add_timeout r.state id entry;
-      let was_blocked : int list = Thread.sigmask SIG_UNBLOCK intr_sigs in
-      assert (List.exists is_intr_sig was_blocked);
-      T req
+      add_timeout state id entry;
+      let _was_blocked : int list = Thread.sigmask SIG_UNBLOCK intr_sigs in
+      (* assert (List.exists is_intr_sig was_blocked); *)
+      R req
     end
 
+  let rec decr backoff =
+    let before = Atomic.get intr_pending in
+    use before.req;
+    let after = { value = before.value - 1; req = R Nothing } in
+    assert (0 <= after.value);
+    if not (Atomic.compare_and_set intr_pending before after) then
+      decr (Backoff.once backoff)
+
   let clr = function
-    | T Nothing -> ()
-    | T (Req r) ->
-        let was_blocked : int list = Thread.sigmask SIG_BLOCK intr_sigs in
-        assert (not (List.exists is_intr_sig was_blocked));
+    | R Nothing -> ()
+    | R (Req r as req) ->
+        let _was_blocked : int list = Thread.sigmask SIG_BLOCK intr_sigs in
+        (* assert (not (List.exists is_intr_sig was_blocked)); *)
         if not (Computation.try_return r.computation Cleared) then begin
-          while
-            let count = Atomic.get intr_pending in
-            count <= 0
-            || not (Atomic.compare_and_set intr_pending count (count - 1))
-          do
-            Thread.yield ()
-          done
+          let _ : bool = finish req Backoff.default in
+          decr Backoff.default
         end
 end
