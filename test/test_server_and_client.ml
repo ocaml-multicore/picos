@@ -16,6 +16,11 @@ let set_nonblock fd =
     try Unix.set_nonblock fd
     with _exn -> Printf.printf "  (Failed to set_nonblock)\n%!"
 
+let is_opam_ci =
+  match Sys.getenv "OPAM_REPO_CI" with
+  | _ -> true
+  | exception Not_found -> false
+
 let main () =
   Bundle.run @@ fun bundle ->
   let n = 100 in
@@ -31,11 +36,13 @@ let main () =
         Unix.socket ~cloexec:true PF_INET SOCK_STREAM 0
       in
       set_nonblock socket;
-      Unix.bind socket Unix.(ADDR_INET (inet_addr_loopback, 0));
-      server_addr := Some (Unix.getsockname socket);
-      Unix.listen socket 1;
-      Printf.printf "  Server listening\n%!";
-      Unix.accept ~cloexec:true socket |> fst
+      match Unix.bind socket Unix.(ADDR_INET (inet_addr_loopback, 0)) with
+      | () ->
+          server_addr := Some (Unix.getsockname socket);
+          Unix.listen socket 1;
+          Printf.printf "  Server listening\n%!";
+          Unix.accept ~cloexec:true socket |> fst
+      | exception Unix.Unix_error (EPERM, _, _) when is_opam_ci -> raise Exit
     in
     set_nonblock client;
     let bytes = Bytes.create n in
@@ -57,7 +64,8 @@ let main () =
       let rec loop retries =
         match !server_addr with
         | None ->
-            if retries < 0 then failwith "No server address";
+            if retries < 0 then
+              if is_opam_ci then raise Exit else failwith "No server address";
             Sleep.sleepf 0.01;
             loop (retries - 1)
         | Some addr -> addr
@@ -81,4 +89,5 @@ let () =
   Printf.printf "Using %sblocking sockets and %s:\n%!"
     (if use_nonblock then "non-" else "")
     (if is_ocaml4 then "threads on OCaml 4" else "fibers on OCaml 5");
-  Test_scheduler.run main
+  try Test_scheduler.run main
+  with Exit -> Printf.printf "Server and Client test: SKIPPED\n%!"
