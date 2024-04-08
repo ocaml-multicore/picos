@@ -326,7 +326,7 @@ module Intr = struct
 
   let intr_key =
     Picos_tls.new_key @@ fun () : [ `Req ] tdt ->
-    Req { state = get (); unused = true; computation = cleared }
+    Req { state = get (); unused = false; computation = cleared }
 
   let[@inline] use = function R Nothing -> () | R (Req r) -> r.unused <- false
 
@@ -334,15 +334,18 @@ module Intr = struct
     let (Req r) = Picos_tls.get intr_key in
     Computation.return r.computation Signaled
 
-  let rec finish (Req r as req : [ `Req ] tdt) backoff =
+  (** This is used to ensure that the [intr_pending] counter is incremented
+      exactly once before the counter is decremented. *)
+  let rec incr_once (Req r as req : [ `Req ] tdt) backoff =
     let before = Atomic.get intr_pending in
+    (* [intr_pending] must be read before [r.unused]! *)
     r.unused && before.req != R req
     && begin
          use before.req;
          let after = { value = before.value + 1; req = R req } in
          if Atomic.compare_and_set intr_pending before after then
            after.value = 1
-         else finish req (Backoff.once backoff)
+         else incr_once req (Backoff.once backoff)
        end
 
   let intr_action trigger (Req r as req : [ `Req ] tdt) id =
@@ -353,14 +356,14 @@ module Intr = struct
     | Signaled ->
         (* Signal was delivered before timeout. *)
         remove_action trigger r.state id;
-        if finish req Backoff.default then
+        if incr_once req Backoff.default then
           (* We need to make sure at least one select thread will keep on
              triggering interrupts. *)
           wakeup r.state `Alive
     | exception Exit ->
         (* The timeout was triggered.  This must have been called from the
            select thread, which will soon trigger an interrupt. *)
-        let _ : bool = finish req Backoff.default in
+        let _ : bool = incr_once req Backoff.default in
         ()
 
   let () =
@@ -411,7 +414,9 @@ module Intr = struct
         let _was_blocked : int list = Thread.sigmask SIG_BLOCK intr_sigs in
         (* assert (not (List.exists is_intr_sig was_blocked)); *)
         if not (Computation.try_return r.computation Cleared) then begin
-          let _ : bool = finish req Backoff.default in
+          let _ : bool = incr_once req Backoff.default in
+          (* We ensure that the associated increment has been done before we
+             decrement so that the [intr_pending] counter is never too low. *)
           decr Backoff.default
         end
 end
