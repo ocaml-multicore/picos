@@ -10,8 +10,7 @@
     - [yield] just calls {!Thread.yield}.
     - [cancel_after] uses a per-domain {{!Picos_select} background thread} that
       runs a {!Unix.select} loop to cancel computations.
-    - [await] uses {{!Picos_ptmc} a per thread mutex and condition} to suspend
-      the thread.
+    - [await] uses a per thread mutex and condition to suspend the thread.
 
     ⚠️ This scheduler is probably suitable for simple applications that do not
     spawn a lot of fibers.  If an application uses a lot of short lived fibers,
