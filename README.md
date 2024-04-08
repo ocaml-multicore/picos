@@ -13,6 +13,21 @@ framework, is a framework for building
 [interoperable](https://en.wikipedia.org/wiki/Interoperability) elements of
 effects based cooperative concurrent programming models.
 
+The `picos` package is divided into many small(er) libraries. The core is a
+small library,
+[`picos`](https://ocaml-multicore.github.io/picos/doc/picos/Picos/index.html),
+that defines the essential interoperability framework. The rest of the libraries
+are either sample schedulers (e.g.
+[`picos.fifos`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_fifos/index.html),
+and
+[`picos.threaded`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_threaded/index.html)),
+scheduler agnostic libraries (e.g.
+[`picos.sync`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_sync/index.html),
+[`picos.stdio`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_stdio/index.html),
+and
+[`picos.select`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_select/index.html)),
+or auxiliary libraries.
+
 ### Why?
 
 There are already several concrete effects-based concurrent programming
