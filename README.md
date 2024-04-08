@@ -28,6 +28,8 @@ and
 [`picos.select`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_select/index.html)),
 or auxiliary libraries.
 
+⚠️ Please note that Picos is still considered experimental and unstable.
+
 ### Why?
 
 There are already several concrete effects-based concurrent programming
