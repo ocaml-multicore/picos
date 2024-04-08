@@ -55,7 +55,7 @@ type _ tdt =
   | Req : {
       state : state;
       mutable unused : bool;
-      computation : intr_status Computation.t;
+      mutable computation : intr_status Computation.t;
     }
       -> [> `Req ] tdt
 
@@ -384,14 +384,11 @@ module Intr = struct
       (* assert (not (Computation.is_running r.computation)); *)
       let state = get () in
       let id = next_id state in
-      let computation = Computation.create () in
-      let (Req _ as req : [ `Req ] tdt) =
-        Req { state; unused = true; computation }
+      let (Req r as req : [ `Req ] tdt) =
+        Req { state; unused = true; computation = cleared }
       in
-      let _ : bool =
-        Computation.try_attach computation
-          (Trigger.from_action req id intr_action)
-      in
+      let computation = Computation.with_action req id intr_action in
+      r.computation <- computation;
       Picos_tls.set intr_key req;
       let entry = Cancel_at { time; exn_bt = exit_exn_bt; computation } in
       add_timeout state id entry;
