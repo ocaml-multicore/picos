@@ -13,7 +13,6 @@
 
 (test
  (name test_picos)
- (package picos)
  (modules test_picos)
  (libraries
   test_scheduler
@@ -27,7 +26,6 @@
 
 (test
  (name test_sync)
- (package picos)
  (modules test_sync)
  (libraries picos.sync test_scheduler alcotest domain_shims))
 
@@ -40,7 +38,6 @@
 
 (test
  (name test_picos_dscheck)
- (package picos)
  (modules test_picos_dscheck picos_bootstrap)
  (build_if
   (>= %{ocaml_version} 5))
@@ -64,7 +61,6 @@
 
 (test
  (name test_mpsc_queue)
- (package picos)
  (modules test_mpsc_queue)
  (libraries
   picos.mpsc_queue
@@ -75,7 +71,6 @@
 
 (test
  (name test_htbl)
- (package picos)
  (modules test_htbl)
  (libraries
   picos.htbl
@@ -88,7 +83,6 @@
 
 (test
  (name test_js_of_ocaml)
- (package picos)
  (modules test_js_of_ocaml)
  (modes js)
  (js_of_ocaml
