@@ -77,6 +77,7 @@
   (conf-npm
    (and
     (<> :arch "x86_32")
+    (<> :arch "riscv64")
     :with-test))
   (dscheck
    (and

@@ -88,5 +88,7 @@
  (js_of_ocaml
   (flags --enable=effects))
  (build_if
-  (<> %{architecture} i386))
+  (and
+   (<> %{architecture} i386)
+   (<> %{architecture} riscv)))
  (libraries picos picos.threaded))
