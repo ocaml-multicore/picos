@@ -53,14 +53,13 @@ module Intr : sig
       the thread that made the request within the specified number of [seconds].
       Blocking {!Unix} IO calls typically raise an error with the {{!Unix.EINTR}
       [Unix.EINTR]} error code when they are interrupted by a signal.
-
       Regardless of whether the signal gets triggered or a system call gets
-      interrupted, the request must be {{!clr} cleared}.
+      interrupted, the request must be {{!clr} cleared} exactly once!
 
       ⚠️ Due to limitations of the OCaml system modules and unlike with typical
       timeout mechanisms, the interrupt may also be triggered sooner. *)
 
   val clr : t -> unit
   (** [clr req] either cancels or acknowledges the interrupt request.  Every
-      {!req} must be cleared! *)
+      {!req} must be cleared exactly once! *)
 end
