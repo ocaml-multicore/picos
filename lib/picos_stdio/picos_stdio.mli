@@ -9,6 +9,13 @@ module Unix : sig
       await for the file descriptor to become available for the operation.  This
       works best with file descriptors {{!set_nonblock} set to non-blocking mode}.
 
+      ⚠️ Shared (i.e. {{!create_process} inherited or inheritable} or {{!dup}
+      duplicated}) file descriptors, such as {!stdin}, {!stdout}, and {!stderr},
+      typically should not be put into non-blocking mode, because that affects
+      all of the parties using the shared file descriptors.  However, for
+      non-shared file descriptors {{!set_nonblock} non-blocking mode} improves
+      performance significantly with this module.
+
       ⚠️ Beware that this does not currently try to work around any limitations
       of the {{!Deps.Unix} [Unix]} module that comes with OCaml.  In particular,
       on Windows, only sockets can be put into non-blocking mode.  Also, on
