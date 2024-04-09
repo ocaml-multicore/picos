@@ -1,3 +1,8 @@
+## Next version
+
+- Enhanced `sleep` and `sleepf` in `Picos_stdio.Unix` to block in a scheduler
+  friendly manner (@polytypic).
+
 ## 0.1.0
 
 - First experimental release of Picos.
