@@ -22,6 +22,13 @@ module Unix : sig
       Windows, scheduler friendly blocking only works properly with non-blocking
       file descriptors, i.e. sockets.
 
+      In addition to operations on file descriptors, in this module
+
+      - {!sleep}, and
+      - {!sleepf}
+
+      also block in a scheduler friendly manner.
+
       Please consult the documentation of the {{!Deps.Unix} [Unix]} module that
       comes with OCaml. *)
 
@@ -134,9 +141,11 @@ module Unix : sig
   val execvp : string -> string array -> 'a
   val execvpe : string -> string array -> string array -> 'a
   val fork : unit -> int
-  val wait : unit -> int * process_status
-  val waitpid : wait_flag list -> int -> int * process_status
-  val system : string -> process_status
+
+  (*val wait : unit -> int * process_status*)
+  (*val waitpid : wait_flag list -> int -> int * process_status*)
+  (*val system : string -> process_status*)
+
   val _exit : int -> 'a
   val getpid : unit -> int
   val getppid : unit -> int
@@ -345,8 +354,8 @@ module Unix : sig
 
   val sigprocmask : sigprocmask_command -> int list -> int list
   val sigpending : unit -> int list
-  val sigsuspend : int list -> unit
-  val pause : unit -> unit
+  (*val sigsuspend : int list -> unit*)
+  (*val pause : unit -> unit*)
 
   type process_times = Unix.process_times = {
     tms_utime : float;

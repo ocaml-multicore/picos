@@ -66,7 +66,7 @@ let main () =
         | None ->
             if retries < 0 then
               if is_opam_ci then raise Exit else failwith "No server address";
-            Sleep.sleepf 0.01;
+            Unix.sleepf 0.01;
             loop (retries - 1)
         | Some addr -> addr
       in
