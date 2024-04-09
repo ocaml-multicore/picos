@@ -6,7 +6,7 @@
 
 # **Picos** &mdash; Interoperable effects based concurrency
 
-<p align="center"><a href="https://ocaml-multicore.github.io/picos/doc/picos/Picos/index.html"><img width="60%" src="doc/picos.svg"></a></p>
+<p align="center"><a href="https://ocaml-multicore.github.io/picos/doc/picos/Picos/index.html"><img width="60%" src="https://raw.githubusercontent.com/ocaml-multicore/picos/main/doc/picos.svg"></a></p>
 
 Picos, or [pico](https://en.wikipedia.org/wiki/Metric_prefix)-scheduler
 framework, is a framework for building
