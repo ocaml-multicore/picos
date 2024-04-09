@@ -36,7 +36,11 @@ module Intr : sig
   (** A mechanism to interrupt blocking {!Unix} IO operations.
 
       ⚠️ The mechanism uses the {!Sys.sigusr2} signal which should not be used
-      for other purposes at the same time. *)
+      for other purposes at the same time.
+
+      ⚠️ Beware that signal handling in OCaml 5.0.0 is known to be broken and
+      several fixes were included in OCaml {{:https://ocaml.org/releases/5.1.0}
+      5.1.0}. *)
 
   type t
   (** Represents an optional interrupt request. *)
