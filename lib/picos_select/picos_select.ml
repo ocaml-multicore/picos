@@ -1,8 +1,35 @@
 open Picos
 
-type config = { mutable intr_sig : int; mutable intr_sigs : int list }
+let handle_sigchld_bit = 0b01
+let select_thread_running_on_main_domain_bit = 0b10
 
-let config = { intr_sig = 0; intr_sigs = [] }
+type config = {
+  mutable bits : int;
+  mutable intr_sig : int;
+  mutable intr_sigs : int list;
+}
+
+let config = { bits = 0; intr_sig = 0; intr_sigs = [] }
+
+(* *)
+
+type return =
+  | Return : {
+      value : 'a;
+      computation : 'a Computation.t;
+      mutable alive : bool;
+    }
+      -> return
+
+(** We use random numbers as keys for the awaiters. *)
+module RandomInt = struct
+  type t = int
+
+  let equal = Int.equal
+  let hash = Fun.id
+end
+
+let chld_awaiters = Picos_htbl.create ~hashed_type:(module RandomInt) ()
 
 (* *)
 
@@ -217,8 +244,15 @@ and select_thread_continue s rd wr ex (rd_fds, wr_fds, ex_fds) =
   select_thread s tos rd wr ex
 
 let select_thread s =
+  if Picos_domain.is_main_domain () then
+    config.bits <- select_thread_running_on_main_domain_bit lor config.bits;
   if not Sys.win32 then begin
-    Thread.sigmask SIG_BLOCK config.intr_sigs |> ignore
+    Thread.sigmask SIG_BLOCK config.intr_sigs |> ignore;
+    Thread.sigmask
+      (if config.bits land handle_sigchld_bit <> 0 then SIG_UNBLOCK
+       else SIG_BLOCK)
+      [ Sys.sigchld ]
+    |> ignore
   end;
   begin
     try
@@ -233,27 +267,38 @@ let select_thread s =
   if s.pipe_inn != Unix.stdin then Unix.close s.pipe_inn;
   if s.pipe_out != Unix.stdin then Unix.close s.pipe_out
 
-let[@poll error] [@inline never] try_configure ~intr_sig ~intr_sigs =
+let[@poll error] [@inline never] try_configure ~intr_sig ~intr_sigs
+    ~handle_sigchld =
   config.intr_sigs == []
   && begin
+       config.bits <- Bool.to_int handle_sigchld;
        config.intr_sig <- intr_sig;
        config.intr_sigs <- intr_sigs;
        true
      end
 
+let is_sigchld signum = signum = Sys.sigchld
 let is_intr_sig signum = signum = config.intr_sig
 
-let rec configure ?(intr_sig = Sys.sigusr2) () =
+let rec configure ?(intr_sig = Sys.sigusr2) ?(handle_sigchld = true) () =
   if not (Picos_thread.is_main_thread ()) then
     invalid_arg
       "Picos_select must be configured from the main thread on the main domain";
   assert (Sys.sigabrt = -1 && Sys.sigxfsz < Sys.sigabrt);
   if intr_sig < Sys.sigxfsz || 0 <= intr_sig || intr_sig = Sys.sigchld then
     invalid_arg "Invalid interrupt signal number";
-  if not (try_configure ~intr_sig ~intr_sigs:[ intr_sig ]) then
+  if not (try_configure ~intr_sig ~intr_sigs:[ intr_sig ] ~handle_sigchld) then
     invalid_arg "Picos_select.configure already configured";
 
   if not Sys.win32 then begin
+    if config.bits land handle_sigchld_bit <> 0 then begin
+      let previously_blocked = Thread.sigmask SIG_BLOCK [ Sys.sigchld ] in
+      assert (not (List.exists is_sigchld previously_blocked));
+      let old_behavior =
+        Sys.signal Sys.sigchld (Sys.Signal_handle handle_signal)
+      in
+      assert (old_behavior == Signal_default)
+    end;
     begin
       let previously_blocked = Thread.sigmask SIG_BLOCK config.intr_sigs in
       assert (not (List.exists is_intr_sig previously_blocked));
@@ -265,7 +310,13 @@ let rec configure ?(intr_sig = Sys.sigusr2) () =
   end
 
 and handle_signal signal =
-  if signal = config.intr_sig then
+  if signal = Sys.sigchld then begin
+    Picos_htbl.remove_all chld_awaiters
+    |> Seq.iter @@ fun (_, Return r) ->
+       r.alive <- false;
+       Computation.return r.computation r.value
+  end
+  else if signal = config.intr_sig then
     let (Req r) = Picos_thread.TLS.get intr_key in
     Computation.return r.computation Signaled
 
@@ -452,3 +503,32 @@ module Intr = struct
           decr Backoff.default
         end
 end
+
+(* *)
+
+let rec insert return =
+  let id = Random.bits () in
+  if Picos_htbl.try_add chld_awaiters id return then id else insert return
+
+let[@alert "-handler"] return_on_sigchld computation value =
+  if config.bits land select_thread_running_on_main_domain_bit = 0 then
+    (* Ensure there is at least one thread handling [Sys.sigchld] signals. *)
+    get () |> ignore;
+  let return = Return { value; computation; alive = true } in
+  let id = insert return in
+  let remover =
+    Trigger.from_action id return @@ fun _trigger id (Return this_r as this) ->
+    if this_r.alive then begin
+      this_r.alive <- false;
+      (* It should be extremely rare, but possible, that the return was already
+         removed and another added just at this point and so we must account for
+         the possibility and make sure that whatever we remove is completed. *)
+      match Picos_htbl.remove_exn chld_awaiters id with
+      | Return that_r as that ->
+          if this != that then
+            Computation.return that_r.computation that_r.value
+      | exception Not_found -> ()
+    end
+  in
+  if not (Computation.try_attach computation remover) then
+    Trigger.signal remover
