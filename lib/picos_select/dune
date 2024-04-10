@@ -9,6 +9,7 @@
   (re_export unix)
   picos.domain
   picos.thread
+  picos.htbl
   picos_thread_atomic
   backoff
   threads.posix

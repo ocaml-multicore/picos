@@ -1,5 +1,7 @@
 ## Next version
 
+- Scheduler friendly `waitpid`, `wait`, and `system` in `Picos_stdio.Unix` for
+  platforms other than Windows (@polytypic)
 - Added `Picos_select.configure` to allow, and sometimes require, configuring
   `Picos_select` for co-operation with libraries that also deal with signals
   (@polytypic)

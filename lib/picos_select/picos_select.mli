@@ -70,14 +70,30 @@ module Intr : sig
       {!req} must be cleared exactly once! *)
 end
 
+(** {1 Processes} *)
+
+val return_on_sigchld : 'a Computation.t -> 'a -> unit
+(** [return_on_sigchld computation value] arranges for [computation] to be
+    {{!Picos.Computation.return} returned} with given [value] on next
+    {!Sys.sigchld}.  Completion of the [computation] before a {!Sys.sigchld} is
+    received effectively cancels the arrangement.
+
+    ⚠️ The mechanism uses the {!Sys.sigchld} signal which should not be used for
+    other purposes. *)
+
 (** {1 Configuration} *)
 
-val configure : ?intr_sig:int -> unit -> unit
-(** [configure ~intr_sig ()] can, and sometimes must, be called by an
-    application to configure the use of signals by this module.
+val configure : ?intr_sig:int -> ?handle_sigchld:bool -> unit -> unit
+(** [configure ~intr_sig ~handle_sigchld ()] can, and sometimes must, be called
+    by an application to configure the use of signals by this module.
 
     The optional [intr_sig] argument can be used to specify the signal used by
     the {{!Intr} interrupt} mechanism.  The default is to use {!Sys.sigusr2}.
+
+    The optional [handle_sigchld] argument can be used to specify whether this
+    module should setup handling of {!Sys.sigchld}.  The default is [true].
+    When explicitly specified as [~handle_sigchld:false], the application should
+    arrange to call {!handle_signal} whenever a {!Sys.sigchld} signal occurs.
 
     ⚠️ This module must always be configured before use.  Unless this module has
     been explicitly configured, calling a method of this module from the main

@@ -276,6 +276,94 @@ module Unix = struct
 
   (* *)
 
+  module Wait_flag = struct
+    let nohang_bit = 0b10
+    let untraced_bit = 0b01
+
+    (* Note that this is optimized to the identity function. *)
+    let to_int = function WNOHANG -> 0 | WUNTRACED -> 1
+    let to_bit flag = nohang_bit - to_int flag
+    let () = assert (to_bit WNOHANG = nohang_bit)
+    let () = assert (to_bit WUNTRACED = untraced_bit)
+
+    let rec to_bits flags bits =
+      match flags with
+      | [] -> bits
+      | flag :: flags -> to_bits flags (bits lor to_bit flag)
+
+    let to_bits flags = to_bits flags 0
+    let to_flags = [| []; [ WUNTRACED ]; [ WNOHANG ]; [ WNOHANG; WUNTRACED ] |]
+    let to_flags bits = Array.unsafe_get to_flags bits
+  end
+
+  let rec waitpid_unix ~bits ~pid =
+    if bits land Wait_flag.nohang_bit <> 0 then
+      Unix.waitpid (Wait_flag.to_flags bits) pid
+    else
+      let computation = Computation.create () in
+      Picos_select.return_on_sigchld computation ();
+      match
+        Unix.waitpid (Wait_flag.to_flags (bits lor Wait_flag.nohang_bit)) pid
+      with
+      | exception Unix_error (EINTR, _, _) -> waitpid_unix ~bits ~pid
+      | (pid_or_0, _) as result ->
+          if pid_or_0 = 0 then begin
+            Computation.await computation;
+            waitpid_unix ~bits ~pid
+          end
+          else begin
+            Computation.finish computation;
+            result
+          end
+      | exception exn ->
+          Computation.finish computation;
+          raise exn
+
+  let waitpid_win32 ~bits ~pid =
+    if bits land Wait_flag.nohang_bit <> 0 then
+      Unix.waitpid (Wait_flag.to_flags bits) pid
+    else
+      (* One way to provide a scheduler friendly [waitpid] on Windows would be
+         to use a thread pool to run blocking operations on.  PR for a thread
+         pool implemented in Picos would be welcome! *)
+      invalid_arg
+        "Picos_stdio.Unix.waitpid is currently not supported on Windows \
+         without WNOHANG"
+
+  let waitpid flags pid =
+    let bits = Wait_flag.to_bits flags in
+    if Sys.win32 then
+      if pid <> -1 then waitpid_win32 ~bits ~pid
+      else begin
+        (* This should raise? *)
+        Unix.waitpid flags pid
+      end
+    else waitpid_unix ~bits ~pid
+
+  let wait () =
+    if not Sys.win32 then waitpid_unix ~bits:0 ~pid:(-1)
+    else begin
+      (* This should raise [Invalid_argument] *)
+      Unix.wait ()
+    end
+
+  (* *)
+
+  let sh = "/bin/sh"
+
+  let system cmd =
+    if Sys.win32 then
+      (* One way to provide a scheduler friendly [system] on Windows would be to
+         use a thread pool to run blocking operations on.  PR for a thread pool
+         implemented in Picos would be welcome! *)
+      invalid_arg
+        "Picos_stdio.Unix.system is currently not supported on Windows"
+    else
+      create_process sh [| sh; "-c"; cmd |] stdin stdout stderr
+      |> waitpid [] |> snd
+
+  (* *)
+
   (*let select _ = failwith "TODO"*)
 
   (* *)

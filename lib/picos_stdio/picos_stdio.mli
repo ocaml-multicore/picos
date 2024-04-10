@@ -27,7 +27,13 @@ module Unix : sig
       - {!sleep}, and
       - {!sleepf}
 
-      also block in a scheduler friendly manner.
+      also block in a scheduler friendly manner.  Additionally
+
+      - {!wait},
+      - {!waitpid}, and
+      - {!system}
+
+      also block in a scheduler friendly manner except on Windows.
 
       ⚠️ This module uses {!Picos_select} and you may need to
       {{!Picos_select.configure} configure} it at start of your application.
@@ -144,11 +150,9 @@ module Unix : sig
   val execvp : string -> string array -> 'a
   val execvpe : string -> string array -> string array -> 'a
   val fork : unit -> int
-
-  (*val wait : unit -> int * process_status*)
-  (*val waitpid : wait_flag list -> int -> int * process_status*)
-  (*val system : string -> process_status*)
-
+  val wait : unit -> int * process_status
+  val waitpid : wait_flag list -> int -> int * process_status
+  val system : string -> process_status
   val _exit : int -> 'a
   val getpid : unit -> int
   val getppid : unit -> int
