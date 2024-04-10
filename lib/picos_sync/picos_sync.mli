@@ -8,7 +8,7 @@ module Mutex : sig
       effects based scheduler to run other fibers on the thread.
 
       🏎️ The optional [checked] argument taken by most of the operations defaults
-      to [true].  When explicitky specified as [~checked:false] the mutex
+      to [true].  When explicitly specified as [~checked:false] the mutex
       implementation may avoid having to obtain the {{!Picos.Fiber.current}
       current fiber}, which can be expensive relative to locking or unlocking an
       uncontested mutex.  Note that specifying [~checked:false] on an operation
@@ -95,7 +95,7 @@ module Lazy : sig
   (** A lazy implementation for {!Picos}.
 
       ℹ️ This intentionally mimics the interface of {!Stdlib.Lazy}.  Unlike with
-      the stadard library suspensions an attempt to force a suspension from
+      the standard library suspensions an attempt to force a suspension from
       multiple fibers, possibly running on different domains, does not raise the
       {!Undefined} exception. *)
 
