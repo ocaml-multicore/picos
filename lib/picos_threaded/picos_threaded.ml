@@ -8,27 +8,41 @@ let create ~forbid computation =
   let condition = Condition.create () in
   { fiber; mutex; condition }
 
-let block trigger t =
-  (* We block fibers (or threads) on a per thread mutex and condition. *)
-  Mutex.lock t.mutex;
-  match
-    while not (Trigger.is_signaled trigger) do
-      Condition.wait t.condition t.mutex
-    done
-  with
-  | () -> Mutex.unlock t.mutex
-  | exception exn ->
-      (* Condition.wait may be interrupted by asynchronous exceptions and we
-         must make sure to unlock even in that case. *)
-      Mutex.unlock t.mutex;
-      raise exn
+let rec block trigger t =
+  if not (Trigger.is_signaled trigger) then begin
+    (* We block fibers (or threads) on a per thread mutex and condition. *)
+    Mutex.lock t.mutex;
+    match
+      if not (Trigger.is_signaled trigger) then
+        (* We assume that there is no poll point after the above [Mutex.lock]
+           and before the below [Condition.wait] is ready to be woken up by a
+           [Condition.broadcast]. *)
+        Condition.wait t.condition t.mutex
+    with
+    | () ->
+        Mutex.unlock t.mutex;
+        block trigger t
+    | exception exn ->
+        (* Condition.wait may be interrupted by asynchronous exceptions and we
+           must make sure to unlock even in that case. *)
+        Mutex.unlock t.mutex;
+        raise exn
+  end
 
 let resume trigger t _ =
   let _is_canceled : bool = Fiber.unsuspend t.fiber trigger in
   (* This will be called when the trigger is signaled.  We simply broadcast on
      the per thread condition variable. *)
-  Mutex.lock t.mutex;
-  Mutex.unlock t.mutex;
+  begin
+    match Mutex.lock t.mutex with
+    | () -> Mutex.unlock t.mutex
+    | exception Sys_error _ ->
+        (* This should mean that [resume] was called from a signal handler
+           running on the scheduler thread.  If the assumption about not having
+           poll points holds, the [Condition.broadcast] should now be able to
+           wake up the [Condition.wait] in the scheduler. *)
+        ()
+  end;
   Condition.broadcast t.condition
 
 let[@alert "-handler"] rec await t trigger =
