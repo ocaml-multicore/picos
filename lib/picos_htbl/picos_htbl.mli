@@ -37,6 +37,10 @@ val try_remove : ('k, 'v) t -> 'k -> bool
     [htbl].  Returns [true] on success and [false] in case the hash table did
     not contain a binding for [key]. *)
 
+val remove_exn : ('k, 'v) t -> 'k -> 'v
+(** [remove_exn htbl key] tries to remove a binding of [key] from the hash table
+    [htbl] and return it or raise {!Not_found} if no such binding exists. *)
+
 val to_seq : ('k, 'v) t -> ('k * 'v) Seq.t
 (** [to_seq htbl] takes a snapshot of the bindings in the hash table and returns
     them as an association sequence.

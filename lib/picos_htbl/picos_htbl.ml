@@ -254,7 +254,7 @@ let[@inline never] try_resize t r new_capacity =
        true
      end
 
-let rec adjust_estimated_size t r mask delta =
+let rec adjust_estimated_size t r mask delta result =
   let i = Multicore_magic.instantaneous_domain_index () in
   let n = Array.length r.non_linearizable_size in
   if i < n then begin
@@ -273,7 +273,7 @@ let rec adjust_estimated_size t r mask delta =
         && estimated_size + estimated_size + estimated_size < capacity
       then try_resize t r (capacity lsr 1) |> ignore
     end;
-    true
+    result
   end
   else
     let new_cs =
@@ -289,7 +289,7 @@ let rec adjust_estimated_size t r mask delta =
       |> Multicore_magic.copy_as_padded
     in
     let r = if Atomic.compare_and_set t r new_r then new_r else Atomic.get t in
-    adjust_estimated_size t r mask delta
+    adjust_estimated_size t r mask delta result
 
 (* *)
 
@@ -341,14 +341,14 @@ let rec try_add t key value backoff =
   | B Nil ->
       let after = Cons { key; value; rest = Nil } in
       if Atomic.compare_and_set b (B Nil) (B after) then
-        adjust_estimated_size t r mask 1
+        adjust_estimated_size t r mask 1 true
       else try_add t key value (Backoff.once backoff)
   | B (Cons _ as before) ->
       if assoc_node r.equal key before != Nil then false
       else
         let after = Cons { key; value; rest = before } in
         if Atomic.compare_and_set b (B before) (B after) then
-          adjust_estimated_size t r mask 1
+          adjust_estimated_size t r mask 1 true
         else try_add t key value (Backoff.once backoff)
   | B (Resize _) -> try_add t key value Backoff.default
 
@@ -361,32 +361,39 @@ let[@tail_mod_cons] rec dissoc t key = function
   | Cons r ->
       if t key r.key then r.rest else Cons { r with rest = dissoc t key r.rest }
 
-let rec try_remove t key backoff =
+let rec remove_node t key backoff =
   let r = get t in
   let h = r.hash key in
   let mask = Array.length r.buckets - 1 in
   let i = h land mask in
   let b = Array.unsafe_get r.buckets i in
   match Atomic.get b with
-  | B Nil -> false
+  | B Nil -> Nil
   | B (Cons cons_r as before) -> begin
       if r.equal cons_r.key key then
         if Atomic.compare_and_set b (B before) (B cons_r.rest) then
-          adjust_estimated_size t r mask (-1)
-        else try_remove t key (Backoff.once backoff)
+          adjust_estimated_size t r mask (-1) before
+        else remove_node t key (Backoff.once backoff)
       else
         match dissoc r.equal key cons_r.rest with
         | (Nil | Cons _) as rest ->
             if
               Atomic.compare_and_set b (B before)
                 (B (Cons { cons_r with rest }))
-            then adjust_estimated_size t r mask (-1)
-            else try_remove t key (Backoff.once backoff)
-        | exception Not_found -> false
+            then
+              assoc_node r.equal key cons_r.rest
+              |> adjust_estimated_size t r mask (-1)
+            else remove_node t key (Backoff.once backoff)
+        | exception Not_found -> Nil
     end
-  | B (Resize _) -> try_remove t key Backoff.default
+  | B (Resize _) -> remove_node t key Backoff.default
 
-let try_remove t key = try_remove t key Backoff.default
+let try_remove t key = remove_node t key Backoff.default != Nil
+
+let remove_exn t key =
+  match remove_node t key Backoff.default with
+  | Nil -> raise_notrace Not_found
+  | Cons r -> r.value
 
 (* *)
 
