@@ -84,7 +84,11 @@ let rec next t =
         if Atomic.get t.needs_wakeup then begin
           Mutex.lock t.mutex;
           match
-            if Atomic.get t.needs_wakeup then Condition.wait t.condition t.mutex
+            if Atomic.get t.needs_wakeup then
+              (* We assume that there is no poll point after the above
+                 [Mutex.lock] and before the below [Condition.wait] is ready to
+                 be woken up by a [Condition.broadcast]. *)
+              Condition.wait t.condition t.mutex
           with
           | () -> Mutex.unlock t.mutex
           | exception exn ->
@@ -122,8 +126,16 @@ let run ~forbid main =
       Atomic.get t.needs_wakeup
       && Atomic.compare_and_set t.needs_wakeup true false
     then begin
-      Mutex.lock t.mutex;
-      Mutex.unlock t.mutex;
+      begin
+        match Mutex.lock t.mutex with
+        | () -> Mutex.unlock t.mutex
+        | exception Sys_error _ ->
+            (* This should mean that [resume] was called from a signal handler
+               running on the scheduler thread.  If the assumption about not
+               having poll points holds, the [Condition.broadcast] should now be
+               able to wake up the [Condition.wait] in the scheduler. *)
+            ()
+      end;
       Condition.broadcast t.condition
     end
   in
