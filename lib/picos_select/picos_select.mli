@@ -24,7 +24,7 @@ val return_on : 'a Computation.t -> Picos_fd.t -> [ `R | `W | `E ] -> 'a -> unit
 (** [return_on computation fd op value] arranges for [computation] to be
     {{!Picos.Computation.return} returned} with given [value] when [fd] becomes
     available for [op].  Completion of the [computation] before the [fd] becomes
-    available for [op] effectively cancels the await.
+    available for [op] effectively cancels the arrangement.
 
     ℹ️ Using {!Unix.set_nonblock} and [return_on] you can implement direct-style
     transparently asynchronous IO on top of the {!Unix} module. *)
