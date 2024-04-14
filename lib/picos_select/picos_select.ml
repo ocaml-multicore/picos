@@ -325,13 +325,13 @@ module Intr = struct
     computation
 
   let intr_key =
-    Picos_tls.new_key @@ fun () : [ `Req ] tdt ->
+    Picos_thread.TLS.new_key @@ fun () : [ `Req ] tdt ->
     Req { state = get (); unused = false; computation = cleared }
 
   let[@inline] use = function R Nothing -> () | R (Req r) -> r.unused <- false
 
   let handle _ =
-    let (Req r) = Picos_tls.get intr_key in
+    let (Req r) = Picos_thread.TLS.get intr_key in
     Computation.return r.computation Signaled
 
   (** This is used to ensure that the [intr_pending] counter is incremented
@@ -389,7 +389,7 @@ module Intr = struct
       in
       let computation = Computation.with_action req id intr_action in
       r.computation <- computation;
-      Picos_tls.set intr_key req;
+      Picos_thread.TLS.set intr_key req;
       let entry = Cancel_at { time; exn_bt = exit_exn_bt; computation } in
       add_timeout state id entry;
       let _was_blocked : int list = Thread.sigmask SIG_UNBLOCK intr_sigs in

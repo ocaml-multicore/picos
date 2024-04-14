@@ -1,9 +1,0 @@
-(library
- (name picos_tls)
- (public_name picos.tls)
- (libraries
-  (select
-   picos_tls.ml
-   from
-   (thread-local-storage -> picos_tls.threads.ml)
-   (picos.domain -> picos_tls.dls.ml))))

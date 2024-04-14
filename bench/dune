@@ -8,7 +8,7 @@
   picos.htbl
   picos.sync
   picos.domain
-  picos.tls
+  picos.thread
   picos.stdio
   (select
    scheduler.ml

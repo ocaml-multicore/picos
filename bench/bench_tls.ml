@@ -1,6 +1,6 @@
 open Multicore_bench
 
-let key = Picos_tls.new_key (fun () -> -1)
+let key = Picos_thread.TLS.new_key (fun () -> -1)
 
 let run_one ~budgetf ~n_domains ~op () =
   let n_ops =
@@ -18,7 +18,7 @@ let run_one ~budgetf ~n_domains ~op () =
           if n <> 0 then
             let rec loop n =
               if 0 < n then begin
-                let d = Picos_tls.get key in
+                let d = Picos_thread.TLS.get key in
                 loop (n + d)
               end
               else work ()
@@ -32,7 +32,7 @@ let run_one ~budgetf ~n_domains ~op () =
           if n <> 0 then
             let rec loop n =
               if 0 < n then begin
-                Picos_tls.set key (-1);
+                Picos_thread.TLS.set key (-1);
                 loop (n - 1)
               end
               else work ()

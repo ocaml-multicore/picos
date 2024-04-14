@@ -1,8 +1,6 @@
 (library
  (name picos_threaded)
  (public_name picos.threaded)
- (js_of_ocaml
-  (javascript_files thread.js))
  (optional)
  (libraries
   (re_export picos)
@@ -14,17 +12,3 @@
    (picos.select -> select.some.ml)
    (-> select.none.ml))
   threads.posix))
-
-(rule
- (enabled_if
-  (< %{ocaml_version} 5.0.0))
- (action
-  (progn
-   (copy thread.ocaml4.js thread.js))))
-
-(rule
- (enabled_if
-  (>= %{ocaml_version} 5.0.0))
- (action
-  (progn
-   (copy thread.ocaml5.js thread.js))))
