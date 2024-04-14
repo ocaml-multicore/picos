@@ -111,8 +111,8 @@ let rec wakeup s from =
   | Select ->
       if Atomic.compare_and_set s.phase Select Waking_up then
         if s.state == from then
-          (* We are now responsible for writing to the pipe to force the thread to
-             exit the select. *)
+          (* We are now responsible for writing to the pipe to force the thread
+             to exit the select. *)
           let n = Unix.write s.pipe_out s.byte 0 1 in
           assert (n = 1)
 
