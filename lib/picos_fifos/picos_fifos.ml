@@ -60,15 +60,19 @@ let rec next t =
               continue
             end
         | Fiber.Yield -> yield
-        | Computation.Cancel_after r ->
+        | Computation.Cancel_after r -> begin
             (* We check cancelation status once and then either perform the
                whole operation or discontinue the fiber. *)
             if Fiber.is_canceled fiber then discontinue
-            else begin
-              Picos_select.cancel_after r.computation ~seconds:r.seconds
-                r.exn_bt;
-              continue
-            end
+            else
+              match
+                Select.cancel_after r.computation ~seconds:r.seconds r.exn_bt
+              with
+              | () -> continue
+              | exception exn ->
+                  let exn_bt = Exn_bt.get exn in
+                  Some (fun k -> Exn_bt.discontinue k exn_bt)
+          end
         | Trigger.Await trigger ->
             Some
               (fun k ->
