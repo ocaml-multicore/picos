@@ -58,7 +58,7 @@ and current t =
 and yield t =
   (* In other handlers we need to account for cancelation. *)
   Fiber.check t.fiber;
-  Systhreads.yield ()
+  Thread.yield ()
 
 and cancel_after : type a. _ -> a Computation.t -> _ =
  (* We need an explicit type signature to allow OCaml to generalize the tyoe as
@@ -72,7 +72,7 @@ and spawn : type a. _ -> forbid:bool -> a Computation.t -> _ =
   Fiber.check t.fiber;
   mains
   |> List.iter @@ fun main ->
-     Systhreads.create
+     Thread.create
        (fun () ->
          (* We need to (recursively) install the handler on each new thread
             that we create. *)

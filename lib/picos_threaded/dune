@@ -3,6 +3,7 @@
  (public_name picos.threaded)
  (js_of_ocaml
   (javascript_files thread.js))
+ (optional)
  (libraries
   (re_export picos)
   (re_export picos.exn_bt)
@@ -12,11 +13,7 @@
    from
    (picos.select -> select.some.ml)
    (-> select.none.ml))
-  (select
-   systhreads.ml
-   from
-   (threads.posix -> systhreads.posix.ml)
-   (-> systhreads.none.ml))))
+  threads.posix))
 
 (rule
  (enabled_if
