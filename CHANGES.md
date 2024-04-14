@@ -1,5 +1,6 @@
 ## Next version
 
+- Moved `Picos_tls` into `Picos_thread.TLS` (@polytypic)
 - Enhanced `sleep` and `sleepf` in `Picos_stdio.Unix` to block in a scheduler
   friendly manner (@polytypic).
 

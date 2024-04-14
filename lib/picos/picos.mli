@@ -1218,8 +1218,8 @@ module Handler : sig
 
       ℹ️ The behavior is that
 
-      - on OCaml 4, [using] stores the [handler] in {{!Picos_tls} [TLS]}, which
-        allows the operations to be accessed during the execution of the
+      - on OCaml 4, [using] stores the [handler] in {{!Picos_thread.TLS} [TLS]},
+        which allows the operations to be accessed during the execution of the
         [thunk], and
       - on OCaml 5, [using] runs [thunk] with a deep effect handler that
         delegates to the operations of the [handler].

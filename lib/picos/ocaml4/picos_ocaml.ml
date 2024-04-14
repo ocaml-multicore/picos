@@ -14,18 +14,18 @@ module Handler = struct
     and await _ _ = error () in
     E { context = (); handler = { current; spawn; yield; cancel_after; await } }
 
-  let key = Picos_tls.new_key @@ fun () -> default
-  let get () = Picos_tls.get key
+  let key = Picos_thread.TLS.new_key @@ fun () -> default
+  let get () = Picos_thread.TLS.get key
 
   let using handler context thunk =
-    let old = Picos_tls.get key in
-    Picos_tls.set key (E { context; handler });
+    let old = Picos_thread.TLS.get key in
+    Picos_thread.TLS.set key (E { context; handler });
     match thunk () with
     | value ->
-        Picos_tls.set key old;
+        Picos_thread.TLS.set key old;
         value
     | exception exn ->
-        Picos_tls.set key old;
+        Picos_thread.TLS.set key old;
         raise exn
 end
 

@@ -8,7 +8,7 @@
   (re_export picos.fd)
   (re_export unix)
   picos.domain
-  picos.tls
+  picos.thread
   picos_thread_atomic
   backoff
   threads.posix

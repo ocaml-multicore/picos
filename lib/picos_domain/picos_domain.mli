@@ -13,6 +13,10 @@ val recommended_domain_count : unit -> int
 (** [recommended_domain_count ()] returns [1] on OCaml 4 and calls
     {!Domain.recommended_domain_count} on OCaml 5.  *)
 
+val is_main_domain : unit -> bool
+(** [is_main_domain ()] returns true on OCaml 4 and calls
+    {!Domain.is_main_domain} on OCaml 5. *)
+
 module DLS : sig
   (** Domain-local storage for Picos.
 

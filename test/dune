@@ -91,4 +91,4 @@
   (and
    (<> %{architecture} i386)
    (<> %{architecture} riscv)))
- (libraries picos picos.threaded))
+ (libraries picos))
