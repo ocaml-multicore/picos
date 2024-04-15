@@ -511,7 +511,11 @@ let rec insert return =
   if Picos_htbl.try_add chld_awaiters id return then id else insert return
 
 let[@alert "-handler"] return_on_sigchld computation value =
-  if config.bits land select_thread_running_on_main_domain_bit = 0 then
+  if
+    config.bits
+    land (select_thread_running_on_main_domain_bit lor handle_sigchld_bit)
+    = handle_sigchld_bit
+  then
     (* Ensure there is at least one thread handling [Sys.sigchld] signals. *)
     get () |> ignore;
   let return = Return { value; computation; alive = true } in
