@@ -37,6 +37,9 @@
   ;; For mpsc queue
   (multicore-magic
    (>= 2.1.0))
+  ;; For picos.lwt
+  (lwt
+   (>= 5.7.0))
   ;; Test dependencies
   (multicore-bench
    (and
