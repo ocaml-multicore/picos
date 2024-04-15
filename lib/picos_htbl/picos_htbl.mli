@@ -41,6 +41,12 @@ val remove_exn : ('k, 'v) t -> 'k -> 'v
 (** [remove_exn htbl key] tries to remove a binding of [key] from the hash table
     [htbl] and return it or raise {!Not_found} if no such binding exists. *)
 
+val remove_all : ('k, 'v) t -> ('k * 'v) Seq.t
+(** [remove_all htbl] removes all bindings from the hash table [htbl] and
+    returns them as an association sequence.
+
+    🐌 This is a linear time operation. *)
+
 val to_seq : ('k, 'v) t -> ('k * 'v) Seq.t
 (** [to_seq htbl] takes a snapshot of the bindings in the hash table and returns
     them as an association sequence.

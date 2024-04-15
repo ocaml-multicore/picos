@@ -23,7 +23,10 @@ type ('k, 'v) bucket =
 
 type ('k, 'v) pending =
   | Nothing
-  | Resize of { buckets : ('k, 'v) bucket Atomic.t array }
+  | Resize of {
+      buckets : ('k, 'v) bucket Atomic.t array;
+      non_linearizable_size : int Atomic.t array;
+    }
 
 type ('k, 'v) state = {
   hash : 'k -> int;
@@ -196,7 +199,7 @@ let rec copy_all r target i t step =
 let[@inline never] rec finish t r =
   match r.pending with
   | Nothing -> r
-  | Resize { buckets } ->
+  | Resize { buckets; non_linearizable_size } ->
       let high_source = Array.length r.buckets in
       let high_target = Array.length buckets in
       (* We step by random amount to better allow cores to work in parallel.
@@ -218,7 +221,7 @@ let[@inline never] rec finish t r =
         end
       then
         let new_r =
-          { r with buckets; pending = Nothing }
+          { r with buckets; non_linearizable_size; pending = Nothing }
           |> Multicore_magic.copy_as_padded
         in
         if Atomic.compare_and_set t r new_r then new_r
@@ -239,15 +242,23 @@ let estimated_size r =
   let n = Array.length cs - 1 in
   estimated_size cs n (Atomic.get (Array.unsafe_get cs n))
 
-let[@inline never] try_resize t r new_capacity =
+let[@inline never] try_resize t r new_capacity ~clear =
   (* We must make sure that on every resize we use a physically different
      [Resize _] value to indicate unprocessed target buckets.  The use of
      [Sys.opaque_identity] below ensures that a new value is allocated. *)
-  let resize_avoid_aba = B (Resize { spine = Sys.opaque_identity Nil }) in
+  let resize_avoid_aba =
+    if clear then B Nil else B (Resize { spine = Sys.opaque_identity Nil })
+  in
   let buckets =
     Array.init new_capacity @@ fun _ -> Atomic.make resize_avoid_aba
   in
-  let new_r = { r with pending = Resize { buckets } } in
+  let non_linearizable_size =
+    if clear then
+      Array.init (Array.length r.non_linearizable_size) @@ fun _ ->
+      Atomic.make 0 |> Multicore_magic.copy_as_padded
+    else r.non_linearizable_size
+  in
+  let new_r = { r with pending = Resize { buckets; non_linearizable_size } } in
   Atomic.compare_and_set t r new_r
   && begin
        finish t new_r |> ignore;
@@ -267,11 +278,11 @@ let rec adjust_estimated_size t r mask delta result =
       let estimated_size = estimated_size r in
       let capacity = Array.length r.buckets in
       if capacity < estimated_size && capacity < max_buckets then
-        try_resize t r (capacity + capacity) |> ignore
+        try_resize t r (capacity + capacity) ~clear:false |> ignore
       else if
         min_buckets < capacity
         && estimated_size + estimated_size + estimated_size < capacity
-      then try_resize t r (capacity lsr 1) |> ignore
+      then try_resize t r (capacity lsr 1) ~clear:false |> ignore
     end;
     result
   end
@@ -397,9 +408,9 @@ let remove_exn t key =
 
 (* *)
 
-let rec to_seq t backoff =
+let rec snapshot t ~clear backoff =
   let r = get t in
-  if try_resize t r (Array.length r.buckets) then begin
+  if try_resize t r (Array.length r.buckets) ~clear then begin
     (* At this point the resize has been completed and a new array is used for
        buckets and [r.buckets] now has an immutable copy of what was in the hash
        table. *)
@@ -421,6 +432,7 @@ let rec to_seq t backoff =
     in
     loop 0 Nil
   end
-  else to_seq t (Backoff.once backoff)
+  else snapshot t ~clear (Backoff.once backoff)
 
-let to_seq t = to_seq t Backoff.default
+let to_seq t = snapshot t ~clear:false Backoff.default
+let remove_all t = snapshot t ~clear:true Backoff.default
