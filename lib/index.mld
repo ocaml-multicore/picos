@@ -149,6 +149,7 @@ These are minimalistic, but fully-functioning, schedulers provided as samples.
 {!modules:
   Picos_fifos
   Picos_threaded
+  Picos_lwt
 }
 
 {^ You may find these useful for both understanding the core Picos framework and
