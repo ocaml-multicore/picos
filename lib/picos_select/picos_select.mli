@@ -3,6 +3,12 @@
     The operations in this module automatically manage a {!Thread} per domain
     that runs a {!Unix.select} loop to support the operations.
 
+    ⚠️ Signal handlers are unfortunately fundamentally non-compositional.  The
+    use of signal handlers in this module has been designed to be {{!configure}
+    configurable}, which should allow co-operating with other libraries using
+    signals as long as care is taken at application startup to {!configure}
+    things.
+
     ⚠️ All the usual limitations of the {!Unix} module apply. *)
 
 open Picos
@@ -35,8 +41,8 @@ val await_on : Picos_fd.t -> [ `R | `W | `E ] -> Picos_fd.t
 module Intr : sig
   (** A mechanism to interrupt blocking {!Unix} IO operations.
 
-      ⚠️ The mechanism uses the {!Sys.sigusr2} signal which should not be used
-      for other purposes at the same time.
+      ⚠️ The mechanism uses {{!configure} a signal} which should not be used for
+      other purposes.
 
       ⚠️ Beware that signal handling in OCaml 5.0.0 is known to be broken and
       several fixes were included in OCaml {{:https://ocaml.org/releases/5.1.0}
@@ -63,3 +69,32 @@ module Intr : sig
   (** [clr req] either cancels or acknowledges the interrupt request.  Every
       {!req} must be cleared exactly once! *)
 end
+
+(** {1 Configuration} *)
+
+val configure : ?intr_sig:int -> unit -> unit
+(** [configure ~intr_sig ()] can, and sometimes must, be called by an
+    application to configure the use of signals by this module.
+
+    The optional [intr_sig] argument can be used to specify the signal used by
+    the {{!Intr} interrupt} mechanism.  The default is to use {!Sys.sigusr2}.
+
+    ⚠️ This module must always be configured before use.  Unless this module has
+    been explicitly configured, calling a method of this module from the main
+    thread on the main domain will automatically configure this module with
+    default options.  In case the application uses multiple threads or multiple
+    domains, the application should arrange to call [configure] from the main
+    thread on the main domain before any threads or domains besides the main are
+    created or spawned. *)
+
+val handle_signal : int -> unit
+(** [handle_signal signum] should be called to notify this module of a signal
+    when {{!configure} configured} to not handle said signals. *)
+
+val check_configured : unit -> unit
+(** [check_configured ()] checks whether this module has already been
+    {{!configure} configured} or not and, if not, calls {!configure} with
+    default arguments.
+
+    ℹ️ The intended use case for [check_configure ()] is at the point of
+    entry of schedulers and other facilities that use this module. *)

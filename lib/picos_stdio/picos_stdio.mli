@@ -29,6 +29,9 @@ module Unix : sig
 
       also block in a scheduler friendly manner.
 
+      ⚠️ This module uses {!Picos_select} and you may need to
+      {{!Picos_select.configure} configure} it at start of your application.
+
       Please consult the documentation of the {{!Deps.Unix} [Unix]} module that
       comes with OCaml. *)
 

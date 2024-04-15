@@ -83,4 +83,5 @@ and spawn : type a. _ -> forbid:bool -> a Computation.t -> _ =
 and handler = Handler.{ current; spawn; yield; cancel_after; await }
 
 let run ~forbid main =
+  Select.check_configured ();
   Handler.using handler (create ~forbid (Computation.create ())) main
