@@ -1,5 +1,7 @@
 open Picos
 
+let () = Picos_select.configure ()
+
 let test_intr () =
   let inn, out = Unix.pipe ~cloexec:true () in
   let main () =

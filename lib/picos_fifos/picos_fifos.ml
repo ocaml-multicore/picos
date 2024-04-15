@@ -104,6 +104,7 @@ let rec next t =
       end
 
 let run ~forbid main =
+  Select.check_configured ();
   let ready = Queue.create ()
   and needs_wakeup = Atomic.make false
   and num_alive_fibers = Atomic.make 1

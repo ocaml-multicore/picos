@@ -1,8 +1,10 @@
 open Picos
 
-let intr_sig = Sys.sigusr2
-let is_intr_sig s = s == intr_sig
-let intr_sigs = [ intr_sig ]
+type config = { mutable intr_sig : int; mutable intr_sigs : int list }
+
+let config = { intr_sig = 0; intr_sigs = [] }
+
+(* *)
 
 type cancel_at =
   | Cancel_at : {
@@ -64,6 +66,15 @@ type counter_state = { value : int; req : req }
 
 let intr_pending = Atomic.make { value = 0; req = R Nothing }
 let exit_exn_bt = Exn_bt.get_callstack 0 Exit
+
+let cleared =
+  let computation = Computation.create () in
+  Computation.return computation Cleared;
+  computation
+
+let intr_key =
+  Picos_thread.TLS.new_key @@ fun () : [ `Req ] tdt ->
+  invalid_arg "Picos_select has not been configured"
 
 let key =
   Picos_domain.DLS.new_key @@ fun () ->
@@ -198,7 +209,7 @@ and select_thread_continue s rd wr ex (rd_fds, wr_fds, ex_fds) =
     if state.value = 0 then tos
     else begin
       assert (0 < state.value);
-      Unix.kill (Unix.getpid ()) intr_sig;
+      Unix.kill (Unix.getpid ()) config.intr_sig;
       let idle = 0.000_001 (* 1μs *) in
       if tos < 0.0 || idle <= tos then idle else tos
     end
@@ -206,7 +217,9 @@ and select_thread_continue s rd wr ex (rd_fds, wr_fds, ex_fds) =
   select_thread s tos rd wr ex
 
 let select_thread s =
-  if not Sys.win32 then Thread.sigmask SIG_BLOCK intr_sigs |> ignore;
+  if not Sys.win32 then begin
+    Thread.sigmask SIG_BLOCK config.intr_sigs |> ignore
+  end;
   begin
     try
       let pipe_inn, pipe_out = Unix.pipe ~cloexec:true () in
@@ -220,7 +233,46 @@ let select_thread s =
   if s.pipe_inn != Unix.stdin then Unix.close s.pipe_inn;
   if s.pipe_out != Unix.stdin then Unix.close s.pipe_out
 
+let[@poll error] [@inline never] try_configure ~intr_sig ~intr_sigs =
+  config.intr_sigs == []
+  && begin
+       config.intr_sig <- intr_sig;
+       config.intr_sigs <- intr_sigs;
+       true
+     end
+
+let is_intr_sig signum = signum = config.intr_sig
+
+let rec configure ?(intr_sig = Sys.sigusr2) () =
+  if not (Picos_thread.is_main_thread ()) then
+    invalid_arg
+      "Picos_select must be configured from the main thread on the main domain";
+  assert (Sys.sigabrt = -1 && Sys.sigxfsz < Sys.sigabrt);
+  if intr_sig < Sys.sigxfsz || 0 <= intr_sig || intr_sig = Sys.sigchld then
+    invalid_arg "Invalid interrupt signal number";
+  if not (try_configure ~intr_sig ~intr_sigs:[ intr_sig ]) then
+    invalid_arg "Picos_select.configure already configured";
+
+  if not Sys.win32 then begin
+    begin
+      let previously_blocked = Thread.sigmask SIG_BLOCK config.intr_sigs in
+      assert (not (List.exists is_intr_sig previously_blocked));
+      let old_behavior =
+        Sys.signal config.intr_sig (Sys.Signal_handle handle_signal)
+      in
+      assert (old_behavior == Signal_default)
+    end
+  end
+
+and handle_signal signal =
+  if signal = config.intr_sig then
+    let (Req r) = Picos_thread.TLS.get intr_key in
+    Computation.return r.computation Signaled
+
+let check_configured () = if config.intr_sigs = [] then configure ()
+
 let[@inline never] init s =
+  check_configured ();
   if try_transition s `Initial `Starting then begin
     match Thread.create select_thread s with
     | thread ->
@@ -319,20 +371,7 @@ let await_on file_descr op =
 module Intr = struct
   type t = req
 
-  let cleared =
-    let computation = Computation.create () in
-    Computation.return computation Cleared;
-    computation
-
-  let intr_key =
-    Picos_thread.TLS.new_key @@ fun () : [ `Req ] tdt ->
-    Req { state = get (); unused = false; computation = cleared }
-
   let[@inline] use = function R Nothing -> () | R (Req r) -> r.unused <- false
-
-  let handle _ =
-    let (Req r) = Picos_thread.TLS.get intr_key in
-    Computation.return r.computation Signaled
 
   (** This is used to ensure that the [intr_pending] counter is incremented
       exactly once before the counter is decremented. *)
@@ -366,14 +405,6 @@ module Intr = struct
         let _ : bool = incr_once req Backoff.default in
         ()
 
-  let () =
-    if not Sys.win32 then begin
-      let previously_blocked = Thread.sigmask SIG_BLOCK intr_sigs in
-      assert (not (List.exists is_intr_sig previously_blocked));
-      let old_behavior = Sys.signal intr_sig (Sys.Signal_handle handle) in
-      assert (old_behavior == Signal_default)
-    end
-
   let nothing = R Nothing
 
   let[@alert "-handler"] req ~seconds =
@@ -392,8 +423,10 @@ module Intr = struct
       Picos_thread.TLS.set intr_key req;
       let entry = Cancel_at { time; exn_bt = exit_exn_bt; computation } in
       add_timeout state id entry;
-      let _was_blocked : int list = Thread.sigmask SIG_UNBLOCK intr_sigs in
-      (* assert (List.exists is_intr_sig was_blocked); *)
+      let was_blocked : int list =
+        Thread.sigmask SIG_UNBLOCK config.intr_sigs
+      in
+      assert (List.exists is_intr_sig was_blocked);
       R req
     end
 
@@ -408,8 +441,10 @@ module Intr = struct
   let clr = function
     | R Nothing -> ()
     | R (Req r as req) ->
-        let _was_blocked : int list = Thread.sigmask SIG_BLOCK intr_sigs in
-        (* assert (not (List.exists is_intr_sig was_blocked)); *)
+        let was_blocked : int list =
+          Thread.sigmask SIG_BLOCK config.intr_sigs
+        in
+        assert (not (List.exists is_intr_sig was_blocked));
         if not (Computation.try_return r.computation Cleared) then begin
           let _ : bool = incr_once req Backoff.default in
           (* We ensure that the associated increment has been done before we

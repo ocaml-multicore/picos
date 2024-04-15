@@ -1,8 +1,11 @@
 ## Next version
 
+- Added `Picos_select.configure` to allow, and sometimes require, configuring
+  `Picos_select` for co-operation with libraries that also deal with signals
+  (@polytypic)
 - Moved `Picos_tls` into `Picos_thread.TLS` (@polytypic)
 - Enhanced `sleep` and `sleepf` in `Picos_stdio.Unix` to block in a scheduler
-  friendly manner (@polytypic).
+  friendly manner (@polytypic)
 
 ## 0.1.0
 
