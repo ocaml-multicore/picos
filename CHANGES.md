@@ -1,5 +1,6 @@
-## Next version
+## 0.2.0
 
+- Documentation fixes and restructuring (@polytypic)
 - Scheduler friendly `waitpid`, `wait`, and `system` in `Picos_stdio.Unix` for
   platforms other than Windows (@polytypic)
 - Added `Picos_select.configure` to allow, and sometimes require, configuring
