@@ -10,6 +10,7 @@
   picos.domain
   picos.thread
   picos.stdio
+  picos.select
   (select
    scheduler.ml
    from
