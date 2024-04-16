@@ -72,10 +72,10 @@ technically<sup>[\*](https://www.youtube.com/watch?v=hou0lU8WMgo)</sup> possible
 to
 
 1. make all of the previously mentioned libraries
-   [Picos compatible](https://ocaml-multicore.github.io/picos/doc/picos/Picos/index.html#picos-compatible),
+   [Picos compatible](https://ocaml-multicore.github.io/picos/doc/picos/index.html#picos-compatible),
    i.e. to handle the Picos effects, and
 2. have their elements
-   [implemented in Picos](https://ocaml-multicore.github.io/picos/doc/picos/Picos/index.html#implemented-in-picos),
+   [implemented in Picos](https://ocaml-multicore.github.io/picos/doc/picos/index.html#implemented-in-picos),
    i.e. to make them usable on other Picos-compatible schedulers.
 
 Please read
