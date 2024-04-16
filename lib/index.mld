@@ -176,3 +176,18 @@ implementation of the other libraries.
 - {!modules: Picos_thread}
 
 {^ Some of these libraries might be moved to other packages in the future.}
+
+{1 Conventions}
+
+Many operation in the Picos libraries use
+{{:https://en.wikipedia.org/wiki/Non-blocking_algorithm} non-blocking}
+algorithms.  Unless explicitly specified otherwise,
+
+- non-blocking operations in Picos are {i atomic} or {i strictly linearizable}
+  (i.e. {{:https://en.wikipedia.org/wiki/Linearizability} linearizable} and
+  {{:https://en.wikipedia.org/wiki/Database_transaction_schedule#Serializable}
+  serializable}), and
+- {{:https://en.wikipedia.org/wiki/Non-blocking_algorithm#Lock-freedom}
+  lock-free} operations in Picos are designed to avoid having competing
+  operations of widely different complexities, which should make such operations
+  much less prone to starvation.
