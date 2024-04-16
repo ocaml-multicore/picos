@@ -207,41 +207,39 @@ let rec process_timeouts s =
         *. (1. /. 1_000_000_000.)
 
 let rec select_thread s timeout rd wr ex =
-  if s.state == `Alive then
-    if Atomic.compare_and_set s.phase Continue Select then
-      begin
+  if s.state == `Alive then (
+    let rd_fds, wr_fds, ex_fds =
+      if Atomic.compare_and_set s.phase Continue Select then begin
         try
           Unix.select
             (s.pipe_inn :: rd.unique_fds)
             wr.unique_fds ex.unique_fds timeout
         with Unix.Unix_error (EINTR, _, _) -> ([], [], [])
       end
-      |> select_thread_continue s rd wr ex
-    else select_thread_continue s rd wr ex ([], [], [])
-
-and select_thread_continue s rd wr ex (rd_fds, wr_fds, ex_fds) =
-  begin
-    match Atomic.exchange s.phase Continue with
-    | Select | Process | Continue -> ()
-    | Waking_up ->
-        let n = Unix.read s.pipe_inn s.byte 0 1 in
-        assert (n = 1)
-  end;
-  let rd = process_fds rd_fds rd (Picos_thread_atomic.exchange s.new_rd []) in
-  let wr = process_fds wr_fds wr (Picos_thread_atomic.exchange s.new_wr []) in
-  let ex = process_fds ex_fds ex (Picos_thread_atomic.exchange s.new_ex []) in
-  let tos = process_timeouts s in
-  let tos =
-    let state = Atomic.get intr_pending in
-    if state.value = 0 then tos
-    else begin
-      assert (0 < state.value);
-      Unix.kill (Unix.getpid ()) config.intr_sig;
-      let idle = 0.000_001 (* 1μs *) in
-      if tos < 0.0 || idle <= tos then idle else tos
-    end
-  in
-  select_thread s tos rd wr ex
+      else ([], [], [])
+    in
+    begin
+      match Atomic.exchange s.phase Continue with
+      | Select | Process | Continue -> ()
+      | Waking_up ->
+          let n = Unix.read s.pipe_inn s.byte 0 1 in
+          assert (n = 1)
+    end;
+    let rd = process_fds rd_fds rd (Picos_thread_atomic.exchange s.new_rd []) in
+    let wr = process_fds wr_fds wr (Picos_thread_atomic.exchange s.new_wr []) in
+    let ex = process_fds ex_fds ex (Picos_thread_atomic.exchange s.new_ex []) in
+    let timeout = process_timeouts s in
+    let timeout =
+      let state = Atomic.get intr_pending in
+      if state.value = 0 then timeout
+      else begin
+        assert (0 < state.value);
+        Unix.kill (Unix.getpid ()) config.intr_sig;
+        let idle = 0.000_001 (* 1μs *) in
+        if timeout < 0.0 || idle <= timeout then idle else timeout
+      end
+    in
+    select_thread s timeout rd wr ex)
 
 let select_thread s =
   if Picos_domain.is_main_domain () then
