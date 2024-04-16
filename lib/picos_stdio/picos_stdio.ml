@@ -125,10 +125,14 @@ module Unix = struct
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/open.html *)
   let openfile path flags file_perm =
-    let fd = Unix.openfile path flags file_perm in
-    if List.exists is_nonblock flags then
-      Picos_htbl.try_add nonblock_fds fd () |> ignore;
-    Picos_fd.create fd
+    let fd = Picos_fd.create (Unix.openfile path flags file_perm) in
+    if List.exists is_nonblock flags then begin
+      let if_not_added_fd_has_been_closed_outside =
+        Picos_htbl.try_add nonblock_fds (Picos_fd.unsafe_get fd) ()
+      in
+      assert if_not_added_fd_has_been_closed_outside
+    end;
+    fd
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/close.html *)
   let close fd =
