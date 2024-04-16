@@ -1,6 +1,11 @@
 include Intf
 
-let run ~verbose ~count ~name ?make_domain (module Spec : STM.Spec) =
+let count =
+  let factor b = if b then 10 else 1 in
+  factor (64 <= Sys.word_size) * factor (Sys.backend_type = Native) * 10
+
+let run ?(verbose = true) ?(count = count) ~name ?make_domain
+    (module Spec : STM.Spec) =
   let module Seq = STM_sequential.Make (Spec) in
   let module Con = STM_thread.Make (Spec) [@alert "-experimental"] in
   [
