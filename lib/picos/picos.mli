@@ -8,7 +8,7 @@
     of {{:https://v2.ocaml.org/manual/effects.html} effects based}
     {{:https://en.wikipedia.org/wiki/Cooperative_multitasking} cooperative}
     {{:https://en.wikipedia.org/wiki/Concurrent_computing} concurrent
-    programming models}.  Such models include elements such as
+    programming models} such as
 
     - {{:https://en.wikipedia.org/wiki/Scheduling_(computing)} schedulers} that
       multiplex large numbers of {{:https://en.wikipedia.org/wiki/Green_thread}
@@ -25,10 +25,10 @@
       {{:https://en.wikipedia.org/wiki/Asynchronous_I/O} asynchronous IO}
       systems.
 
-    Picos is not intended to be an application level concurrent programming
-    library or framework.  If you are looking for a library or framework for
-    programming concurrent applications, then Picos is probably not what you are
-    looking for.
+    Picos, i.e. this module, is not intended to be an application level
+    concurrent programming library or framework.  If you are looking for a
+    library or framework for programming concurrent applications, then this
+    module is probably not what you are looking for.
 
     If you are the author of an application level concurrent programming library
     or framework, then Picos should not fundamentally be competing with your
