@@ -79,5 +79,5 @@ to
    i.e. to make them usable on other Picos-compatible schedulers.
 
 Please read
-[the introduction section of the reference manual](https://ocaml-multicore.github.io/picos/doc/picos/Picos/index.html)
+[the reference manual](https://ocaml-multicore.github.io/picos/doc/picos/index.html)
 for further information.

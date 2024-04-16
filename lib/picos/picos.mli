@@ -1,62 +1,37 @@
-(** {1 Picos — Interoperable effects based concurrency}
+(** Framework for interoperable effects based concurrency.
 
-    {2 Introduction}
+    This is essentially an interface between schedulers and other elements that
+    need to communicate with a scheduler.  Perhaps an enlightening analogy is to
+    say that this is the {{:https://en.wikipedia.org/wiki/POSIX} POSIX} of
+    effects based schedulers.
 
-    Picos, or {{:https://en.wikipedia.org/wiki/Metric_prefix} pico}-scheduler
-    framework, is a framework for building
-    {{:https://en.wikipedia.org/wiki/Interoperability} interoperable} elements
-    of {{:https://v2.ocaml.org/manual/effects.html} effects based}
-    {{:https://en.wikipedia.org/wiki/Cooperative_multitasking} cooperative}
-    {{:https://en.wikipedia.org/wiki/Concurrent_computing} concurrent
-    programming models} such as
-
-    - {{:https://en.wikipedia.org/wiki/Scheduling_(computing)} schedulers} that
-      multiplex large numbers of {{:https://en.wikipedia.org/wiki/Green_thread}
-      user level fibers} to run on a small number of system level threads,
-    - mechanisms for managing fibers and for
-      {{:https://en.wikipedia.org/wiki/Structured_concurrency} structuring
-      concurrency},
-    - communication and synchronization primitives, such as
-      {{:https://en.wikipedia.org/wiki/Monitor_(synchronization)} mutexes and
-      condition variables}, message queues,
-      {{:https://en.wikipedia.org/wiki/Software_transactional_memory} STMs}, and
-      more, and
-    - integration with low level
-      {{:https://en.wikipedia.org/wiki/Asynchronous_I/O} asynchronous IO}
-      systems.
-
-    Picos, i.e. this module, is not intended to be an application level
+    ℹ️ Picos, i.e. this module, is not intended to be an application level
     concurrent programming library or framework.  If you are looking for a
     library or framework for programming concurrent applications, then this
     module is probably not what you are looking for.
 
-    If you are the author of an application level concurrent programming library
-    or framework, then Picos should not fundamentally be competing with your
-    work.  However, Picos and libraries built on top of Picos probably do have
-    overlap with your work and making your work Picos compatible may offer
-    benefits:
+    {1 The architecture of Picos}
 
-    - You may find it useful that Picos provides parallelism safe building
-      blocks for cancelation, which is a particularly tricky problem to get
-      right.
-    - You may find it useful that you don't have to reinvent many of the
-      {{!Picos_sync} basic communication and synchronization abstractions} such
-      as mutexes and condition variables, promises, concurrent bounded queues,
-      channels, and what not.
-    - You may benefit from further non-trivial libraries, such as
-      {{!Picos_stdio} IO libraries}, that you don't have to reimplement.
-    - Potential users of your work may be reassured and benefit from the ability
-      to mix-and-match your work with other Picos compatible libraries and
-      frameworks.
+    The core concepts of Picos are
 
-    Of course, interoperability does have some costs.  It takes time to
-    understand Picos and it takes time to implement Picos compatibility.
-    Implementing your programming model elements in terms of Picos primitives
-    may not give ideal results.  To address concerns such as those, a conscious
-    effort has been made to keep Picos as minimal and unopinionated as
-    possible.
+    - {!Trigger} — ability to await for a signal,
+    - {!Computation} — a cancelable computation, and
+    - {!Fiber} — an independent thread of execution,
 
-    {3 Understanding cancelation}
+    that are implemented in terms of the effects
+
+    - {!Trigger.Await} — to suspend and resume a fiber,
+    - {!Computation.Cancel_after} — to cancel a computation after given period
+      of time,
+    - {!Fiber.Current} — to obtain the unique handle of the current fiber,
+    - {!Fiber.Yield} — to cooperatively request rescheduling the current fiber,
+      and
+    - {!Fiber.Spawn} — to start new fibers,
+
+    that can be used to implement many kinds of higher level concurrent
+    programming facilities.
+
+    {1 Understanding cancelation}
 
     A central idea of Picos is to provide a collection of building blocks for
     parallelism safe cancelation.  Consider the following characteristic
@@ -91,7 +66,7 @@
     at or during calls to {{!Picos_sync.Mutex.lock} [Mutex.lock]} and
     {{!Picos_sync.Condition.wait} [Condition.wait]}.
 
-    {4 Cancelation in Picos}
+    {2 Cancelation in Picos}
 
     The {!Fiber} concept in Picos corresponds to an independent thread of
     execution.  A fiber may explicitly {{!Fiber.forbid} forbid} or
@@ -126,101 +101,9 @@
     concurrent abstraction being implemented, the caller might need to
     e.g. remove references to the trigger from the shared data structures,
     cancel asynchronous IO operations, or transfer ownership of a mutex to the
-    next fiber in the queue of the mutex.
+    next fiber in the queue of the mutex. *)
 
-    {3 The architecture of Picos}
-
-    The core concepts of Picos are
-
-    - {!Trigger} — ability to await for a signal,
-    - {!Computation} — a cancelable computation, and
-    - {!Fiber} — an independent thread of execution,
-
-    that are implemented in terms of the effects
-
-    - {!Trigger.Await} — to suspend and resume a fiber,
-    - {!Computation.Cancel_after} — to cancel a computation after given period
-      of time,
-    - {!Fiber.Current} — to obtain the unique handle of the current fiber,
-    - {!Fiber.Yield} — to cooperatively request rescheduling the current fiber,
-      and
-    - {!Fiber.Spawn} — to start new fibers,
-
-    that can be used to implement many kinds of higher level concurrent
-    programming facilities.
-
-    {4 Picos compatible}
-
-    The idea is that in OCaml 5, effects based schedulers provide their own
-    handlers for the Picos effects.  By handling the Picos effects a scheduler
-    becomes Picos compatible and allows any libraries built on top of Picos to
-    be used with the scheduler.
-
-    {4 Implemented in Picos}
-
-    A scheduler is just one element of a concurrent programming model.
-    Separately from making a scheduler Picos compatible, one may choose to
-    implement other elements of the programming model, e.g. a particular
-    approach to structuring concurrency or a particular collection of
-    communication and synchronization primitives, in terms of the Picos
-    primitives.  Such elements can then be used on any Picos compatible
-    scheduler.
-
-    {3 Design goals and principles}
-
-    - {b Simple}: Picos should be kept as simple as possible.
-    - {b Minimal}: Picos should be kept minimal.  The dependency footprint
-      should be as small as possible.  Convenience features should be built on
-      top of the framework.
-    - {b Safe}: Picos should be designed with safety in mind.  The
-      implementation must be data race free.  The framework should promote and
-      always allow proper resource management.
-    - {b Unopinionated}: Picos should not make strong design choices that are
-      controversial.
-    - {b Flexible}: Picos should allow higher level libraries as much freedom as
-      possible to make their own design choices.
-
-    The documentation of the concepts includes design rationale for some of the
-    specific ideas behind their detailed design.
-
-    {4 Constraints Liberate, Liberties Constrain}
-
-    Picos aims to be unopinionated and flexible enough to allow higher level
-    libraries to provide many different kinds of concurrent programming models.
-    While it is impossible to give a complete list of what Picos does not
-    dictate, it is perhaps illuminating to explicitly mention some of those:
-
-    - Picos does not implement
-      {{:https://en.wikipedia.org/wiki/Capability-based_security}
-      capability-based security}.  Higher level libraries with or without
-      capabilities may be built on top of Picos.
-    - Picos never cancels computations implicitly.  Higher level libraries may
-      decide when cancelation should be allowed to take effect.
-    - Picos does not dictate which fiber should be scheduled next after a Picos
-      effect.  Different schedulers may freely use desired data structures
-      (queues, work-stealing deques, stacks, priority queues, ...) and, after
-      handling any Picos effect, freely decide which fiber to run next.
-    - Picos does not dictate how fibers should be managed.  It is possible to
-      implement both unstructured and structured concurrent programming models
-      on top of Picos.
-    - Picos does not dictate which mechanisms applications should use for
-      communication and synchronization.  It is possible to build many different
-      kinds of communication and synchronization mechanisms on top of Picos
-      including mutexes and condition variables, STMs, asynchronous and
-      synchronous message passing, {{:https://en.wikipedia.org/wiki/Actor_model}
-      actors}, and more.
-    - Picos does not dictate that there should be a connection between the
-      scheduler and other elements of the concurrent programming model.  It is
-      possible to provide those separately and mix-and-match.
-    - Picos does not dictate which library to use for IO.  It is possible to
-      build direct-style asynchronous IO libraries on top of Picos that can then
-      be used with any Picos compatible schedulers or concurrent programming
-      models.
-
-    Let's build an incredible ecosystem of interoperable concurrent programming
-    libraries and frameworks! *)
-
-(** {2 Modules reference}
+(** {1 Modules reference}
 
     We first open the {!Picos} module
 
@@ -245,12 +128,12 @@
     using {{!Picos_fifos} the basic effects based scheduler} that come with
     Picos as samples.
 
-    {3 Auxiliary modules} *)
+    {2 Auxiliary modules} *)
 
 module Exn_bt = Picos_exn_bt
 (** Exceptions with backtraces. *)
 
-(** {3 Core modules}
+(** {2 Core modules}
 
     Please note that the example code snippets in this documentation may
     e.g. use the {!Domain} and {!Unix} modules in order to be able to describe
