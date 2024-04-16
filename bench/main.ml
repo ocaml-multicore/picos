@@ -1,3 +1,5 @@
+let () = Picos_select.configure ()
+
 let benchmarks =
   [
     ("Picos Computation", Bench_computation.run_suite);
