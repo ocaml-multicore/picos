@@ -76,6 +76,4 @@ module Spec = struct
     | _, _ -> false
 end
 
-let () =
-  let count = if Sys.int_size <= 32 then 100 else 1000 in
-  Stm_run.run ~count ~name:"Picos_htbl" ~verbose:true (module Spec) |> exit
+let () = Stm_run.run ~name:"Picos_htbl" ~verbose:true (module Spec) |> exit
