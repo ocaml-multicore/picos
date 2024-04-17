@@ -9,19 +9,6 @@ module Unix : sig
       await for the file descriptor to become available for the operation.  This
       works best with file descriptors {{!set_nonblock} set to non-blocking mode}.
 
-      ⚠️ Shared (i.e. {{!create_process} inherited or inheritable} or {{!dup}
-      duplicated}) file descriptors, such as {!stdin}, {!stdout}, and {!stderr},
-      typically should not be put into non-blocking mode, because that affects
-      all of the parties using the shared file descriptors.  However, for
-      non-shared file descriptors {{!set_nonblock} non-blocking mode} improves
-      performance significantly with this module.
-
-      ⚠️ Beware that this does not currently try to work around any limitations
-      of the {{!Deps.Unix} [Unix]} module that comes with OCaml.  In particular,
-      on Windows, only sockets can be put into non-blocking mode.  Also, on
-      Windows, scheduler friendly blocking only works properly with non-blocking
-      file descriptors, i.e. sockets.
-
       In addition to operations on file descriptors, in this module
 
       - {!sleep}, and
@@ -34,6 +21,19 @@ module Unix : sig
       - {!system}
 
       also block in a scheduler friendly manner except on Windows.
+
+      ⚠️ Shared (i.e. {{!create_process} inherited or inheritable} or {{!dup}
+      duplicated}) file descriptors, such as {!stdin}, {!stdout}, and {!stderr},
+      typically should not be put into non-blocking mode, because that affects
+      all of the parties using the shared file descriptors.  However, for
+      non-shared file descriptors {{!set_nonblock} non-blocking mode} improves
+      performance significantly with this module.
+
+      ⚠️ Beware that this does not currently try to work around any limitations
+      of the {{!Deps.Unix} [Unix]} module that comes with OCaml.  In particular,
+      on Windows, only sockets can be put into non-blocking mode.  Also, on
+      Windows, scheduler friendly blocking only works properly with non-blocking
+      file descriptors, i.e. sockets.
 
       ⚠️ This module uses {!Picos_select} and you may need to
       {{!Picos_select.configure} configure} it at start of your application.

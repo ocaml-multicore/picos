@@ -50,7 +50,8 @@ keep Picos as minimal and unopinionated as possible.
 {2 Interoperability}
 
 Picos is essentially an interface between schedulers and other elements.  Two
-phrases are used to describe the opposing sides of this contract.
+phrases, {i Picos compatible} and {i Implemented in Picos}, are used to describe
+the opposing sides of this contract.
 
 {3 Picos compatible}
 
