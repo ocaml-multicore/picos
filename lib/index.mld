@@ -134,7 +134,9 @@ The Picos package is divided into multiple libraries.
 
 The only essential part of the package is the core framework.
 
-- {!modules: Picos}
+{!modules:
+  Picos
+}
 
 {^ Everything else is entirely opt-in and you are free to mix-and-match with any
    other Picos compatible schedulers and libraries implemented in Picos or
@@ -144,8 +146,10 @@ The only essential part of the package is the core framework.
 
 These are minimalistic, but fully-functioning, schedulers provided as samples.
 
-- {!modules: Picos_fifos}
-- {!modules: Picos_threaded}
+{!modules:
+  Picos_fifos
+  Picos_threaded
+}
 
 {^ You may find these useful for both understanding the core Picos framework and
    for testing your own libraries implemented in Picos.}
@@ -154,9 +158,11 @@ These are minimalistic, but fully-functioning, schedulers provided as samples.
 
 These are examples of libraries implemented in Picos.
 
-- {!modules: Picos_sync}
-- {!modules: Picos_stdio}
-- {!modules: Picos_select}
+{!modules:
+  Picos_sync
+  Picos_stdio
+  Picos_select
+}
 
 {^ The IO libraries in this package are built only on top of the standard
    libraries distributed with OCaml and are hopefully useful for building simple
@@ -168,13 +174,15 @@ These are examples of libraries implemented in Picos.
 These have no dependency to the core {!Picos} framework and are used in the
 implementation of the other libraries.
 
-- {!modules: Picos_domain}
-- {!modules: Picos_exn_bt}
-- {!modules: Picos_fd}
-- {!modules: Picos_htbl}
-- {!modules: Picos_mpsc_queue}
-- {!modules: Picos_rc}
-- {!modules: Picos_thread}
+{!modules:
+  Picos_domain
+  Picos_exn_bt
+  Picos_fd
+  Picos_htbl
+  Picos_mpsc_queue
+  Picos_rc
+  Picos_thread
+}
 
 {^ Some of these libraries might be moved to other packages in the future.}
 
