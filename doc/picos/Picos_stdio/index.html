@@ -1,4 +1,46 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml"><head><title>Picos_stdio (picos.Picos_stdio)</title><meta charset="utf-8"/><link rel="stylesheet" href="../../odoc.support/odoc.css"/><meta name="generator" content="odoc 2.4.1"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../odoc.support/highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script><script>let base_url = '../../';
 let search_urls = ['../db.js','../../sherlodoc.js'];
-</script><script src="../../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../index.html">picos</a> &#x00BB; Picos_stdio</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1>Module <code><span>Picos_stdio</span></code></h1><p>Basic IO facilities based on OCaml standard libraries for <a href="../Picos/index.html"><code>Picos</code></a>.</p></header><div class="odoc-content"><div class="odoc-spec"><div class="spec module anchored" id="module-Unix"><a href="#module-Unix" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Unix/index.html">Unix</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>A transparently asynchronous replacement for a subset of the <span class="xref-unresolved" title="Deps.Unix"><code>Unix</code></span> module that comes with OCaml.</p></div></div></div></body></html>
+</script><script src="../../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../index.html">picos</a> &#x00BB; Picos_stdio</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1>Module <code><span>Picos_stdio</span></code></h1><p>Basic IO facilities based on OCaml standard libraries for <a href="../Picos/index.html"><code>Picos</code></a>.</p></header><nav class="odoc-toc"><ul><li><a href="#modules">Modules</a></li><li><a href="#examples">Examples</a><ul><li><a href="#a-pair-of-pipes">A pair of pipes</a></li></ul></li></ul></nav><div class="odoc-content"><h2 id="modules"><a href="#modules" class="anchor"></a>Modules</h2><div class="odoc-spec"><div class="spec module anchored" id="module-Unix"><a href="#module-Unix" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Unix/index.html">Unix</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>A transparently asynchronous replacement for a subset of the <span class="xref-unresolved" title="Deps.Unix"><code>Unix</code></span> module that comes with OCaml.</p></div></div><h2 id="examples"><a href="#examples" class="anchor"></a>Examples</h2><p>For convenience, we first open the <a href="../Picos/index.html"><code>Picos</code></a> and <a href="#"><code>Picos_stdio</code></a> modules:</p><pre class="language-ocaml"><code>open Picos
+open Picos_stdio</code></pre><h3 id="a-pair-of-pipes"><a href="#a-pair-of-pipes" class="anchor"></a>A pair of pipes</h3><p>Here is a simple example of two fibers communicating through a pair of pipes:</p><pre class="language-ocaml"><code># Picos_fifos.run ~forbid:false @@ fun () -&gt;
+
+  let msg_inn, msg_out = Unix.pipe ~cloexec:true () in
+  let syn_inn, syn_out = Unix.pipe ~cloexec:true () in
+
+  Unix.set_nonblock msg_inn;
+  Unix.set_nonblock msg_out;
+
+  let finally () =
+    Unix.close msg_inn;
+    Unix.close msg_out;
+    Unix.close syn_inn;
+    Unix.close syn_out;
+  in
+  Fun.protect ~finally @@ fun () -&gt;
+
+  let consumer = Computation.create () in
+  Fiber.spawn ~forbid:false consumer [ fun () -&gt;
+    try
+      let bytes = Bytes.create 100 in
+      while true do
+        let n = Unix.read msg_inn bytes 0 100 in
+        if n &gt; 0 then begin
+          Printf.printf &quot;%s\n%!&quot; (Bytes.sub_string bytes 0 n);
+          assert (1 = Unix.write_substring syn_out &quot;!&quot; 0 1)
+        end
+      done
+    with Exit -&gt; () ];
+
+  let send_string s =
+    let n = String.length s in
+    assert (n = Unix.write_substring msg_out s 0 n);
+    assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1)
+  in
+
+  send_string &quot;Hello, world!&quot;;
+  send_string &quot;POSIX with OCaml&quot;;
+
+  Computation.cancel consumer (Exn_bt.get_callstack 0 Exit);
+Hello, world!
+POSIX with OCaml
+- : unit = ()</code></pre></div></body></html>
