@@ -698,10 +698,10 @@ end
         Unix.set_nonblock msg_out;
 
         let finally () =
-          Unix.close msg_inn;
-          Unix.close msg_out;
           Unix.close syn_inn;
           Unix.close syn_out;
+          Unix.close msg_inn;
+          Unix.close msg_out;
         in
         Fun.protect ~finally @@ fun () ->
 
@@ -727,7 +727,7 @@ end
         send_string "Hello, world!";
         send_string "POSIX with OCaml";
 
-        Computation.cancel consumer (Exn_bt.get_callstack 0 Exit);
+        Computation.cancel consumer (Exn_bt.get_callstack 0 Exit)
       Hello, world!
       POSIX with OCaml
       - : unit = ()

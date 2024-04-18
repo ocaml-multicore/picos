@@ -13,7 +13,9 @@
 
 open Picos
 
-(** {1 Timeouts} *)
+(** {1 API} *)
+
+(** {2 Timeouts} *)
 
 val cancel_after : _ Computation.t -> seconds:float -> Exn_bt.t -> unit
 (** [cancel_after computation ~seconds exn_bt] arranges for [computation] to be
@@ -24,7 +26,7 @@ val cancel_after : _ Computation.t -> seconds:float -> Exn_bt.t -> unit
     ℹ️ You can use [cancel_after] to implement the handler for the
     {{!Picos.Computation.Cancel_after} [Cancel_after]} effect. *)
 
-(** {1 IO} *)
+(** {2 IO} *)
 
 val return_on : 'a Computation.t -> Picos_fd.t -> [ `R | `W | `E ] -> 'a -> unit
 (** [return_on computation fd op value] arranges for [computation] to be
@@ -70,7 +72,7 @@ module Intr : sig
       {!req} must be cleared exactly once! *)
 end
 
-(** {1 Processes} *)
+(** {2 Processes} *)
 
 val return_on_sigchld : 'a Computation.t -> 'a -> unit
 (** [return_on_sigchld computation value] arranges for [computation] to be
@@ -81,7 +83,7 @@ val return_on_sigchld : 'a Computation.t -> 'a -> unit
     ⚠️ The mechanism uses the {!Sys.sigchld} signal which should not be used for
     other purposes. *)
 
-(** {1 Configuration} *)
+(** {2 Configuration} *)
 
 val configure : ?intr_sig:int -> ?handle_sigchld:bool -> unit -> unit
 (** [configure ~intr_sig ~handle_sigchld ()] can, and sometimes must, be called
@@ -114,3 +116,77 @@ val check_configured : unit -> unit
 
     ℹ️ The intended use case for [check_configure ()] is at the point of
     entry of schedulers and other facilities that use this module. *)
+
+(** {1 Examples}
+
+    For convenience, we first open the {!Picos} and {!Picos_stdio} modules:
+
+    {[
+      open Picos
+      open Picos_stdio
+    ]}
+
+    {2 One of many}
+
+    Here is an example that awaits for one of multiple alternative events:
+
+    {@ocaml os_type<>Win32[
+      # exception Timeout
+      exception Timeout
+
+      # Picos_fifos.run ~forbid:false @@ fun () ->
+
+        let msg_inn1, msg_out1 = Unix.pipe ~cloexec:true () in
+        let msg_inn2, msg_out2 = Unix.pipe ~cloexec:true () in
+        let syn_inn, syn_out = Unix.pipe ~cloexec:true () in
+
+        let finally () =
+          Unix.close syn_inn;
+          Unix.close syn_out;
+          Unix.close msg_inn2;
+          Unix.close msg_out2;
+          Unix.close msg_inn1;
+          Unix.close msg_out1;
+        in
+        Fun.protect ~finally @@ fun () ->
+
+        let consumer = Computation.create () in
+        Fiber.spawn ~forbid:false consumer [ fun () ->
+          try
+            while true do
+              Fiber.check (Fiber.current ());
+
+              let select = Computation.create () in
+              Picos_select.return_on select msg_inn1 `R `Inn1;
+              Picos_select.return_on select msg_inn2 `R `Inn2;
+              Picos_select.cancel_after select
+                ~seconds:0.1 (Exn_bt.get_callstack 0 Timeout);
+
+              match Computation.await select with
+              | `Inn1 ->
+                Printf.printf "Inn1\n%!";
+                assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1)
+              | `Inn2 ->
+                Printf.printf "Inn2\n%!";
+                assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1)
+              | exception Timeout ->
+                Printf.printf "Timeout\n%!";
+                assert (1 = Unix.write_substring syn_out "!" 0 1)
+              | exception Exit ->
+                Computation.cancel select (Exn_bt.get_callstack 0 Exit)
+            done
+          with Exit -> () ];
+
+        assert (1 = Unix.write_substring msg_out1 "!" 0 1);
+        assert (1 = Unix.write_substring msg_out2 "!" 0 1);
+        assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
+
+        Computation.cancel consumer (Exn_bt.get_callstack 0 Exit)
+      Inn1
+      Inn2
+      Timeout
+      - : unit = ()
+    ]}
+
+    This approach of using the completion of a computation select one of
+    multiple events can be generalized. *)
