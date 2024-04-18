@@ -11,10 +11,10 @@ open Picos_stdio</code></pre><h3 id="a-pair-of-pipes"><a href="#a-pair-of-pipes"
   Unix.set_nonblock msg_out;
 
   let finally () =
-    Unix.close msg_inn;
-    Unix.close msg_out;
     Unix.close syn_inn;
     Unix.close syn_out;
+    Unix.close msg_inn;
+    Unix.close msg_out;
   in
   Fun.protect ~finally @@ fun () -&gt;
 
@@ -40,7 +40,7 @@ open Picos_stdio</code></pre><h3 id="a-pair-of-pipes"><a href="#a-pair-of-pipes"
   send_string &quot;Hello, world!&quot;;
   send_string &quot;POSIX with OCaml&quot;;
 
-  Computation.cancel consumer (Exn_bt.get_callstack 0 Exit);
+  Computation.cancel consumer (Exn_bt.get_callstack 0 Exit)
 Hello, world!
 POSIX with OCaml
 - : unit = ()</code></pre></div></body></html>
