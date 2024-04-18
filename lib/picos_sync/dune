@@ -2,3 +2,9 @@
  (name picos_sync)
  (public_name picos.sync)
  (libraries picos backoff multicore-magic))
+
+(mdx
+ (enabled_if
+  (>= %{ocaml_version} 5.0.0))
+ (libraries picos picos.exn_bt picos.sync picos.fifos)
+ (files picos_sync.mli))

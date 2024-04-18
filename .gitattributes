@@ -1,0 +1,3 @@
+# To work around MDX issues
+*.md text eol=lf
+*.mli text eol=lf
