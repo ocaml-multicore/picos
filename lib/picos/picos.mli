@@ -105,20 +105,18 @@
 
 (** {1 Modules reference}
 
-    We first open the {!Picos} module
+    For the examples in this document, we first open the {!Picos} module
 
     {[open Picos]}
 
-    and define a simple scheduler for running the examples in this document on
-    OCaml 4
+    and define a simple scheduler on OCaml 4
 
     {@ocaml version<5.0.0[
       let run main =
         Picos_threaded.run ~forbid:false main
     ]}
 
-    using {{!Picos_threaded} the basic thread based scheduler}
-    and on OCaml 5
+    using {{!Picos_threaded} the basic thread based scheduler} and on OCaml 5
 
     {@ocaml version>=5.0.0[
       let run main =
