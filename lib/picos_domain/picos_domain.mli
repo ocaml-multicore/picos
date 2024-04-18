@@ -14,7 +14,7 @@ val recommended_domain_count : unit -> int
     {!Domain.recommended_domain_count} on OCaml 5.  *)
 
 val is_main_domain : unit -> bool
-(** [is_main_domain ()] returns true on OCaml 4 and calls
+(** [is_main_domain ()] returns [true] on OCaml 4 and calls
     {!Domain.is_main_domain} on OCaml 5. *)
 
 module DLS : sig
