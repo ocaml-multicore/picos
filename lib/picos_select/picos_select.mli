@@ -188,5 +188,5 @@ val check_configured : unit -> unit
       - : unit = ()
     ]}
 
-    This approach of using the completion of a computation select one of
+    This approach of using the completion of a computation to select one of
     multiple events can be generalized. *)
