@@ -7,3 +7,9 @@
   (re_export picos.fd)
   picos.htbl
   picos.select))
+
+(mdx
+ (enabled_if
+  (>= %{ocaml_version} 5.1.0))
+ (libraries picos picos.exn_bt picos.stdio picos.fifos unix)
+ (files picos_stdio.mli))

@@ -1,5 +1,7 @@
 (** Basic IO facilities based on OCaml standard libraries for {!Picos}. *)
 
+(** {1 Modules} *)
+
 module Unix : sig
   (** A transparently asynchronous replacement for a subset of the {{!Deps.Unix}
       [Unix]} module that comes with OCaml.
@@ -671,3 +673,62 @@ module Unix : sig
   val tcflow : file_descr -> flow_action -> unit
   val setsid : unit -> int
 end
+
+(** {1 Examples}
+
+    For convenience, we first open the {!Picos} and {!Picos_stdio} modules:
+
+    {[
+      open Picos
+      open Picos_stdio
+    ]}
+
+    {2 A pair of pipes}
+
+    Here is a simple example of two fibers communicating through a pair of
+    pipes:
+
+    {@ocaml os_type<>Win32[
+      # Picos_fifos.run ~forbid:false @@ fun () ->
+
+        let msg_inn, msg_out = Unix.pipe ~cloexec:true () in
+        let syn_inn, syn_out = Unix.pipe ~cloexec:true () in
+
+        Unix.set_nonblock msg_inn;
+        Unix.set_nonblock msg_out;
+
+        let finally () =
+          Unix.close msg_inn;
+          Unix.close msg_out;
+          Unix.close syn_inn;
+          Unix.close syn_out;
+        in
+        Fun.protect ~finally @@ fun () ->
+
+        let consumer = Computation.create () in
+        Fiber.spawn ~forbid:false consumer [ fun () ->
+          try
+            let bytes = Bytes.create 100 in
+            while true do
+              let n = Unix.read msg_inn bytes 0 100 in
+              if n > 0 then begin
+                Printf.printf "%s\n%!" (Bytes.sub_string bytes 0 n);
+                assert (1 = Unix.write_substring syn_out "!" 0 1)
+              end
+            done
+          with Exit -> () ];
+
+        let send_string s =
+          let n = String.length s in
+          assert (n = Unix.write_substring msg_out s 0 n);
+          assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1)
+        in
+
+        send_string "Hello, world!";
+        send_string "POSIX with OCaml";
+
+        Computation.cancel consumer (Exn_bt.get_callstack 0 Exit);
+      Hello, world!
+      POSIX with OCaml
+      - : unit = ()
+    ]} *)

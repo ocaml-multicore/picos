@@ -8,6 +8,8 @@
     performance more stable at the cost of using more memory.  It is not
     recommended to use [~padded:true] for short lived objects. *)
 
+(** {1 Modules} *)
+
 module Mutex : sig
   (** A mutex implementation for {!Picos}.
 
@@ -143,8 +145,7 @@ module Lazy : sig
   (** [force_val] is a synonym for {!force}. *)
 
   val map : ('a -> 'b) -> 'a t -> 'b t
-  (** [map fn susp] is equivalent to:
-      {[from_fun (fun () -> fn (force susp))]} *)
+  (** [map fn susp] is equivalent to [from_fun (fun () -> fn (force susp))] *)
 
   val map_val : ('a -> 'b) -> 'a t -> 'b t
   (** [map_val fn susp] is equivalent to:
@@ -155,3 +156,121 @@ module Lazy : sig
           map fn susp
       ]} *)
 end
+
+(** {1 Examples}
+
+    For convenience, we first open the {!Picos} and {!Picos_sync} modules:
+
+    {[
+      open Picos
+      open Picos_sync
+    ]}
+
+    {2 A simple bounded queue}
+
+    Here is an example of a simple bounded (blocking) queue using a mutex and
+    condition variables:
+
+    {[
+      module Bounded_queue : sig
+        type 'a t
+        val create : ?capacity:int -> unit -> 'a t
+        val push : 'a t -> 'a -> unit
+        val pop : 'a t -> 'a
+      end = struct
+        type 'a t = {
+          mutex : Mutex.t;
+          queue : 'a Queue.t;
+          capacity : int;
+          not_empty : Condition.t;
+          not_full : Condition.t;
+        }
+
+        let create ?(capacity = Int.max_int) () =
+          if capacity < 0 then
+            invalid_arg "capacity cannot be negative"
+          else {
+            mutex = Mutex.create ();
+            queue = Queue.create ();
+            capacity;
+            not_empty = Condition.create ();
+            not_full = Condition.create ();
+          }
+
+        let push t x =
+          let was_empty =
+            Mutex.protect t.mutex @@ fun () ->
+            while t.capacity <= Queue.length t.queue do
+              Condition.wait t.not_full t.mutex
+            done;
+            Queue.push x t.queue;
+            Queue.length t.queue = 1
+          in
+          if was_empty then Condition.signal t.not_empty
+
+        let pop t =
+          let elem, was_full =
+            Mutex.protect t.mutex @@ fun () ->
+            while Queue.length t.queue = 0 do
+              Condition.wait t.not_empty t.mutex
+            done;
+            let was_full = Queue.length t.queue = t.capacity in
+            Queue.pop t.queue, was_full
+          in
+          if was_full then Condition.signal t.not_full;
+          elem
+      end
+    ]}
+
+    The above is definitely not the fastest nor the most scalable bounded queue,
+    but we can now demonstrate it with the cooperative {!Picos_fifos} scheduler:
+
+    {[
+      # Picos_fifos.run ~forbid:false @@ fun () ->
+
+        let bq = Bounded_queue.create ~capacity:3 () in
+
+        let consumer = Computation.create () in
+        Fiber.spawn ~forbid:false consumer [ fun () ->
+          try
+            while true do
+              Printf.printf "Popped %d\n%!" (Bounded_queue.pop bq)
+            done
+          with Exit -> () ];
+
+        for i=1 to 5 do
+          Printf.printf "Pushing %d\n%!" i;
+          Bounded_queue.push bq i
+        done;
+
+        Printf.printf "All done?\n%!";
+
+        Fiber.yield ();
+
+        Computation.cancel consumer (Exn_bt.get_callstack 0 Exit);
+
+        Printf.printf "Pushing %d\n%!" 101;
+        Bounded_queue.push bq 101;
+
+        Fiber.yield ();
+
+        Printf.printf "Popped %d\n%!" (Bounded_queue.pop bq)
+      Pushing 1
+      Pushing 2
+      Pushing 3
+      Pushing 4
+      Popped 1
+      Popped 2
+      Popped 3
+      Pushing 5
+      All done?
+      Popped 4
+      Popped 5
+      Pushing 101
+      Popped 101
+      - : unit = ()
+    ]}
+
+    Notice how the producer was able to push three elements to the queue after
+    which the fourth push blocked and the consumer was started.  Also, after
+    canceling the consumer, the queue could still be used just fine. *)

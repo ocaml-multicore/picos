@@ -1,5 +1,27 @@
 (** Lock-free hash table.
 
+    Example:
+    {[
+      # let t : (int, string) Picos_htbl.t =
+          Picos_htbl.create ~hashed_type:(module Int) ()
+      val t : (int, string) Picos_htbl.t = <abstr>
+
+      # Picos_htbl.try_add t 42 "The answer"
+      - : bool = true
+
+      # Picos_htbl.try_add t 101 "Basics"
+      - : bool = true
+
+      # Picos_htbl.find_exn t 42
+      - : string = "The answer"
+
+      # Picos_htbl.try_add t 101 "The basics"
+      - : bool = false
+
+      # Picos_htbl.remove_all t |> List.of_seq
+      - : (int * string) list = [(101, "Basics"); (42, "The answer")]
+    ]}
+
     🏎️ Single key reads with this hash table are actually wait-free rather than
     just lock-free.  Internal resizing automatically uses all the threads that
     are trying to write to the hash table. *)
@@ -42,8 +64,9 @@ val remove_exn : ('k, 'v) t -> 'k -> 'v
     [htbl] and return it or raise {!Not_found} if no such binding exists. *)
 
 val remove_all : ('k, 'v) t -> ('k * 'v) Seq.t
-(** [remove_all htbl] removes all bindings from the hash table [htbl] and
-    returns them as an association sequence.
+(** [remove_all htbl] takes a snapshot of the bindings in the hash table,
+    removes the bindings from the hash table, and returns the snapshot as an
+    association sequence.
 
     🐌 This is a linear time operation. *)
 
