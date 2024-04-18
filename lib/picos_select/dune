@@ -16,3 +16,9 @@
   psq
   mtime
   mtime.clock.os))
+
+(mdx
+ (enabled_if
+  (>= %{ocaml_version} 5.1.0))
+ (libraries picos picos.exn_bt picos.stdio picos.fifos picos.select unix)
+ (files picos_select.mli))
