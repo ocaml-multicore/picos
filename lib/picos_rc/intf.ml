@@ -71,7 +71,7 @@ module type S = sig
 
       The optional [close] argument defaults to [false].  When explicitly
       specified as [~close:true] the resource will be marked as closed and
-      attempts to {{!incr} increment} the reference could will fail.
+      attempts to {{!incr} increment} the reference will fail.
 
       @raise Invalid_argument in case no entry is found for the resource or
         the reference count was zero. *)
