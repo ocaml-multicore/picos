@@ -141,6 +141,10 @@ module Unix = struct
     in
     Picos_fd.decr ~close:true fd
 
+  let close_pair (fd1, fd2) =
+    close fd1;
+    close fd2
+
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/fsync.html *)
   let fsync fd = again_0 fd Unix.fsync `W
 

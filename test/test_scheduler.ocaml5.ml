@@ -1,1 +1,1 @@
-let run main = Picos_fifos.run ~forbid:false main
+let run ?(forbid = false) main = Picos_fifos.run ~forbid main

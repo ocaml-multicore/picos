@@ -59,6 +59,9 @@ module Unix : sig
       ⚠️ After calling [close] no new operations should be started with the file
       descriptor. *)
 
+  val close_pair : file_descr * file_descr -> unit
+  (** [close_pair (fd1, fd2)] is equivalent to [close fd1; close fd2]. *)
+
   type error = Unix.error =
     | E2BIG
     | EACCES
@@ -679,6 +682,7 @@ end
     For convenience, we first open the {!Picos} and {!Picos_stdio} modules:
 
     {[
+      open Foundation.Finally
       open Picos
       open Picos_stdio
     ]}
@@ -691,19 +695,12 @@ end
     {@ocaml os_type<>Win32[
       # Picos_fifos.run ~forbid:false @@ fun () ->
 
-        let msg_inn, msg_out = Unix.pipe ~cloexec:true () in
-        let syn_inn, syn_out = Unix.pipe ~cloexec:true () in
-
-        Unix.set_nonblock msg_inn;
-        Unix.set_nonblock msg_out;
-
-        let finally () =
-          Unix.close syn_inn;
-          Unix.close syn_out;
-          Unix.close msg_inn;
-          Unix.close msg_out;
+        let@ msg_inn, msg_out =
+          finally Unix.close_pair @@ Unix.pipe ~cloexec:true
         in
-        Fun.protect ~finally @@ fun () ->
+        let@ syn_inn, syn_out =
+          finally Unix.close_pair @@ Unix.pipe ~cloexec:true
+        in
 
         let consumer = Computation.create () in
         Fiber.spawn ~forbid:false consumer [ fun () ->

@@ -62,7 +62,7 @@
 (test
  (name test_select)
  (modules test_select)
- (libraries picos.threaded picos.select alcotest domain_shims))
+ (libraries foundation picos.threaded picos.select alcotest domain_shims))
 
 ;;
 
@@ -99,3 +99,17 @@
    (<> %{architecture} i386)
    (<> %{architecture} riscv)))
  (libraries picos))
+
+;;
+
+(mdx
+ (libraries
+  foundation
+  picos
+  picos.exn_bt
+  picos.htbl
+  picos.stdio
+  picos.threaded
+  test_scheduler
+  unix)
+ (files test_htbl.md test_scheduler.md test_stdio.md))

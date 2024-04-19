@@ -122,6 +122,7 @@ val check_configured : unit -> unit
     For convenience, we first open the {!Picos} and {!Picos_stdio} modules:
 
     {[
+      open Foundation.Finally
       open Picos
       open Picos_stdio
     ]}
@@ -136,19 +137,15 @@ val check_configured : unit -> unit
 
       # Picos_fifos.run ~forbid:false @@ fun () ->
 
-        let msg_inn1, msg_out1 = Unix.pipe ~cloexec:true () in
-        let msg_inn2, msg_out2 = Unix.pipe ~cloexec:true () in
-        let syn_inn, syn_out = Unix.pipe ~cloexec:true () in
-
-        let finally () =
-          Unix.close syn_inn;
-          Unix.close syn_out;
-          Unix.close msg_inn2;
-          Unix.close msg_out2;
-          Unix.close msg_inn1;
-          Unix.close msg_out1;
+        let@ msg_inn1, msg_out1 =
+          finally Unix.close_pair @@ Unix.pipe ~cloexec:true
         in
-        Fun.protect ~finally @@ fun () ->
+        let@ msg_inn2, msg_out2 =
+          finally Unix.close_pair @@ Unix.pipe ~cloexec:true
+        in
+        let@ syn_inn, syn_out =
+          finally Unix.close_pair @@ Unix.pipe ~cloexec:true
+        in
 
         let consumer = Computation.create () in
         Fiber.spawn ~forbid:false consumer [ fun () ->

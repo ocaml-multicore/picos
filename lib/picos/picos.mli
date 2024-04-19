@@ -107,7 +107,15 @@
 
     For the examples in this document, we first open the {!Picos} module
 
-    {[open Picos]}
+    {[
+      open Picos
+    ]}
+
+    as well as a simple helper for cleaning up resources
+
+    {[
+      open Foundation.Finally
+    ]}
 
     and define a simple scheduler on OCaml 4
 
@@ -151,15 +159,11 @@ module Trigger : sig
         run begin fun () ->
           let trigger = Trigger.create () in
 
-          let signaler =
+          let@ signaler =
+            finally Domain.join @@ fun () ->
             Domain.spawn @@ fun () ->
               Trigger.signal trigger
           in
-          let finally () =
-            Domain.join signaler
-          in
-          Fun.protect ~finally @@ fun () ->
-
           match Trigger.await trigger with
           | None ->
             (* We were resumed normally. *)
@@ -430,7 +434,8 @@ module Computation : sig
           let computation =
             Computation.create ()
           in
-          let computer =
+          let@ computer =
+            finally Domain.join @@ fun () ->
             Domain.spawn @@ fun () ->
               let rec fib i =
                 Computation.check computation;
@@ -442,22 +447,13 @@ module Computation : sig
               Computation.capture computation
                 fib 10
           in
-          let finally () =
-            Domain.join computer
-          in
-          Fun.protect ~finally @@ fun () ->
-
-          let canceler =
+          let@ canceler =
+            finally Domain.join @@ fun () ->
             Domain.spawn @@ fun () ->
               Unix.sleepf 0.1;
               Computation.cancel computation
               @@ Exn_bt.get_callstack 2 Exit
           in
-          let finally () =
-            Domain.join canceler
-          in
-          Fun.protect ~finally @@ fun () ->
-
           Computation.await computation
         end
       ]}
