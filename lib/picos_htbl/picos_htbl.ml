@@ -54,7 +54,7 @@ let max_buckets =
 let create (type k) ?hashed_type () =
   let equal, hash =
     match hashed_type with
-    | None -> (( = ), Stdlib.Hashtbl.hash)
+    | None -> (( = ), Stdlib.Hashtbl.seeded_hash (Random.bits ()))
     | Some ((module Hashed_type) : k hashed_type) ->
         (Hashed_type.equal, Hashed_type.hash)
   in
