@@ -53,7 +53,7 @@ let test_trigger_basics () =
   let trigger = Trigger.create () in
   let@ _ =
     finally Domain.join @@ fun () ->
-    Domain.spawn (fun () -> Trigger.signal trigger)
+    Domain.spawn @@ fun () -> Trigger.signal trigger
   in
   Trigger.await trigger |> Option.iter Exn_bt.raise
 

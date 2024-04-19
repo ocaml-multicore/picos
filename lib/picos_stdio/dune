@@ -11,5 +11,5 @@
 (mdx
  (enabled_if
   (>= %{ocaml_version} 5.1.0))
- (libraries picos picos.exn_bt picos.stdio picos.fifos unix)
+ (libraries foundation picos picos.exn_bt picos.stdio picos.fifos unix)
  (files picos_stdio.mli))

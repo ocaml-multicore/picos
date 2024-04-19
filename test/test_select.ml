@@ -1,9 +1,15 @@
+open Foundation.Finally
 open Picos
 
 let () = Picos_select.configure ()
 
 let test_intr () =
-  let inn, out = Unix.pipe ~cloexec:true () in
+  let@ inn, _out =
+    finally (fun (inn, out) ->
+        Unix.close inn;
+        Unix.close out)
+    @@ Unix.pipe ~cloexec:true
+  in
   let main () =
     Picos_threaded.run ~forbid:false @@ fun () ->
     let computation = Computation.create () in
@@ -26,13 +32,11 @@ let test_intr () =
     done;
     Computation.await computation
   in
-  let domains = Array.init 3 @@ fun _ -> Domain.spawn main in
-  let finally () =
-    Array.iter Domain.join domains;
-    Unix.close inn;
-    Unix.close out
+  let@ _domains =
+    finally (Array.iter Domain.join) @@ fun () ->
+    Array.init 3 @@ fun _ -> Domain.spawn main
   in
-  Fun.protect ~finally main
+  main ()
 
 let () =
   [

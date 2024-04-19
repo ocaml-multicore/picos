@@ -18,11 +18,11 @@
 (mdx
  (enabled_if
   (< %{ocaml_version} 5.0.0))
- (libraries picos picos.exn_bt picos.threaded domain_shims)
+ (libraries picos picos.exn_bt picos.threaded domain_shims foundation)
  (files picos.mli))
 
 (mdx
  (enabled_if
   (>= %{ocaml_version} 5.0.0))
- (libraries picos picos.exn_bt picos.fifos)
+ (libraries picos picos.exn_bt picos.fifos foundation)
  (files picos.mli))
