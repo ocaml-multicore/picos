@@ -45,10 +45,12 @@ exception Timeout
         match Computation.await select with
         | `Inn1 -&gt;
           Printf.printf &quot;Inn1\n%!&quot;;
-          assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1)
+          assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1);
+          assert (1 = Unix.write_substring syn_out &quot;!&quot; 0 1)
         | `Inn2 -&gt;
           Printf.printf &quot;Inn2\n%!&quot;;
-          assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1)
+          assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1);
+          assert (1 = Unix.write_substring syn_out &quot;!&quot; 0 1)
         | exception Timeout -&gt;
           Printf.printf &quot;Timeout\n%!&quot;;
           assert (1 = Unix.write_substring syn_out &quot;!&quot; 0 1)
@@ -58,7 +60,9 @@ exception Timeout
     with Exit -&gt; () ];
 
   assert (1 = Unix.write_substring msg_out1 &quot;!&quot; 0 1);
+  assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
   assert (1 = Unix.write_substring msg_out2 &quot;!&quot; 0 1);
+  assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
   assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
 
   Computation.cancel consumer (Exn_bt.get_callstack 0 Exit)
