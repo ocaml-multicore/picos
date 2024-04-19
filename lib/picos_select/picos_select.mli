@@ -165,10 +165,12 @@ val check_configured : unit -> unit
               match Computation.await select with
               | `Inn1 ->
                 Printf.printf "Inn1\n%!";
-                assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1)
+                assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1);
+                assert (1 = Unix.write_substring syn_out "!" 0 1)
               | `Inn2 ->
                 Printf.printf "Inn2\n%!";
-                assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1)
+                assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1);
+                assert (1 = Unix.write_substring syn_out "!" 0 1)
               | exception Timeout ->
                 Printf.printf "Timeout\n%!";
                 assert (1 = Unix.write_substring syn_out "!" 0 1)
@@ -178,7 +180,9 @@ val check_configured : unit -> unit
           with Exit -> () ];
 
         assert (1 = Unix.write_substring msg_out1 "!" 0 1);
+        assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
         assert (1 = Unix.write_substring msg_out2 "!" 0 1);
+        assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
         assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
 
         Computation.cancel consumer (Exn_bt.get_callstack 0 Exit)
