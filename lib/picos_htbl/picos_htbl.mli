@@ -39,7 +39,8 @@ val create : ?hashed_type:'k hashed_type -> unit -> ('k, 'v) t
 
     The optional [hashed_type] argument can be used to specify the [equal] and
     [hash] operations on keys.  Slow polymorphic equality [(=)] and slow
-    polymorphic {{!Stdlib.Hashtbl.hash} [hash]} are used by default. *)
+    polymorphic {{!Stdlib.Hashtbl.seeded_hash} [seeded_hash (Random.bits ())]}
+    is used by default. *)
 
 val find_exn : ('k, 'v) t -> 'k -> 'v
 (** [find_exn htbl key] returns the current binding of [key] in the hash table
