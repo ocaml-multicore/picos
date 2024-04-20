@@ -4,15 +4,11 @@ let search_urls = ['../../db.js','../../../sherlodoc.js'];
 </script><script src="../../../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../../index.html">picos</a> &#x00BB; <a href="../index.html">Picos</a> &#x00BB; Trigger</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1>Module <code><span>Picos.Trigger</span></code></h1><p>Ability to await for a signal.</p><p>To suspend and later resume the current thread of execution, one can <a href="#val-create"><code>create</code></a> a trigger, arrange <a href="#val-signal"><code>signal</code></a> to be called on it, and <a href="#val-await"><code>await</code></a> for the call.</p><p>Here is a simple example:</p><pre class="language-ocaml"><code>run begin fun () -&gt;
   let trigger = Trigger.create () in
 
-  let signaler =
+  let@ signaler =
+    finally Domain.join @@ fun () -&gt;
     Domain.spawn @@ fun () -&gt;
       Trigger.signal trigger
   in
-  let finally () =
-    Domain.join signaler
-  in
-  Fun.protect ~finally @@ fun () -&gt;
-
   match Trigger.await trigger with
   | None -&gt;
     (* We were resumed normally. *)
