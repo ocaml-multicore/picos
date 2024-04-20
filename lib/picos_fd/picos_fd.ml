@@ -1,18 +1,17 @@
 let report_leaks = ref true
 
-include
-  Picos_rc.Make
-    (struct
-      type t = Unix.file_descr
+module File_descr = struct
+  type t = Unix.file_descr
 
-      let equal : t -> t -> bool = ( == )
+  let equal : t -> t -> bool = ( == )
 
-      let hash (fd : t) =
-        if Obj.is_int (Obj.repr fd) then Obj.magic fd else Hashtbl.hash fd
+  let hash (fd : t) =
+    if Obj.is_int (Obj.repr fd) then Obj.magic fd else Hashtbl.hash fd
 
-      let dispose = Unix.close
-    end)
-    ()
+  let dispose = Unix.close
+end
+
+include Picos_rc.Make (File_descr) ()
 
 let () =
   Stdlib.at_exit @@ fun () ->
