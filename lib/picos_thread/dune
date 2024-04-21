@@ -13,7 +13,7 @@
    tls.ml
    from
    (thread-local-storage -> tls.thread-local-storage.ml)
-   (picos.domain -> tls.dls.ml))))
+   (picos.domain !threads.posix -> tls.dls.ml))))
 
 (rule
  (enabled_if
