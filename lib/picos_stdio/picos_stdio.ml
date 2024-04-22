@@ -372,10 +372,6 @@ module Unix = struct
 
   (* *)
 
-  (*let select _ = failwith "TODO"*)
-
-  (* *)
-
   exception Done
 
   let done_bt = Exn_bt.get_callstack 0 Done
@@ -403,6 +399,51 @@ module Unix = struct
           Exn_bt.raise exn_bt
 
   let sleep seconds = sleepf (Float.of_int seconds)
+
+  (* *)
+
+  let[@alert "-handler"] select rds wrs exs seconds =
+    let overall = Computation.create () in
+    let canceler =
+      Trigger.from_action overall () @@ fun _ overall _ ->
+      Picos_select.cancel_after overall ~seconds:0.0 done_bt
+    in
+    let prepare op fd =
+      let computation = Computation.create () in
+      if Computation.try_attach computation canceler then
+        Picos_select.return_on computation fd op true;
+      computation
+    in
+    let rdcs = List.map (prepare `R) rds in
+    let wrcs = List.map (prepare `W) wrs in
+    let excs = List.map (prepare `E) exs in
+    let finisher =
+      Trigger.from_action rdcs wrcs @@ fun _ rdcs wrcs ->
+      let return_false computation = Computation.return computation false in
+      List.iter return_false rdcs;
+      List.iter return_false wrcs;
+      List.iter return_false excs
+    in
+    if not (Computation.try_attach overall finisher) then
+      Trigger.signal finisher
+    else if 0.0 <= seconds then
+      Picos_select.cancel_after overall ~seconds done_bt;
+    match Computation.await overall with
+    | () -> assert false
+    | exception Done ->
+        let[@tail_mod_cons] rec zip_filter pred xs ys =
+          match (xs, ys) with
+          | x :: xs, y :: ys ->
+              if pred y then x :: zip_filter pred xs ys
+              else zip_filter pred xs ys
+          | _, _ -> []
+        in
+        ( zip_filter Computation.await rds rdcs,
+          zip_filter Computation.await wrs wrcs,
+          zip_filter Computation.await exs excs )
+    | exception cancelation_exn ->
+        Computation.cancel overall done_bt;
+        raise cancelation_exn
 
   (* *)
 

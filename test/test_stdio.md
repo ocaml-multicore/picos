@@ -41,3 +41,65 @@ test_stdio.md
   Unix.gettimeofday () -. start < 1.0
 - : bool = true
 ```
+
+```ocaml
+# Test_scheduler.run @@ fun () ->
+
+  let@ msg_inn1, msg_out1 =
+    finally Unix.close_pair @@ fun () ->
+    Unix.socketpair PF_UNIX SOCK_STREAM 0 ~cloexec:true
+  in
+  let@ msg_inn2, msg_out2 =
+    finally Unix.close_pair @@ fun () ->
+    Unix.socketpair PF_UNIX SOCK_STREAM 0 ~cloexec:true
+  in
+  let@ syn_inn, syn_out =
+    finally Unix.close_pair @@ fun () ->
+    Unix.socketpair PF_UNIX SOCK_STREAM 0 ~cloexec:true
+  in
+
+  Unix.set_nonblock msg_inn1;
+  Unix.set_nonblock msg_out1;
+  Unix.set_nonblock msg_inn2;
+  Unix.set_nonblock msg_out2;
+  Unix.set_nonblock syn_inn;
+  Unix.set_nonblock syn_out;
+
+  let consumer = Computation.create () in
+  let finished = Trigger.create () in
+  Fiber.spawn ~forbid:false consumer [ fun () ->
+    try
+      while true do
+        match Unix.select [ msg_inn1; msg_inn2 ] [] [] 0.1 with
+        | inns, _, _ ->
+          if List.exists ((==) msg_inn1) inns then begin
+            Printf.printf "Inn1\n%!";
+            assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1);
+            assert (1 = Unix.write_substring syn_out "!" 0 1)
+          end;
+          if List.exists ((==) msg_inn2) inns then begin
+            Printf.printf "Inn2\n%!";
+            assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1);
+            assert (1 = Unix.write_substring syn_out "!" 0 1)
+          end;
+          if [] == inns then begin
+            Printf.printf "Timeout\n%!";
+            assert (1 = Unix.write_substring syn_out "!" 0 1)
+          end
+      done
+    with Exit -> Trigger.signal finished  ];
+
+  assert (1 = Unix.write_substring msg_out1 "!" 0 1);
+  assert (1 = Unix.write_substring msg_out2 "!" 0 1);
+  assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
+  assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
+
+  assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
+
+  Computation.cancel consumer (Exn_bt.get_callstack 0 Exit);
+  Trigger.await finished
+Inn1
+Inn2
+Timeout
+- : Picos_exn_bt.t option = None
+```

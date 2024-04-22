@@ -7,9 +7,10 @@ module Unix : sig
       [Unix]} module that comes with OCaml.
 
       In this module operations on file descriptors, such as {!read} and
-      {!write} and others, implicitly block, in a scheduler friendly manner, to
-      await for the file descriptor to become available for the operation.  This
-      works best with file descriptors {{!set_nonblock} set to non-blocking mode}.
+      {!write} and others, including {!select}, implicitly block, in a scheduler
+      friendly manner, to await for the file descriptor to become available for
+      the operation.  This works best with file descriptors {{!set_nonblock} set
+      to non-blocking mode}.
 
       In addition to operations on file descriptors, in this module
 
@@ -341,12 +342,17 @@ module Unix : sig
   val has_symlink : unit -> bool
   val readlink : string -> string
 
-  (*val select :
+  val select :
     file_descr list ->
     file_descr list ->
     file_descr list ->
     float ->
-    file_descr list * file_descr list * file_descr list*)
+    file_descr list * file_descr list * file_descr list
+  (** [select rds wrs exs timeout] is like {!Deps.Unix.select}, but uses
+      {!Picos_select} to avoid blocking the thread.
+
+      🐌 You may find composing multi file descriptor awaits via other means
+      with {!Picos_select} more flexible and efficient. *)
 
   type lock_command = Unix.lock_command =
     | F_ULOCK
