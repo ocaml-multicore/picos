@@ -376,13 +376,15 @@ module Unix = struct
 
   (* *)
 
-  let exit_bt = Exn_bt.get_callstack 0 Exit
+  exception Done
+
+  let done_bt = Exn_bt.get_callstack 0 Done
 
   let sleepf seconds =
     let sleep = Computation.create ~mode:`LIFO () in
     (* We could also use [Computation.cancel_after], but we already depend on
        [Picos_select]. *)
-    Picos_select.cancel_after ~seconds sleep exit_bt;
+    Picos_select.cancel_after ~seconds sleep done_bt;
     let trigger = Trigger.create () in
     if Computation.try_attach sleep trigger then
       match Trigger.await trigger with
