@@ -44,6 +44,31 @@ test_stdio.md
 
 ```ocaml
 # Test_scheduler.run @@ fun () ->
+  let start = Unix.gettimeofday () in
+  let _ = Unix.select [] [] [] 0.1 in
+  let d = Unix.gettimeofday () -. start in
+  0.1 <= d && d <= 0.2
+- : bool = true
+```
+
+```ocaml
+# Test_scheduler.run @@ fun () ->
+  let computation = Computation.create () in
+  let exited = Trigger.create () in
+  Fiber.spawn ~forbid:false computation [ fun () ->
+    match Unix.select [] [] [] (-1.0) with
+    | _ -> Printf.printf "Impossible\n%!"
+    | exception Exit ->
+      Trigger.signal exited ];
+  Unix.sleepf 0.01;
+  assert (Trigger.is_initial exited);
+  Computation.cancel computation (Exn_bt.get_callstack 0 Exit);
+  Trigger.await exited
+- : Picos_exn_bt.t option = None
+```
+
+```ocaml
+# Test_scheduler.run @@ fun () ->
 
   let@ msg_inn1, msg_out1 =
     finally Unix.close_pair @@ fun () ->
