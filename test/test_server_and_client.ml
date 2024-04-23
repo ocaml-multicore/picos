@@ -3,13 +3,7 @@ open Elements
 open Picos_stdio
 
 let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
-
-let use_nonblock =
-  Sys.win32
-  || begin
-       Random.self_init ();
-       Random.bool ()
-     end
+let use_nonblock = Sys.win32 || Random.bool (Random.self_init ())
 
 let set_nonblock fd =
   if use_nonblock then
