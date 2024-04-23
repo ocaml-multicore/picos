@@ -131,21 +131,31 @@ val check_configured : unit -> unit
 
     Here is an example that awaits for one of multiple alternative events:
 
-    {@ocaml os_type<>Win32[
+    {[
       # exception Timeout
       exception Timeout
 
       # Picos_fifos.run ~forbid:false @@ fun () ->
 
         let@ msg_inn1, msg_out1 =
-          finally Unix.close_pair @@ Unix.pipe ~cloexec:true
+          finally Unix.close_pair @@ fun () ->
+          Unix.socketpair PF_UNIX SOCK_STREAM 0 ~cloexec:true
         in
         let@ msg_inn2, msg_out2 =
-          finally Unix.close_pair @@ Unix.pipe ~cloexec:true
+          finally Unix.close_pair @@ fun () ->
+          Unix.socketpair PF_UNIX SOCK_STREAM 0 ~cloexec:true
         in
         let@ syn_inn, syn_out =
-          finally Unix.close_pair @@ Unix.pipe ~cloexec:true
+          finally Unix.close_pair @@ fun () ->
+          Unix.socketpair PF_UNIX SOCK_STREAM 0 ~cloexec:true
         in
+
+        Unix.set_nonblock msg_inn1;
+        Unix.set_nonblock msg_out1;
+        Unix.set_nonblock msg_inn2;
+        Unix.set_nonblock msg_out2;
+        Unix.set_nonblock syn_inn;
+        Unix.set_nonblock syn_out;
 
         let consumer = Computation.create () in
         Fiber.spawn ~forbid:false consumer [ fun () ->
