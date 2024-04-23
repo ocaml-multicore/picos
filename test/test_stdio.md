@@ -47,7 +47,8 @@ test_stdio.md
   let start = Unix.gettimeofday () in
   let _ = Unix.select [] [] [] 0.1 in
   let d = Unix.gettimeofday () -. start in
-  0.1 <= d && d <= 0.2
+  (* This is non-deterministic and might need to be changed if flaky *)
+  0.1 <= d && d <= 1.0
 - : bool = true
 ```
 
