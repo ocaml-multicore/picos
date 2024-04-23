@@ -13,7 +13,7 @@ test_stdio.md
 - : Unix.process_status = Picos_stdio.Unix.WEXITED 0
 ```
 
-```ocaml os_type<>Win32
+```ocaml
 # Test_scheduler.run @@ fun () ->
   let@ fd =
     finally Unix.close @@ fun () ->
