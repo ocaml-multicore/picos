@@ -1,3 +1,26 @@
+## 0.3.0
+
+- Core API changes:
+
+  - Added `Fiber.set_computation`, which represents a semantic change
+  - Renamed `Fiber.computation` to `Fiber.get_computation`
+  - Added `Computation.attach_canceler`
+  - Added `Fiber.sleep`
+  - Added `Fiber.create_packed`
+  - Removed `Fiber.try_attach`
+  - Removed `Fiber.detach`
+
+  Most of the above changes were motivated by work on and requirements of the
+  added structured concurrency library (@polytypic)
+
+- Added a basic user level structured concurrent programming library
+  `Picos_structured` (@polytypic)
+
+- Added a functorized `Picos_lwt` providing direct style effects based interface
+  to programming with Lwt (@polytypic)
+
+- Added missing `Picos_stdio.Unix.select` (@polytypic)
+
 ## 0.2.0
 
 - Documentation fixes and restructuring (@polytypic)
