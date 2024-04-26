@@ -246,10 +246,10 @@ end
         in
 
         Bundle.join_after begin fun bundle ->
-          (* Star server *)
+          (* Start server *)
           Bundle.fork bundle server;
 
-          (* Wait until server addr has been determined *)
+          (* Wait until server address has been determined *)
           Mutex.protect mutex begin fun () ->
             while !server_addr == loopback_0 do
               Condition.wait condition mutex
