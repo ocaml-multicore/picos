@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml"><head><title>Picos_sync (picos.Picos_sync)</title><meta charset="utf-8"/><link rel="stylesheet" href="../../odoc.support/odoc.css"/><meta name="generator" content="odoc 2.4.1"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../odoc.support/highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script><script>let base_url = '../../';
 let search_urls = ['../db.js','../../sherlodoc.js'];
-</script><script src="../../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../index.html">picos</a> &#x00BB; Picos_sync</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1>Module <code><span>Picos_sync</span></code></h1><p>Basic communication and synchronization primitives for <a href="../Picos/index.html"><code>Picos</code></a>.</p><p>The optional <code>padded</code> argument taken by several constructor functions, e.g. <a href="Mutex/index.html#val-create"><code>Mutex.create</code></a> and <a href="Condition/index.html#val-create"><code>Condition.create</code></a>, defaults to <code>false</code>. When explicitly specified as <code>~padded:true</code> the object is allocated in a way to avoid <a href="https://en.wikipedia.org/wiki/False_sharing">false sharing</a>. For relatively long lived objects this can improve performance and make performance more stable at the cost of using more memory. It is not recommended to use <code>~padded:true</code> for short lived objects.</p></header><nav class="odoc-toc"><ul><li><a href="#modules">Modules</a></li><li><a href="#examples">Examples</a><ul><li><a href="#a-simple-bounded-queue">A simple bounded queue</a></li></ul></li></ul></nav><div class="odoc-content"><h2 id="modules"><a href="#modules" class="anchor"></a>Modules</h2><div class="odoc-spec"><div class="spec module anchored" id="module-Mutex"><a href="#module-Mutex" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Mutex/index.html">Mutex</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>A mutex implementation for <a href="../Picos/index.html"><code>Picos</code></a>.</p></div></div><div class="odoc-spec"><div class="spec module anchored" id="module-Condition"><a href="#module-Condition" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Condition/index.html">Condition</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>A condition implementation for <a href="../Picos/index.html"><code>Picos</code></a>.</p></div></div><div class="odoc-spec"><div class="spec module anchored" id="module-Lazy"><a href="#module-Lazy" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Lazy/index.html">Lazy</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>A lazy implementation for <a href="../Picos/index.html"><code>Picos</code></a>.</p></div></div><h2 id="examples"><a href="#examples" class="anchor"></a>Examples</h2><p>For convenience, we first open the <a href="../Picos/index.html"><code>Picos</code></a> and <a href="#"><code>Picos_sync</code></a> modules:</p><pre class="language-ocaml"><code>open Picos
+</script><script src="../../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../index.html">picos</a> &#x00BB; Picos_sync</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1>Module <code><span>Picos_sync</span></code></h1><p>Basic communication and synchronization primitives for <a href="../Picos/index.html"><code>Picos</code></a>.</p><p>The optional <code>padded</code> argument taken by several constructor functions, e.g. <a href="Mutex/index.html#val-create"><code>Mutex.create</code></a> and <a href="Condition/index.html#val-create"><code>Condition.create</code></a>, defaults to <code>false</code>. When explicitly specified as <code>~padded:true</code> the object is allocated in a way to avoid <a href="https://en.wikipedia.org/wiki/False_sharing">false sharing</a>. For relatively long lived objects this can improve performance and make performance more stable at the cost of using more memory. It is not recommended to use <code>~padded:true</code> for short lived objects.</p></header><nav class="odoc-toc"><ul><li><a href="#modules">Modules</a></li><li><a href="#examples">Examples</a><ul><li><a href="#a-simple-bounded-queue">A simple bounded queue</a></li></ul></li></ul></nav><div class="odoc-content"><h2 id="modules"><a href="#modules" class="anchor"></a>Modules</h2><div class="odoc-spec"><div class="spec module anchored" id="module-Mutex"><a href="#module-Mutex" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Mutex/index.html">Mutex</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>A mutex implementation for <a href="../Picos/index.html"><code>Picos</code></a>.</p></div></div><div class="odoc-spec"><div class="spec module anchored" id="module-Condition"><a href="#module-Condition" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Condition/index.html">Condition</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>A condition implementation for <a href="../Picos/index.html"><code>Picos</code></a>.</p></div></div><div class="odoc-spec"><div class="spec module anchored" id="module-Lazy"><a href="#module-Lazy" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Lazy/index.html">Lazy</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>A lazy implementation for <a href="../Picos/index.html"><code>Picos</code></a>.</p></div></div><h2 id="examples"><a href="#examples" class="anchor"></a>Examples</h2><p>First we open some modules for convenience:</p><pre class="language-ocaml"><code>open Picos_structured
 open Picos_sync</code></pre><h3 id="a-simple-bounded-queue"><a href="#a-simple-bounded-queue" class="anchor"></a>A simple bounded queue</h3><p>Here is an example of a simple bounded (blocking) queue using a mutex and condition variables:</p><pre class="language-ocaml"><code>module Bounded_queue : sig
   type 'a t
   val create : ?capacity:int -&gt; unit -&gt; 'a t
@@ -53,29 +53,27 @@ end</code></pre><p>The above is definitely not the fastest nor the most scalable
 
   let bq = Bounded_queue.create ~capacity:3 () in
 
-  let consumer = Computation.create () in
-  Fiber.spawn ~forbid:false consumer [ fun () -&gt;
-    try
+  Bundle.join_after begin fun bundle -&gt;
+    Bundle.fork bundle begin fun () -&gt;
       while true do
         Printf.printf &quot;Popped %d\n%!&quot; (Bounded_queue.pop bq)
       done
-    with Exit -&gt; () ];
+    end;
 
-  for i=1 to 5 do
-    Printf.printf &quot;Pushing %d\n%!&quot; i;
-    Bounded_queue.push bq i
-  done;
+    for i=1 to 5 do
+      Printf.printf &quot;Pushing %d\n%!&quot; i;
+      Bounded_queue.push bq i
+    done;
 
-  Printf.printf &quot;All done?\n%!&quot;;
+    Printf.printf &quot;All done?\n%!&quot;;
 
-  Fiber.yield ();
+    Control.yield ();
 
-  Computation.cancel consumer (Exn_bt.get_callstack 0 Exit);
+    Bundle.terminate bundle
+  end;
 
   Printf.printf &quot;Pushing %d\n%!&quot; 101;
   Bounded_queue.push bq 101;
-
-  Fiber.yield ();
 
   Printf.printf &quot;Popped %d\n%!&quot; (Bounded_queue.pop bq)
 Pushing 1
