@@ -699,7 +699,7 @@ end
     pipes:
 
     {[
-      # Picos_fifos.run ~forbid:false @@ fun () ->
+      # Picos_fifos.run @@ fun () ->
 
         let@ msg_inn, msg_out =
           finally Unix.close_pair @@ fun () ->

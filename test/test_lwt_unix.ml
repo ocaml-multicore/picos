@@ -2,8 +2,7 @@ open Picos
 module Picos_lwt_unix = Picos_lwt.Make (Lwt_unix)
 
 let basics () =
-  Lwt_main.run
-  @@ Picos_lwt_unix.run ~forbid:false
+  Lwt_main.run @@ Picos_lwt_unix.run
   @@ fun () ->
   let computation = Computation.create () in
   let child =
