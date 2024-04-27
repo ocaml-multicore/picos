@@ -9,10 +9,13 @@ end
 module type S = sig
   (** Direct style {!Picos} compatible interface to {!Lwt}. *)
 
-  val run : forbid:bool -> (unit -> 'a) -> 'a Lwt.t
-  (** [run ~forbid main] runs the [main] program implemented in {!Picos} as a
-      promise with {!Lwt} as the scheduler.  In other words, the [main] program
-      will be run as a {!Lwt} promise or fiber. *)
+  val run : ?forbid:bool -> (unit -> 'a) -> 'a Lwt.t
+  (** [run main] runs the [main] program implemented in {!Picos} as a promise
+      with {!Lwt} as the scheduler.  In other words, the [main] program will be
+      run as a {!Lwt} promise or fiber.
+
+      The optional [forbid] argument defaults to [false] and determines whether
+      propagation of cancelation is initially allowed. *)
 
   val await : (unit -> 'a Lwt.t) -> 'a
   (** [await thunk] awaits for the promise returned by [thunk ()] to resolve and

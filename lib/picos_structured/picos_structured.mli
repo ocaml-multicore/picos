@@ -297,7 +297,7 @@ end
     Finally we run the main program with a scheduler:
 
     {[
-      # Picos_fifos.run ~forbid:false main
+      # Picos_fifos.run main
       Received: Hello!
       Received: Hello!
       Received: Hello!

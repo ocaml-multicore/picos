@@ -121,16 +121,13 @@
     and define a simple scheduler on OCaml 4
 
     {@ocaml version<5.0.0[
-      let run main =
-        Picos_threaded.run
-          ~forbid:false main
+      let run main = Picos_threaded.run main
     ]}
 
     using {{!Picos_threaded} the basic thread based scheduler} and on OCaml 5
 
     {@ocaml version>=5.0.0[
-      let run main =
-        Picos_fifos.run ~forbid:false main
+      let run main = Picos_fifos.run main
     ]}
 
     using {{!Picos_fifos} the basic effects based scheduler} that come with

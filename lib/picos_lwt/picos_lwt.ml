@@ -69,7 +69,7 @@ module Make (Sleep : Sleep) : S = struct
     | Ok v -> Effect.Shallow.continue_with k v handler
     | Error exn_bt -> Exn_bt.discontinue_with k exn_bt handler
 
-  let run ~forbid main =
+  let run ?(forbid = false) main =
     let computation = Computation.create () in
     let fiber = Fiber.create ~forbid computation in
     run fiber (Effect.Shallow.fiber main) (Ok ())

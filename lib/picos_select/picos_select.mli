@@ -136,7 +136,7 @@ val check_configured : unit -> unit
       # exception Timeout
       exception Timeout
 
-      # Picos_fifos.run ~forbid:false @@ fun () ->
+      # Picos_fifos.run @@ fun () ->
 
         let@ msg_inn1, msg_out1 =
           finally Unix.close_pair @@ fun () ->

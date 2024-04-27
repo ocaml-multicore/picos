@@ -232,7 +232,7 @@ end
     but we can now demonstrate it with the cooperative {!Picos_fifos} scheduler:
 
     {[
-      # Picos_fifos.run ~forbid:false @@ fun () ->
+      # Picos_fifos.run @@ fun () ->
 
         let bq =
           Bounded_q.create ~capacity:3

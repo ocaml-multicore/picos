@@ -103,7 +103,7 @@ let rec next t =
         next t
       end
 
-let run ~forbid main =
+let run ?(forbid = false) main =
   Select.check_configured ();
   let ready = Queue.create ()
   and needs_wakeup = Atomic.make false

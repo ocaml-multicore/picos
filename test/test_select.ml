@@ -11,7 +11,7 @@ let test_intr () =
     @@ Unix.pipe ~cloexec:true
   in
   let main () =
-    Picos_threaded.run ~forbid:false @@ fun () ->
+    Picos_threaded.run @@ fun () ->
     let computation = Computation.create () in
     let n_threads = 10 in
     let n = Atomic.make n_threads in

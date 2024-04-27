@@ -1,1 +1,1 @@
-let run ?(forbid = false) main = Picos_threaded.run ~forbid main
+let run ?forbid main = Picos_threaded.run ?forbid main

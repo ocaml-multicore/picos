@@ -83,7 +83,7 @@ and spawn : type a. _ -> forbid:bool -> a Computation.t -> _ =
 
 and handler = Handler.{ current; spawn; yield; cancel_after; await }
 
-let run ~forbid main =
+let run ?(forbid = false) main =
   Select.check_configured ();
   let packed = Computation.Packed (Computation.create ()) in
   Handler.using handler (create_packed ~forbid packed) main
