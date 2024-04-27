@@ -1,7 +1,7 @@
 module Exn_bt = Picos_exn_bt
 
 module Trigger = struct
-  let[@inline never] awaiting () = invalid_arg "already awaiting"
+  let[@inline never] error_awaiting () = invalid_arg "already awaiting"
 
   type state =
     | Signaled
@@ -16,7 +16,7 @@ module Trigger = struct
   let is_initial t =
     match Atomic.get t with
     | Initial -> true
-    | Awaiting _ -> awaiting ()
+    | Awaiting _ -> error_awaiting ()
     | Signaled -> false
 
   let rec finish t ~allow_awaiting =
@@ -26,7 +26,7 @@ module Trigger = struct
         if allow_awaiting then
           if Atomic.compare_and_set t before Signaled then r.action t r.x r.y
           else finish t ~allow_awaiting
-        else awaiting ()
+        else error_awaiting ()
     | Initial ->
         if not (Atomic.compare_and_set t Initial Signaled) then
           finish t ~allow_awaiting
@@ -37,7 +37,7 @@ module Trigger = struct
   let rec on_signal t x y action =
     match Atomic.get t with
     | Signaled -> false
-    | Awaiting _ -> awaiting ()
+    | Awaiting _ -> error_awaiting ()
     | Initial ->
         Atomic.compare_and_set t Initial (Awaiting { action; x; y })
         || on_signal t x y action
@@ -46,10 +46,10 @@ module Trigger = struct
 end
 
 module Computation = struct
-  let[@inline never] negative_or_nan () =
+  let[@inline never] error_negative_or_nan () =
     invalid_arg "seconds must be non-negative"
 
-  let[@inline never] returned () = invalid_arg "already returned"
+  let[@inline never] error_returned () = invalid_arg "already returned"
 
   type 'a state =
     | Canceled of Exn_bt.t
@@ -154,9 +154,14 @@ module Computation = struct
         end
         else try_terminate t after (Backoff.once backoff)
 
-  let returned_unit = Returned ()
-  let finished = Atomic.make returned_unit
-  let try_return t value = try_terminate t (Returned value) Backoff.default
+  let returned_unit = Returned (Obj.magic ())
+
+  let make_returned value =
+    if value == Obj.magic () then returned_unit else Returned value
+
+  let returned value = Atomic.make (make_returned value)
+  let finished = Atomic.make (make_returned ())
+  let try_return t value = try_terminate t (make_returned value) Backoff.default
   let try_finish t = try_terminate t returned_unit Backoff.default
   let try_cancel t exn_bt = try_terminate t (Canceled exn_bt) Backoff.default
   let return t value = try_return t value |> ignore
@@ -189,7 +194,7 @@ module Computation = struct
   let canceler ~from ~into = Trigger.from_action from into propagate
 
   let check_non_negative seconds =
-    if not (0.0 <= seconds) then negative_or_nan ()
+    if not (0.0 <= seconds) then error_negative_or_nan ()
 
   let rec get_or block t =
     match Atomic.get t with
@@ -202,7 +207,7 @@ module Computation = struct
     if try_attach from canceler then canceler
     else begin
       check from;
-      returned ()
+      error_returned ()
     end
 end
 

@@ -11,9 +11,11 @@ let terminate ?callstack t =
   let terminate_bt = Control.terminate_bt ?callstack () in
   Computation.cancel t.bundle terminate_bt
 
-let error t exn_bt =
-  terminate t;
-  Control.Errors.push t.errors exn_bt
+let error ?callstack t (exn_bt : Exn_bt.t) =
+  if exn_bt.Exn_bt.exn != Control.Terminate then begin
+    terminate ?callstack t;
+    Control.Errors.push t.errors exn_bt
+  end
 
 let decr t =
   let n = Atomic.fetch_and_add t.num_fibers (-1) in
@@ -66,15 +68,15 @@ let rec incr t backoff =
   else if not (Atomic.compare_and_set t.num_fibers before (before + 1)) then
     incr t (Backoff.once backoff)
 
-let fork t thunk =
+let fork_as_promise t thunk =
   incr t Backoff.default;
+  let child = Computation.create () in
   try
-    let child = Computation.create () in
     let canceler = Computation.attach_canceler ~from:t.bundle ~into:child in
     let main () =
       begin
         match thunk () with
-        | () -> Computation.finish child
+        | value -> Computation.return child value
         | exception exn ->
             let exn_bt = Exn_bt.get exn in
             Computation.cancel child exn_bt;
@@ -83,7 +85,10 @@ let fork t thunk =
       Computation.detach t.bundle canceler;
       decr t
     in
-    Fiber.spawn ~forbid:false child [ main ]
+    Fiber.spawn ~forbid:false child [ main ];
+    child
   with canceled_exn ->
     decr t;
     raise canceled_exn
+
+let fork t thunk = fork_as_promise t thunk |> ignore

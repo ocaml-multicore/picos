@@ -90,16 +90,32 @@ module Control : sig
 
   exception Terminate
   (** An exception that is used to signal fibers, typically by canceling them,
-      that they should terminate by letting the exception propagate.  This does
-      not, by itself, indicate an error. *)
+      that they should terminate by letting the exception propagate.
+
+      ℹ️ Within {{!Picos_structured} this library}, the [Terminate] exception
+      does not, by itself, indicate an error.  Raising it inside a fiber forked
+      within the structured concurrency constructs of this library simply causes
+      the relevant part of the tree of fibers to be terminated.
+
+      ⚠️ If [Terminate] is raised in the main fiber of a {!Bundle}, and no other
+      exceptions are raised within any fiber inside the bundle, the bundle will
+      then, of course, raise the [Terminate] exception after all the fibers have
+      been terminated. *)
 
   exception Errors of Exn_bt.t list
   (** An exception that can be used to collect exceptions, typically indicating
-      errors, from multiple fibers. *)
+      errors, from multiple fibers.
+
+      ℹ️ The {!Terminate} exception is not considered an error within
+      {{!Picos_structured} this library} and the structuring constructs do not
+      include it in the list of [Errors]. *)
 
   val raise_if_canceled : unit -> unit
   (** [raise_if_canceled ()] checks whether the current fiber has been canceled
-      and if so raises the exception that the fiber was canceled with. *)
+      and if so raises the exception that the fiber was canceled with.
+
+      ℹ️ Within {{!Picos_structured} this library} fibers are canceled using the
+      {!Terminate} exception. *)
 
   val yield : unit -> unit
   (** [yield ()] asks the current fiber to be rescheduled. *)
@@ -109,7 +125,13 @@ module Control : sig
       seconds. *)
 
   val protect : (unit -> 'a) -> 'a
-  (** [protect thunk] forbids cancelation for the duration of [thunk ()]. *)
+  (** [protect thunk] forbids propagation of cancelation for the duration of
+      [thunk ()].
+
+      ℹ️ With the constructs provided by {{!Picos_structured} this library} it is
+      not possible to prevent a fiber from being canceled, but it is possible
+      for a fiber to forbid the scheduler from propagating cancelation to the
+      fiber. *)
 
   val block : unit -> 'a
   (** [block ()] suspends the current fiber until it is canceled at which point
@@ -118,8 +140,55 @@ module Control : sig
       ⚠️ Beware that [protect block] never returns and you don't want that. *)
 end
 
+module Promise : sig
+  (** A cancelable promise.
+
+      ℹ️ In addition to using a promise to concurrently compute and return a
+      value, a cancelable promise can also represent a concurrent fiber that
+      will continue until it is explicitly {{!try_terminate} canceled}. *)
+
+  type !'a t
+  (** Represents a promise to return value of type ['a]. *)
+
+  val of_value : 'a -> 'a t
+  (** [of_value value] returns a constant completed promise that returns the
+      given [value].
+
+      ℹ️ Promises can also be {{!Bundle.fork_as_promise} created} in the scope of
+      a {!Bundle}. *)
+
+  val await : 'a t -> 'a
+  (** [await promise] awaits until the promise has completed and either returns
+      the [value] that the evaluation of the promise returned, raises the
+      exception that the evaluation of the promise raised, or raises the
+      {{!Control.Terminate} [Terminate]} exception in case the promise has been
+      canceled. *)
+
+  val is_running : 'a t -> bool
+  (** [is_running promise] determines whether the completion of the promise is
+      still pending. *)
+
+  val try_terminate : ?callstack:int -> 'a t -> bool
+  (** [try_terminate promise] tries to terminate the promise by canceling it
+      with the {{!Control.Terminate} [Terminate]} exception and returns [true]
+      in case of success and [false] in case the promise had already completed,
+      i.e. either returned, raised, or canceled. *)
+
+  val terminate : ?callstack:int -> 'a t -> unit
+  (** [terminate promise] is equivalent to
+      {{!try_terminate} [try_terminate promise |> ignore]}. *)
+end
+
 module Bundle : sig
-  (** A dynamic bundle of fibers guaranteed to be joined at the end. *)
+  (** A dynamic bundle of fibers guaranteed to be joined at the end.
+
+      Bundles allow you to conveniently structure or delimit concurrency into
+      nested scopes.  After a bundle returns or raises an exception, no fibers
+      {{!fork} forked} to the bundle remain.
+
+      An unhandled exception, or error, within any fiber of the bundle causes
+      all the fibers {{!fork} forked} to the bundle to be canceled and the
+      bundle to raise the exception. *)
 
   type t
   (** Represents a bundle of fibers. *)
@@ -139,18 +208,33 @@ module Bundle : sig
 
       The optional [callstack] argument specifies the number of callstack
       entries to capture with the {{!Control.Terminate} [Terminate]} exception.
-      The default is [0].  *)
+      The default is [0].
 
-  val error : t -> Exn_bt.t -> unit
+      ℹ️ Calling [terminate] at the end of a bundle can be a convenient way to
+      cancel any background fibers started by the bundle.
+
+      ℹ️ Calling [terminate] does not raise the {{!Control.Terminate}
+      [Terminate]} exception, but blocking operations after [terminate] will
+      raise the exception to propagate cancelation unless {{!Control.protect}
+      propagation of cancelation is forbidden}. *)
+
+  val error : ?callstack:int -> t -> Exn_bt.t -> unit
   (** [error bundle exn_bt] first calls {!terminate} and then adds the exception
       with backtrace to the list of exceptions to be raised, unless the
       exception is the {{!Control.Terminate} [Terminate]} exception, which is
-      not considered to signal an error by itself. *)
+      not considered to signal an error by itself.
+
+      The optional [callstack] argument is passed to {!terminate}. *)
+
+  val fork_as_promise : t -> (unit -> 'a) -> 'a Promise.t
+  (** [fork_as_promise bundle thunk] spawns a new fiber to the [bundle] that
+      will run the given [thunk].  The result of the [thunk] will be written to
+      the {{!Promise} promise}.  If the [thunk] raises an exception, {!error}
+      will be called with that exception. *)
 
   val fork : t -> (unit -> unit) -> unit
-  (** [fork bundle action] spawns a new fiber to the [bundle] that will run the
-      given [action].  If the action raises an exception, {!error} will be
-      called with that exception. *)
+  (** [fork bundle action] is equivalent to
+      {{!fork_as_promise} [fork_as_promise bundle action |> ignore]}. *)
 end
 
 module Run : sig
@@ -187,7 +271,7 @@ end
     We first define a function for the server:
 
     {[
-      let server socket =
+      let run_server socket =
         Unix.listen socket 8;
 
         Bundle.join_after begin fun bundle ->
@@ -218,12 +302,14 @@ end
     ]}
 
     The server function expects a bound socket and starts listening.  For each
-    accepted client the server forks a new fiber to handle it.
+    accepted client the server forks a new fiber to handle it.  The client
+    socket is {{!Finally.move} moved} from the server fiber to the client fiber
+    to avoid leaks and to ensure that the socket will be closed.
 
     Let's then define a function for the clients:
 
     {[
-      let client addr =
+      let run_client addr =
         let@ socket =
           finally Unix.close @@ fun () ->
           Unix.socket ~cloexec:true
@@ -250,8 +336,8 @@ end
     ]}
 
     The client function takes the address of the server and connects a socket to
-    the server address.  It then writes a message to server and reads a reply
-    from the server and prints it.
+    the server address.  It then writes a message to the server and reads a
+    reply from the server and prints it.
 
     Here is the main program:
 
@@ -274,19 +360,21 @@ end
 
         Bundle.join_after begin fun bundle ->
           (* Start server *)
-          Bundle.fork bundle (fun () ->
-            server socket);
+          let server =
+            Bundle.fork_as_promise bundle
+            @@ fun () -> run_server socket
+          in
 
           (* Run clients concurrently *)
           Bundle.join_after begin fun bundle ->
-            for _=1 to 5 do
+            for _ = 1 to 5 do
               Bundle.fork bundle (fun () ->
-                client addr)
+                run_client addr)
             done
           end;
 
           (* Stop server *)
-          Bundle.terminate bundle
+          Promise.terminate server
         end
     ]}
 
@@ -308,4 +396,6 @@ end
 
     As an exercise, you might want to refactor the server to avoid
     {{!Finally.move} moving} the file descriptors and use a {{!Finally.let@}
-    recursive} accept loop instead. *)
+    recursive} accept loop instead.  You could also {{!Bundle.terminate}
+    terminate the whole bundle} at the end instead of just terminating the
+    server. *)

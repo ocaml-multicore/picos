@@ -141,6 +141,49 @@ Woke up
 - : bool = true
 ```
 
+## Promise can be canceled without canceling the bundle
+
+```ocaml
+# Test_scheduler.run @@ fun () ->
+  Bundle.join_after @@ fun bundle ->
+  let promise =
+    Bundle.fork_as_promise bundle @@ fun () ->
+    Control.block ()
+  in
+  Control.yield ();
+  Promise.terminate promise;
+  Control.yield ();
+  101
+- : int = 101
+```
+
+## Error in promise ends the bundle
+
+```ocaml
+# Test_scheduler.run @@ fun () ->
+  Bundle.join_after @@ fun bundle ->
+  let promise =
+    Bundle.fork_as_promise bundle @@ fun () ->
+    failwith "I failed"
+  in
+  Control.block () |> ignore;
+  Promise.terminate promise
+Exception: Failure "I failed".
+```
+
+## Can wait for promises
+
+```ocaml
+# Test_scheduler.run @@ fun () ->
+  Bundle.join_after @@ fun bundle ->
+  let promise = Bundle.fork_as_promise bundle @@ fun () ->
+    Control.sleep ~seconds:0.1;
+    42
+  in
+  Promise.await promise
+- : int = 42
+```
+
 ## Racing
 
 ```ocaml
