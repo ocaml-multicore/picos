@@ -1,14 +1,14 @@
 open Picos
-module Picos_lwt_unix = Picos_lwt.Make (Lwt_unix)
 
 let basics () =
-  Lwt_main.run @@ Picos_lwt_unix.run
+  Lwt_main.run
+  @@ Picos_lwt.run ~sleep:Lwt_unix.sleep
   @@ fun () ->
   let computation = Computation.create () in
   let child =
     Computation.capture computation @@ fun () ->
     while true do
-      Picos_lwt_unix.await (fun () -> Lwt_unix.sleep 0.01)
+      Picos_lwt.await (fun () -> Lwt_unix.sleep 0.01)
     done
   in
   Fiber.spawn ~forbid:false computation [ child ];
