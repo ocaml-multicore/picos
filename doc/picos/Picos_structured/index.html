@@ -85,7 +85,7 @@ open Picos_sync</code></pre><h3 id="a-simple-echo-server-and-clients"><a href="#
 
     (* Stop server *)
     Bundle.terminate bundle
-  end</code></pre><p>The main program creates a socket for the server and binds it. The server is then started as a new fiber. Then the clients are started to run concurrently. Finally the server is terminated.</p><p>Finally we run the main program with a scheduler:</p><pre class="language-ocaml"><code># Picos_fifos.run ~forbid:false main
+  end</code></pre><p>The main program creates a socket for the server and binds it. The server is then started as a new fiber. Then the clients are started to run concurrently. Finally the server is terminated.</p><p>Finally we run the main program with a scheduler:</p><pre class="language-ocaml"><code># Picos_fifos.run main
 Received: Hello!
 Received: Hello!
 Received: Hello!
