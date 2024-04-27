@@ -3,7 +3,8 @@
     Example:
     {[
       # let t : (int, string) Picos_htbl.t =
-          Picos_htbl.create ~hashed_type:(module Int) ()
+          Picos_htbl.create
+            ~hashed_type:(module Int) ()
       val t : (int, string) Picos_htbl.t = <abstr>
 
       # Picos_htbl.try_add t 42 "The answer"

@@ -140,15 +140,18 @@ val check_configured : unit -> unit
 
         let@ msg_inn1, msg_out1 =
           finally Unix.close_pair @@ fun () ->
-          Unix.socketpair PF_UNIX SOCK_STREAM 0 ~cloexec:true
+          Unix.socketpair ~cloexec:true
+            PF_UNIX SOCK_STREAM 0
         in
         let@ msg_inn2, msg_out2 =
           finally Unix.close_pair @@ fun () ->
-          Unix.socketpair PF_UNIX SOCK_STREAM 0 ~cloexec:true
+          Unix.socketpair ~cloexec:true
+            PF_UNIX SOCK_STREAM 0
         in
         let@ syn_inn, syn_out =
           finally Unix.close_pair @@ fun () ->
-          Unix.socketpair PF_UNIX SOCK_STREAM 0 ~cloexec:true
+          Unix.socketpair ~cloexec:true
+            PF_UNIX SOCK_STREAM 0
         in
 
         Unix.set_nonblock msg_inn1;
@@ -158,38 +161,60 @@ val check_configured : unit -> unit
         Unix.set_nonblock syn_inn;
         Unix.set_nonblock syn_out;
 
+        let read1 fd =
+          let r =
+            Unix.read fd (Bytes.create 1) 0 1
+          in
+          assert (r = 1)
+        and write1 fd =
+          let w =
+            Unix.write_substring fd "!" 0 1
+          in
+          assert (w = 1)
+        in
+
         Bundle.join_after begin fun bundle ->
           Bundle.fork bundle begin fun () ->
             while true do
-              let select = Computation.create () in
-              Picos_select.return_on select msg_inn1 `R `Inn1;
-              Picos_select.return_on select msg_inn2 `R `Inn2;
-              Picos_select.cancel_after select
-                ~seconds:0.1 (Exn_bt.get_callstack 0 Timeout);
+              let select =
+                Computation.create ()
+              in
+              Picos_select.return_on
+                select msg_inn1 `R `Inn1;
+              Picos_select.return_on
+                select msg_inn2 `R `Inn2;
+              Picos_select.cancel_after
+                select ~seconds:0.1
+                  (Exn_bt.get_callstack 0
+                    Timeout);
 
-              match Computation.await select with
+              match
+                Computation.await select
+              with
               | `Inn1 ->
                 Printf.printf "Inn1\n%!";
-                assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1);
-                assert (1 = Unix.write_substring syn_out "!" 0 1)
+                read1 msg_inn1;
+                write1 syn_out
               | `Inn2 ->
                 Printf.printf "Inn2\n%!";
-                assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1);
-                assert (1 = Unix.write_substring syn_out "!" 0 1)
+                read1 msg_inn2;
+                write1 syn_out;
               | exception Timeout ->
                 Printf.printf "Timeout\n%!";
-                assert (1 = Unix.write_substring syn_out "!" 0 1)
+                write1 syn_out
               | exception exn ->
-                Computation.cancel select (Exn_bt.get_callstack 0 Exit);
+                Computation.cancel select
+                  (Exn_bt.get_callstack 0
+                    Exit);
                 raise exn
             done
           end;
 
-          assert (1 = Unix.write_substring msg_out1 "!" 0 1);
-          assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
-          assert (1 = Unix.write_substring msg_out2 "!" 0 1);
-          assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
-          assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
+          write1 msg_out1;
+          read1 syn_inn;
+          write1 msg_out2;
+          read1 syn_inn;
+          read1 syn_inn;
 
           Bundle.terminate bundle
         end
