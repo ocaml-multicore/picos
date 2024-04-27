@@ -507,6 +507,10 @@ module Computation : sig
       However, it is possible and safe to race multiple threads of execution to
       complete a computation. *)
 
+  val returned : 'a -> 'a t
+  (** [returned value] returns a constant computation that has returned the
+      given [value]. *)
+
   val finished : unit t
   (** [finished] is a constant finished computation. *)
 

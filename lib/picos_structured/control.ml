@@ -45,8 +45,7 @@ module Errors = struct
     if not (Atomic.compare_and_set t before after) then
       push t exn_bt (Backoff.once backoff)
 
-  let push t (exn_bt : Exn_bt.t) =
-    if exn_bt.exn != Terminate then push t exn_bt Backoff.default
+  let push t exn_bt = push t exn_bt Backoff.default
 end
 
 let raise_if_canceled () = Fiber.check (Fiber.current ())
