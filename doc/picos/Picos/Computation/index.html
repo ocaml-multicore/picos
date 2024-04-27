@@ -9,14 +9,15 @@ let search_urls = ['../../db.js','../../../sherlodoc.js'];
     finally Domain.join @@ fun () -&gt;
     Domain.spawn @@ fun () -&gt;
       let rec fib i =
-        Computation.check computation;
+        Computation.check
+          computation;
         if i &lt;= 1 then
           i
         else
           fib (i - 1) + fib (i - 2)
       in
-      Computation.capture computation
-        fib 10
+      Computation.capture
+        computation fib 10
   in
   let@ canceler =
     finally Domain.join @@ fun () -&gt;
@@ -32,6 +33,8 @@ end</code></pre><p>In this framework, a fiber is always associated with <a href=
   <span><span class="type-var">'y</span> <span class="arrow">&#45;&gt;</span></span>
   <span><span>(<span><a href="../Trigger/index.html#type-t">Trigger.t</a> <span class="arrow">&#45;&gt;</span></span> <span><span class="type-var">'x</span> <span class="arrow">&#45;&gt;</span></span> <span><span class="type-var">'y</span> <span class="arrow">&#45;&gt;</span></span> unit)</span> <span class="arrow">&#45;&gt;</span></span>
   <span><span class="type-var">'a</span> <a href="#type-t">t</a></span></span></code></div><div class="spec-doc"><p><code>with_action x y resume</code> is equivalent to</p><pre class="language-ocaml"><code>let computation = create () in
-let trigger = Trigger.from_action x y resume in
-let _ : bool = try_attach computation trigger in
+let trigger =
+  Trigger.from_action x y resume in
+let _ : bool =
+  try_attach computation trigger in
 computation</code></pre><p>⚠️ The same warnings as with <a href="../Trigger/index.html#val-from_action"><code>Trigger.from_action</code></a> apply.</p><ul class="at-tags"><li class="alert"><span class="at-tag">alert</span> handler This is an escape hatch for experts implementing schedulers or structured concurrency mechanisms.  If you know what you are doing, use [@alert &quot;-handler&quot;].</li></ul></div></div><h3 id="design-rationale"><a href="#design-rationale" class="anchor"></a>Design rationale</h3><p>The computation concept can be seen as a kind of single-shot atomic event that is a generalization of both a cancelation context or token and of a promise. Unlike a typical promise mechanism, a computation can be canceled. Unlike a typical cancelation mechanism, a computation can and should also be completed in case it is not canceled. This promotes proper scoping of computations and resource cleanup at completion, which is how the design evolved from a more traditional cancelation context design.</p><p>In this framework, <a href="../Fiber/index.html#val-get_computation" title="Fiber.get_computation">every fiber is associated with a computation</a>. Being able to return a value through the computation means that no separate promise is necessarily required to hold the result of a fiber. On the other hand, in this framework, <a href="../Fiber/index.html#val-spawn" title="Fiber.spawn">multiple fibers may share a single computation</a>. This allows multiple fibers to be canceled efficiently through a single atomic update. In other words, the design allows various higher level patterns to be implemented efficiently.</p><p>Instead of directly implementing a hierarchy of computations, the design allows <a href="#val-try_attach" title="try_attach">attach</a>ing triggers to computations and <a href="#val-canceler" title="canceler">a special trigger constructor</a> is provided for propagating cancelation. This helps to keep the implementation lean, i.e. not substantially heavier than a typical promise implementation.</p><p>Finally, just like with <a href="../Trigger/index.html#extension-Await"><code>Trigger.Await</code></a>, a key idea is that the handler of <a href="#extension-Cancel_after"><code>Computation.Cancel_after</code></a> does not need to run arbitrary user defined code. The action of any trigger attached to a computation either comes from some scheduler calling <a href="../Trigger/index.html#val-on_signal"><code>Trigger.on_signal</code></a> or from <a href="#val-canceler"><code>Computation.canceler</code></a>.</p></div></body></html>
