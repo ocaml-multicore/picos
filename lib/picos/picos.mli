@@ -122,7 +122,8 @@
 
     {@ocaml version<5.0.0[
       let run main =
-        Picos_threaded.run ~forbid:false main
+        Picos_threaded.run
+          ~forbid:false main
     ]}
 
     using {{!Picos_threaded} the basic thread based scheduler} and on OCaml 5
@@ -439,14 +440,15 @@ module Computation : sig
             finally Domain.join @@ fun () ->
             Domain.spawn @@ fun () ->
               let rec fib i =
-                Computation.check computation;
+                Computation.check
+                  computation;
                 if i <= 1 then
                   i
                 else
                   fib (i - 1) + fib (i - 2)
               in
-              Computation.capture computation
-                fib 10
+              Computation.capture
+                computation fib 10
           in
           let@ canceler =
             finally Domain.join @@ fun () ->
@@ -670,8 +672,10 @@ module Computation : sig
   (** [with_action x y resume] is equivalent to
       {@ocaml skip[
         let computation = create () in
-        let trigger = Trigger.from_action x y resume in
-        let _ : bool = try_attach computation trigger in
+        let trigger =
+          Trigger.from_action x y resume in
+        let _ : bool =
+          try_attach computation trigger in
         computation
       ]}
 

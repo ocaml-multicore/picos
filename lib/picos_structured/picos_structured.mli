@@ -182,90 +182,122 @@ end
 
     {2 A simple echo server and clients}
 
-    Here is an example of a simple TCP echo server and two clients:
+    Let's build a simple TCP echo server and run it with some clients.
+
+    We first define a function for the server:
 
     {[
-      # Picos_fifos.run ~forbid:false @@ fun () ->
-        let max_size = 100 in
+      let server socket =
+        Unix.listen socket 8;
 
-        (* We let the system pick the port *)
-        let loopback_0 = Unix.(ADDR_INET (inet_addr_loopback, 0)) in
-        let server_addr = ref loopback_0 in
-        let mutex = Mutex.create () in
-        let condition = Condition.create () in
+        Bundle.join_after begin fun bundle ->
+          while true do
+            let^ client =
+              finally Unix.close @@ fun () ->
+              Unix.accept
+                ~cloexec:true socket |> fst
+            in
 
-        let server () =
-          let@ socket =
-            finally Unix.close @@ fun () ->
-            Unix.socket ~cloexec:true PF_INET SOCK_STREAM 0
-          in
-          Unix.set_nonblock socket;
-          Unix.bind socket loopback_0;
-          Mutex.protect mutex begin fun () ->
-            server_addr := Unix.getsockname socket
-          end;
-          Condition.signal condition;
-          Unix.listen socket 8;
+            (* Fork a fiber for client *)
+            Bundle.fork bundle begin fun () ->
+              let@ client = move client in
+              Unix.set_nonblock client;
 
-          Bundle.join_after begin fun bundle ->
-            while true do
-              let^ client =
-                finally Unix.close @@ fun () ->
-                Unix.accept ~cloexec:true socket |> fst
+              let bytes =
+                Bytes.create 100
               in
+              let n =
+                Unix.read client bytes 0
+                  (Bytes.length bytes)
+              in
+              Unix.write client bytes 0 n
+              |> ignore
+            end
+          done
+        end
+    ]}
 
-              (* Fork a new fiber for each client *)
-              Bundle.fork bundle begin fun () ->
-                let@ client = move client in
-                Unix.set_nonblock client;
+    The server function expects a bound socket and starts listening.  For each
+    accepted client the server forks a new fiber to handle it.
 
-                let bytes = Bytes.create max_size in
-                let n = Unix.read client bytes 0 (Bytes.length bytes) in
+    Let's then define a function for the clients:
 
-                Unix.write client bytes 0 n |> ignore
-              end
-            done
-          end
+    {[
+      let client addr =
+        let@ socket =
+          finally Unix.close @@ fun () ->
+          Unix.socket ~cloexec:true
+            PF_INET SOCK_STREAM 0
+        in
+        Unix.set_nonblock socket;
+        Unix.connect socket addr;
+
+        let msg = "Hello!" in
+        Unix.write_substring
+          socket msg 0 (String.length msg)
+        |> ignore;
+
+        let bytes =
+          Bytes.create (String.length msg)
+        in
+        let n =
+          Unix.read socket bytes 0
+            (Bytes.length bytes)
         in
 
-        let client () =
-          let@ socket =
-            finally Unix.close @@ fun () ->
-            Unix.socket ~cloexec:true PF_INET SOCK_STREAM 0
-          in
-          Unix.set_nonblock socket;
-          Unix.connect socket !server_addr;
+        Printf.printf "Received: %s\n%!"
+          (Bytes.sub_string bytes 0 n)
+    ]}
 
-          let msg = "Hello!" in
-          Unix.write_substring socket msg 0 (String.length msg) |> ignore;
+    The client function takes the address of the server and connects a socket to
+    the server address.  It then writes a message to server and reads a reply
+    from the server and prints it.
 
-          let bytes = Bytes.create max_size in
-          let n = Unix.read socket bytes 0 (Bytes.length bytes) in
+    Here is the main program:
 
-          Printf.printf "Received: %s\n%!" (Bytes.sub_string bytes 0 n)
+    {[
+      let main () =
+        let@ socket =
+          finally Unix.close @@ fun () ->
+          Unix.socket ~cloexec:true
+            PF_INET SOCK_STREAM 0
+        in
+        Unix.set_nonblock socket;
+
+        (* Let system determine the port *)
+        Unix.bind socket Unix.(
+          ADDR_INET(inet_addr_loopback, 0));
+
+        let addr =
+          Unix.getsockname socket
         in
 
         Bundle.join_after begin fun bundle ->
           (* Start server *)
-          Bundle.fork bundle server;
+          Bundle.fork bundle (fun () ->
+            server socket);
 
-          (* Wait until server address has been determined *)
-          Mutex.protect mutex begin fun () ->
-            while !server_addr == loopback_0 do
-              Condition.wait condition mutex
-            done
-          end;
-
-          (* Start some clients and wait until they are done *)
+          (* Run clients concurrently *)
           Bundle.join_after begin fun bundle ->
             for _=1 to 5 do
-              Bundle.fork bundle client
+              Bundle.fork bundle (fun () ->
+                client addr)
             done
           end;
 
           (* Stop server *)
           Bundle.terminate bundle
         end
+    ]}
+
+    The main program creates a socket for the server and binds it.  The server
+    is then started as a new fiber.  Then the clients are started to run
+    concurrently.  Finally the server is terminated.
+
+    Finally we run the main program with a scheduler:
+
+    {[
+      # Picos_fifos.run ~forbid:false main
       Received: Hello!
       Received: Hello!
       Received: Hello!
