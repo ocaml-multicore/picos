@@ -701,36 +701,52 @@ end
     {[
       # Picos_fifos.run @@ fun () ->
 
-        let@ msg_inn, msg_out =
+        let@ msg_i, msg_o =
           finally Unix.close_pair @@ fun () ->
-          Unix.socketpair PF_UNIX SOCK_STREAM 0 ~cloexec:true
+          Unix.socketpair ~cloexec:true
+            PF_UNIX SOCK_STREAM 0
         in
-        let@ syn_inn, syn_out =
+        let@ syn_i, syn_o =
           finally Unix.close_pair @@ fun () ->
-          Unix.socketpair PF_UNIX SOCK_STREAM 0 ~cloexec:true
+          Unix.socketpair ~cloexec:true
+            PF_UNIX SOCK_STREAM 0
         in
 
-        Unix.set_nonblock msg_inn;
-        Unix.set_nonblock msg_out;
-        Unix.set_nonblock syn_inn;
-        Unix.set_nonblock syn_out;
+        Unix.set_nonblock msg_i;
+        Unix.set_nonblock msg_o;
+        Unix.set_nonblock syn_i;
+        Unix.set_nonblock syn_o;
 
         Bundle.join_after begin fun bundle ->
           Bundle.fork bundle begin fun () ->
             let bytes = Bytes.create 100 in
             while true do
-              let n = Unix.read msg_inn bytes 0 100 in
+              let n =
+                Unix.read msg_i bytes 0 100
+              in
               if n > 0 then begin
-                Printf.printf "%s\n%!" (Bytes.sub_string bytes 0 n);
-                assert (1 = Unix.write_substring syn_out "!" 0 1)
+                Printf.printf "%s\n%!"
+                  (Bytes.sub_string bytes 0 n);
+                let w =
+                  Unix.write_substring
+                    syn_o "!" 0 1
+                in
+                assert (w = 1)
               end
             done
           end;
 
           let send_string s =
             let n = String.length s in
-            assert (n = Unix.write_substring msg_out s 0 n);
-            assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1)
+            let w =
+              Unix.write_substring msg_o s 0 n
+            in
+            assert (w = n);
+            let r =
+              Unix.read syn_i
+                (Bytes.create 1) 0 1
+            in
+            assert (r = 1)
           in
 
           send_string "Hello, world!";
