@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml"><head><title>Picos_structured (picos.Picos_structured)</title><meta charset="utf-8"/><link rel="stylesheet" href="../../odoc.support/odoc.css"/><meta name="generator" content="odoc 2.4.1"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../odoc.support/highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script><script>let base_url = '../../';
 let search_urls = ['../db.js','../../sherlodoc.js'];
-</script><script src="../../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../index.html">picos</a> &#x00BB; Picos_structured</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1>Module <code><span>Picos_structured</span></code></h1><p>Basic structured concurrency primitives for <a href="../Picos/index.html"><code>Picos</code></a>.</p><p>This library essentially provides one user level interface for structuring fibers with any Picos compatible scheduler. This library is both meant to serve as an example of what can be done and to also provide practical means for programming with fibers. Hopefully there will be many more libraries implemented in Picos like this providing different approaches, patterns, and idioms for structuring concurrent programs.</p></header><nav class="odoc-toc"><ul><li><a href="#modules">Modules</a></li><li><a href="#examples">Examples</a><ul><li><a href="#a-simple-echo-server-and-clients">A simple echo server and clients</a></li></ul></li></ul></nav><div class="odoc-content"><h2 id="modules"><a href="#modules" class="anchor"></a>Modules</h2><div class="odoc-spec"><div class="spec module anchored" id="module-Finally"><a href="#module-Finally" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Finally/index.html">Finally</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>Syntax for avoiding resource leaks.</p></div></div><div class="odoc-spec"><div class="spec module anchored" id="module-Control"><a href="#module-Control" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Control/index.html">Control</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>Basic control operations and exceptions for structured concurrency.</p></div></div><div class="odoc-spec"><div class="spec module anchored" id="module-Bundle"><a href="#module-Bundle" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Bundle/index.html">Bundle</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>A dynamic bundle of fibers guaranteed to be joined at the end.</p></div></div><div class="odoc-spec"><div class="spec module anchored" id="module-Run"><a href="#module-Run" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Run/index.html">Run</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>Operations for running fibers in specific patterns.</p></div></div><h2 id="examples"><a href="#examples" class="anchor"></a>Examples</h2><p>First we open some modules for convenience:</p><pre class="language-ocaml"><code>open Picos_structured.Finally
+</script><script src="../../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../index.html">picos</a> &#x00BB; Picos_structured</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1>Module <code><span>Picos_structured</span></code></h1><p>Basic structured concurrency primitives for <a href="../Picos/index.html"><code>Picos</code></a>.</p><p>This library essentially provides one user level interface for structuring fibers with any Picos compatible scheduler. This library is both meant to serve as an example of what can be done and to also provide practical means for programming with fibers. Hopefully there will be many more libraries implemented in Picos like this providing different approaches, patterns, and idioms for structuring concurrent programs.</p></header><nav class="odoc-toc"><ul><li><a href="#modules">Modules</a></li><li><a href="#examples">Examples</a><ul><li><a href="#a-simple-echo-server-and-clients">A simple echo server and clients</a></li></ul></li></ul></nav><div class="odoc-content"><h2 id="modules"><a href="#modules" class="anchor"></a>Modules</h2><div class="odoc-spec"><div class="spec module anchored" id="module-Finally"><a href="#module-Finally" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Finally/index.html">Finally</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>Syntax for avoiding resource leaks.</p></div></div><div class="odoc-spec"><div class="spec module anchored" id="module-Control"><a href="#module-Control" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Control/index.html">Control</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>Basic control operations and exceptions for structured concurrency.</p></div></div><div class="odoc-spec"><div class="spec module anchored" id="module-Promise"><a href="#module-Promise" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Promise/index.html">Promise</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>A cancelable promise.</p></div></div><div class="odoc-spec"><div class="spec module anchored" id="module-Bundle"><a href="#module-Bundle" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Bundle/index.html">Bundle</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>A dynamic bundle of fibers guaranteed to be joined at the end.</p></div></div><div class="odoc-spec"><div class="spec module anchored" id="module-Run"><a href="#module-Run" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Run/index.html">Run</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>Operations for running fibers in specific patterns.</p></div></div><h2 id="examples"><a href="#examples" class="anchor"></a>Examples</h2><p>First we open some modules for convenience:</p><pre class="language-ocaml"><code>open Picos_structured.Finally
 open Picos_structured
 open Picos_stdio
-open Picos_sync</code></pre><h3 id="a-simple-echo-server-and-clients"><a href="#a-simple-echo-server-and-clients" class="anchor"></a>A simple echo server and clients</h3><p>Let's build a simple TCP echo server and run it with some clients.</p><p>We first define a function for the server:</p><pre class="language-ocaml"><code>let server socket =
+open Picos_sync</code></pre><h3 id="a-simple-echo-server-and-clients"><a href="#a-simple-echo-server-and-clients" class="anchor"></a>A simple echo server and clients</h3><p>Let's build a simple TCP echo server and run it with some clients.</p><p>We first define a function for the server:</p><pre class="language-ocaml"><code>let run_server socket =
   Unix.listen socket 8;
 
   Bundle.join_after begin fun bundle -&gt;
@@ -31,7 +31,7 @@ open Picos_sync</code></pre><h3 id="a-simple-echo-server-and-clients"><a href="#
         |&gt; ignore
       end
     done
-  end</code></pre><p>The server function expects a bound socket and starts listening. For each accepted client the server forks a new fiber to handle it.</p><p>Let's then define a function for the clients:</p><pre class="language-ocaml"><code>let client addr =
+  end</code></pre><p>The server function expects a bound socket and starts listening. For each accepted client the server forks a new fiber to handle it. The client socket is <a href="Finally/index.html#val-move" title="Finally.move">moved</a> from the server fiber to the client fiber to avoid leaks and to ensure that the socket will be closed.</p><p>Let's then define a function for the clients:</p><pre class="language-ocaml"><code>let run_client addr =
   let@ socket =
     finally Unix.close @@ fun () -&gt;
     Unix.socket ~cloexec:true
@@ -54,7 +54,7 @@ open Picos_sync</code></pre><h3 id="a-simple-echo-server-and-clients"><a href="#
   in
 
   Printf.printf &quot;Received: %s\n%!&quot;
-    (Bytes.sub_string bytes 0 n)</code></pre><p>The client function takes the address of the server and connects a socket to the server address. It then writes a message to server and reads a reply from the server and prints it.</p><p>Here is the main program:</p><pre class="language-ocaml"><code>let main () =
+    (Bytes.sub_string bytes 0 n)</code></pre><p>The client function takes the address of the server and connects a socket to the server address. It then writes a message to the server and reads a reply from the server and prints it.</p><p>Here is the main program:</p><pre class="language-ocaml"><code>let main () =
   let@ socket =
     finally Unix.close @@ fun () -&gt;
     Unix.socket ~cloexec:true
@@ -72,23 +72,25 @@ open Picos_sync</code></pre><h3 id="a-simple-echo-server-and-clients"><a href="#
 
   Bundle.join_after begin fun bundle -&gt;
     (* Start server *)
-    Bundle.fork bundle (fun () -&gt;
-      server socket);
+    let server =
+      Bundle.fork_as_promise bundle
+      @@ fun () -&gt; run_server socket
+    in
 
     (* Run clients concurrently *)
     Bundle.join_after begin fun bundle -&gt;
-      for _=1 to 5 do
+      for _ = 1 to 5 do
         Bundle.fork bundle (fun () -&gt;
-          client addr)
+          run_client addr)
       done
     end;
 
     (* Stop server *)
-    Bundle.terminate bundle
+    Promise.terminate server
   end</code></pre><p>The main program creates a socket for the server and binds it. The server is then started as a new fiber. Then the clients are started to run concurrently. Finally the server is terminated.</p><p>Finally we run the main program with a scheduler:</p><pre class="language-ocaml"><code># Picos_fifos.run main
 Received: Hello!
 Received: Hello!
 Received: Hello!
 Received: Hello!
 Received: Hello!
-- : unit = ()</code></pre><p>As an exercise, you might want to refactor the server to avoid <a href="Finally/index.html#val-move" title="Finally.move">moving</a> the file descriptors and use a <a href="Finally/index.html#val-let@" title="Finally.let@">recursive</a> accept loop instead.</p></div></body></html>
+- : unit = ()</code></pre><p>As an exercise, you might want to refactor the server to avoid <a href="Finally/index.html#val-move" title="Finally.move">moving</a> the file descriptors and use a <a href="Finally/index.html#val-let@" title="Finally.let@">recursive</a> accept loop instead. You could also <a href="Bundle/index.html#val-terminate" title="Bundle.terminate">terminate the whole bundle</a> at the end instead of just terminating the server.</p></div></body></html>
