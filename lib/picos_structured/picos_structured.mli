@@ -121,8 +121,8 @@ module Control : sig
   (** [yield ()] asks the current fiber to be rescheduled. *)
 
   val sleep : seconds:float -> unit
-  (** [sleep ~seconds] suspends the current fiber for specified number of
-      seconds. *)
+  (** [sleep ~seconds] suspends the current fiber for the specified number of
+      [seconds]. *)
 
   val protect : (unit -> 'a) -> 'a
   (** [protect thunk] forbids propagation of cancelation for the duration of

@@ -145,7 +145,8 @@ module Lazy : sig
   (** [force_val] is a synonym for {!force}. *)
 
   val map : ('a -> 'b) -> 'a t -> 'b t
-  (** [map fn susp] is equivalent to [from_fun (fun () -> fn (force susp))] *)
+  (** [map fn susp] is equivalent to
+      {{!from_fun} [from_fun (fun () -> fn (force susp))]}. *)
 
   val map_val : ('a -> 'b) -> 'a t -> 'b t
   (** [map_val fn susp] is equivalent to:

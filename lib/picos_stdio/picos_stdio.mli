@@ -61,7 +61,8 @@ module Unix : sig
       descriptor. *)
 
   val close_pair : file_descr * file_descr -> unit
-  (** [close_pair (fd1, fd2)] is equivalent to [close fd1; close fd2]. *)
+  (** [close_pair (fd1, fd2)] is equivalent to
+      {{!close} [close fd1; close fd2]}. *)
 
   type error = Unix.error =
     | E2BIG

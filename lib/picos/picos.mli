@@ -304,7 +304,7 @@ module Trigger : sig
        structured concurrency mechanisms.  If you know what you are doing, use \
        [@alert \"-handler\"]."]
   (** [from_action x y resume] is equivalent to
-      [let t = create () in assert (on_signal t x y resume); t].
+      {{!on_signal} [let t = create () in assert (on_signal t x y resume); t]}.
 
       ⚠️ The action that you attach to a trigger must be safe to call from any
       context that might end up signaling the trigger directly or indirectly
@@ -522,14 +522,15 @@ module Computation : sig
 
   val return : 'a t -> 'a -> unit
   (** [return computation value] is equivalent to
-      [try_return computation value |> ignore]. *)
+      {{!try_return} [try_return computation value |> ignore]}. *)
 
   val try_finish : unit t -> bool
-  (** [try_finish computation] is equivalent to [try_return computation ()]. *)
+  (** [try_finish computation] is equivalent to
+      {{!try_return} [try_return computation ()]}. *)
 
   val finish : unit t -> unit
   (** [finish computation] is equivalent to
-      [try_finish computation |> ignore]. *)
+      {{!try_finish} [try_finish computation |> ignore]}. *)
 
   val try_capture : 'a t -> ('b -> 'a) -> 'b -> bool
   (** [try_capture computation fn x] calls [fn x] and tries to complete the
@@ -539,7 +540,7 @@ module Computation : sig
 
   val capture : 'a t -> ('b -> 'a) -> 'b -> unit
   (** [capture computation fn x] is equivalent to
-      [try_capture computation fn x |> ignore]. *)
+      {{!try_capture} [try_capture computation fn x |> ignore]}. *)
 
   (** {2 Interface for canceling} *)
 
@@ -554,7 +555,7 @@ module Computation : sig
 
   val cancel : 'a t -> Exn_bt.t -> unit
   (** [cancel computation exn_bt] is equivalent to
-      [try_cancel computation exn_bt |> ignore]. *)
+      {{!try_cancel} [try_cancel computation exn_bt |> ignore]}. *)
 
   (** {2 Interface for timeouts} *)
 
@@ -591,7 +592,7 @@ module Computation : sig
 
   val check : 'a t -> unit
   (** [check computation] is equivalent to
-      [Option.iter Exn_bt.raise (canceled computation)]. *)
+      {{!canceled} [Option.iter Exn_bt.raise (canceled computation)]}. *)
 
   val peek : 'a t -> ('a, Exn_bt.t) result option
   (** [peek computation] returns the result of the computation or [None] in case
@@ -743,8 +744,8 @@ module Fiber : sig
         current handler}. *)
 
   val sleep : seconds:float -> unit
-  (** [sleep ~seconds] suspends the current fiber for specified number of
-      seconds. *)
+  (** [sleep ~seconds] suspends the current fiber for the specified number of
+      [seconds]. *)
 
   (** {2 Interface for spawning} *)
 
@@ -1041,7 +1042,7 @@ module Fiber : sig
 
   val create : forbid:bool -> 'a Computation.t -> t
   (** [create ~forbid computation] is equivalent to
-      [create_packed ~forbid (Computation.Packed computation)]. *)
+      {{!create_packed} [create_packed ~forbid (Computation.Packed computation)]}. *)
 
   val try_suspend :
     t -> Trigger.t -> 'x -> 'y -> (Trigger.t -> 'x -> 'y -> unit) -> bool

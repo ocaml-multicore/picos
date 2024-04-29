@@ -52,7 +52,7 @@ module type Fiber = sig
 
   val resume : t -> (exn_bt option, 'r) Effect.Deep.continuation -> 'r
   (** [resume fiber k] is equivalent to
-      [Effect.Deep.continue k (Fiber.canceled t)]. *)
+      {{!Fiber.canceled} [Effect.Deep.continue k (Fiber.canceled t)]}. *)
 
   val resume_with :
     t ->
@@ -60,7 +60,7 @@ module type Fiber = sig
     ('b, 'r) Effect.Shallow.handler ->
     'r
   (** [resume_with fiber k h] is equivalent to
-      [Effect.Shallow.continue_with k (Fiber.canceled t) h]. *)
+      {{!Fiber.canceled} [Effect.Shallow.continue_with k (Fiber.canceled t) h]}. *)
 
   val continue : t -> ('v, 'r) Effect.Deep.continuation -> 'v -> 'r
   (** [continue fiber k v] is equivalent to:
