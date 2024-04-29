@@ -204,7 +204,8 @@ module Bundle : sig
 
   val terminate : ?callstack:int -> t -> unit
   (** [terminate bundle] cancels all the {{!fork} forked} fibers using the
-      {{!Control.Terminate} [Terminate]} exception.
+      {{!Control.Terminate} [Terminate]} exception.  After [terminate] has been
+      called, no new fibers can be forked to the bundle.
 
       The optional [callstack] argument specifies the number of callstack
       entries to capture with the {{!Control.Terminate} [Terminate]} exception.
@@ -263,6 +264,109 @@ end
       open Picos_stdio
       open Picos_sync
     ]}
+
+    {2 Understanding cancelation}
+
+    Consider the following program:
+
+    {[
+      let main () =
+        Bundle.join_after begin fun bundle ->
+          let promise =
+            Bundle.fork_as_promise bundle
+            @@ fun () -> Control.block ()
+          in
+
+          Bundle.fork bundle begin fun () ->
+            Promise.await promise
+          end;
+
+          Bundle.fork bundle begin fun () ->
+            let mutex = Mutex.create () in
+            let condition = Condition.create () in
+            Mutex.protect mutex begin fun () ->
+              while true do
+                Condition.wait condition mutex
+              done
+            end
+          end;
+
+          Bundle.fork bundle begin fun () ->
+            let@ inn, out =
+              finally Unix.close_pair @@ fun () ->
+              Unix.socketpair ~cloexec:true
+                PF_UNIX SOCK_STREAM 0
+            in
+            Unix.set_nonblock inn;
+            let n =
+              Unix.read inn (Bytes.create 1) 0 1
+            in
+            assert (n = 1)
+          end;
+
+          Bundle.fork bundle begin fun () ->
+            let a_month =
+              60.0 *. 60.0 *. 24.0 *. 30.0
+            in
+            Control.sleep ~seconds:a_month
+          end;
+
+          (* Let the children get stuck *)
+          Control.yield ();
+
+          Bundle.terminate bundle
+        end
+    ]}
+
+    First of all, note that above the {{!Picos_sync.Mutex} [Mutex]} and
+    {{!Picos_sync.Condition} [Condition]} modules come from the {!Picos_sync}
+    library and the {{!Picos_stdio.Unix} [Unix]} module comes from the
+    {!Picos_stdio} library.  They do not come from the standard OCaml libraries.
+
+    The above program creates a {{!Bundle} bundle} of fibers and {{!Bundle.fork}
+    forks} several fibers to the bundle that all block in various ways.  In
+    detail,
+
+    - {!Control.block} never returns,
+    - {!Promise.await} never returns as the [promise] won't be completed,
+    - {{!Picos_sync.Condition.wait} [Condition.wait]} never returns, because it
+      is never signaled,
+    - {{!Picos_stdio.Unix.read} [Unix.read]} never returns, because the pipe is
+      never written to, and the
+    - {!Control.sleep} call would returns only after about a month.
+
+    Fibers forked to a bundle can be canceled in various ways.  In the above
+    program we call {!Bundle.terminate} to cancel all the fibers and effectively
+    close the bundle.  This allows the program to return normally immediately
+    and without leaking or leaving anything in an invalid state:
+
+    {[
+      # Picos_fifos.run main
+      - : unit = ()
+    ]}
+
+    Now, the point of the above example isn't that you should just call
+    {{!Bundle.terminate} [terminate]} when your program gets stuck. 😅
+
+    What the above example hopefully demonstrates is that concurrent
+    abstractions like mutexes and condition variables, asynchronous IO
+    libraries, and others can be designed to support cancelation.
+
+    Cancelation is a control flow mechanism that allows structured concurrent
+    abstractions, like the {!Bundle} abstraction, to (hopefully) gracefully tear
+    down concurrent fibers in case of errors.  Indeed, one of the basic ideas
+    behind the {!Bundle} abstraction is that in case any fiber forked to the
+    bundle raises an unhandled exception, the whole bundle will be terminated
+    and the error will raised from the bundle, which allows you to understand
+    what went wrong, instead of having to debug a program that mysteriously gets
+    stuck, for example.
+
+    Cancelation can also, with some care, be used as a mechanism to terminate
+    fibers once they are no longer needed.  However, just like sleep, for
+    example, cancelation is inherently prone to races, i.e. it is difficult to
+    understand the exact point and state at which a fiber gets canceled and it
+    is usually non-deterministic, and therefore cancelation is not recommended
+    for use as a general synchronization or communication mechanism.
 
     {2 A simple echo server and clients}
 
