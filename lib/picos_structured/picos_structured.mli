@@ -329,11 +329,11 @@ end
 
     - {!Control.block} never returns,
     - {!Promise.await} never returns as the [promise] won't be completed,
-    - {{!Picos_sync.Condition.wait} [Condition.wait]} never returns, because it
-      is never signaled,
-    - {{!Picos_stdio.Unix.read} [Unix.read]} never returns, because the pipe is
-      never written to, and the
-    - {!Control.sleep} call would returns only after about a month.
+    - {{!Picos_sync.Condition.wait} [Condition.wait]} never returns, because the
+      condition is never signaled,
+    - {{!Picos_stdio.Unix.read} [Unix.read]} never returns, because the socket
+      is never written to, and the
+    - {!Control.sleep} call would return only after about a month.
 
     Fibers forked to a bundle can be canceled in various ways.  In the above
     program we call {!Bundle.terminate} to cancel all the fibers and effectively
