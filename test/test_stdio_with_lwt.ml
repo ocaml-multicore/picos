@@ -1,16 +1,4 @@
-open Picos
 open Picos_stdio
-
-let () =
-  let[@alert "-handler"] rec propagate () =
-    let computation =
-      Computation.with_action () () @@ fun _ _ _ ->
-      Lwt_unix.handle_signal Sys.sigchld;
-      propagate ()
-    in
-    Picos_select.return_on_sigchld computation ()
-  in
-  propagate ()
 
 let test_system_unix () =
   let sleep = Lwt_unix.system "sleep 2" in

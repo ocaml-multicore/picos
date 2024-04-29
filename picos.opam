@@ -31,6 +31,7 @@ depends: [
   "odoc" {>= "2.4.1" & with-doc}
   "ocaml" {>= "4.12.0"}
 ]
+dev-repo: "git+https://github.com/ocaml-multicore/picos.git"
 build: [
   ["dune" "subst"] {dev}
   [
@@ -43,6 +44,6 @@ build: [
     "@install"
     "@runtest" {with-test}
     "@doc" {with-doc}
+    "--verbose"
   ]
 ]
-dev-repo: "git+https://github.com/ocaml-multicore/picos.git"

@@ -244,14 +244,8 @@ let rec select_thread s timeout rd wr ex =
 let select_thread s =
   if Picos_domain.is_main_domain () then
     config.bits <- select_thread_running_on_main_domain_bit lor config.bits;
-  if not Sys.win32 then begin
-    Thread.sigmask SIG_BLOCK config.intr_sigs |> ignore;
-    Thread.sigmask
-      (if config.bits land handle_sigchld_bit <> 0 then SIG_UNBLOCK
-       else SIG_BLOCK)
-      [ Sys.sigchld ]
-    |> ignore
-  end;
+  if not Sys.win32 then
+    Thread.sigmask SIG_BLOCK (Sys.sigchld :: config.intr_sigs) |> ignore;
   begin
     try
       let pipe_inn, pipe_out = Unix.pipe ~cloexec:true () in
@@ -289,7 +283,7 @@ let rec configure ?(intr_sig = Sys.sigusr2) ?(handle_sigchld = true) () =
 
   if not Sys.win32 then begin
     if config.bits land handle_sigchld_bit <> 0 then begin
-      let previously_blocked = Thread.sigmask SIG_BLOCK [ Sys.sigchld ] in
+      let previously_blocked = Thread.sigmask SIG_UNBLOCK [ Sys.sigchld ] in
       assert (not (List.exists is_sigchld previously_blocked));
       let old_behavior =
         Sys.signal Sys.sigchld (Sys.Signal_handle handle_signal)
@@ -303,6 +297,20 @@ let rec configure ?(intr_sig = Sys.sigusr2) ?(handle_sigchld = true) () =
         Sys.signal config.intr_sig (Sys.Signal_handle handle_signal)
       in
       assert (old_behavior == Signal_default)
+    end
+  end
+
+and reconfigure_signal_handlers () =
+  if not (Picos_thread.is_main_thread ()) then
+    invalid_arg "must be called from the main thread on the main domain";
+  if not Sys.win32 then begin
+    if config.bits land handle_sigchld_bit <> 0 then begin
+      Thread.sigmask SIG_UNBLOCK [ Sys.sigchld ] |> ignore;
+      Sys.signal Sys.sigchld (Sys.Signal_handle handle_signal) |> ignore
+    end;
+    begin
+      Thread.sigmask SIG_BLOCK config.intr_sigs |> ignore;
+      Sys.signal config.intr_sig (Sys.Signal_handle handle_signal) |> ignore
     end
   end
 
@@ -504,13 +512,6 @@ let rec insert return =
   if Picos_htbl.try_add chld_awaiters id return then id else insert return
 
 let[@alert "-handler"] return_on_sigchld computation value =
-  if
-    config.bits
-    land (select_thread_running_on_main_domain_bit lor handle_sigchld_bit)
-    = handle_sigchld_bit
-  then
-    (* Ensure there is at least one thread handling [Sys.sigchld] signals. *)
-    get () |> ignore;
   let return = Return { value; computation; alive = true } in
   let id = insert return in
   let remover =

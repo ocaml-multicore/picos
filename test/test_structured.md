@@ -27,7 +27,7 @@ let check join_after scope =
 ## Fork after terminate raises
 
 ```ocaml
-# Test_scheduler.run @@ fun () ->
+# Test_scheduler.run ~one_domain:true @@ fun () ->
   check Bundle.join_after @@ fun bundle ->
   Bundle.terminate bundle;
   Bundle.fork bundle (fun () -> Printf.printf "Hello!\n%!")
@@ -35,7 +35,7 @@ Exception: Picos_structured__Control.Terminate.
 ```
 
 ```ocaml
-# Test_scheduler.run @@ fun () ->
+# Test_scheduler.run ~one_domain:true @@ fun () ->
   let escape = ref (Obj.magic ()) in
   check Bundle.join_after begin fun bundle ->
     escape := bundle;
@@ -47,7 +47,7 @@ Exception: Invalid_argument "already completed".
 ## Exception in child terminates bundle
 
 ```ocaml
-# Test_scheduler.run @@ fun () ->
+# Test_scheduler.run ~one_domain:false @@ fun () ->
   let mutex = Mutex.create () in
   let condition = Condition.create () in
   let blocked = ref false in
@@ -74,7 +74,7 @@ Exception: Stdlib.Exit.
 ## Termination (or cancelation) nests
 
 ```ocaml
-# Test_scheduler.run @@ fun () ->
+# Test_scheduler.run ~one_domain:false @@ fun () ->
   let mutex = Mutex.create () in
   let condition = Condition.create () in
   let blocked = ref false in
@@ -109,7 +109,7 @@ Blocked
 ## Cancelation also waits for children
 
 ```ocaml
-# Test_scheduler.run @@ fun () ->
+# Test_scheduler.run ~one_domain:true @@ fun () ->
   let blocked = ref false in
   let slept = ref false in
   check Bundle.join_after begin fun bundle ->
@@ -144,7 +144,7 @@ Woke up
 ## Promise can be canceled without canceling the bundle
 
 ```ocaml
-# Test_scheduler.run @@ fun () ->
+# Test_scheduler.run ~one_domain:true @@ fun () ->
   Bundle.join_after @@ fun bundle ->
   let promise =
     Bundle.fork_as_promise bundle @@ fun () ->
@@ -160,7 +160,7 @@ Woke up
 ## Error in promise ends the bundle
 
 ```ocaml
-# Test_scheduler.run @@ fun () ->
+# Test_scheduler.run ~one_domain:true @@ fun () ->
   Bundle.join_after @@ fun bundle ->
   let promise =
     Bundle.fork_as_promise bundle @@ fun () ->
@@ -174,7 +174,7 @@ Exception: Failure "I failed".
 ## Can wait for promises
 
 ```ocaml
-# Test_scheduler.run @@ fun () ->
+# Test_scheduler.run ~one_domain:true @@ fun () ->
   Bundle.join_after @@ fun bundle ->
   let promise = Bundle.fork_as_promise bundle @@ fun () ->
     Control.sleep ~seconds:0.1;
@@ -187,7 +187,7 @@ Exception: Failure "I failed".
 ## Racing
 
 ```ocaml
-# Test_scheduler.run @@ fun () ->
+# Test_scheduler.run ~one_domain:false @@ fun () ->
   let winner = ref 0 in
   Run.any [
     (fun () -> Control.sleep ~seconds:0.3; winner := 3 );

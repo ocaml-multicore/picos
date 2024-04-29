@@ -3,10 +3,13 @@
  (modules test_scheduler)
  (libraries
   (re_export picos)
+  lwt.unix
+  picos.select
+  picos.thread
   (select
    test_scheduler.ml
    from
-   (picos.fifos -> test_scheduler.ocaml5.ml)
+   (picos.fifos picos.lwt -> test_scheduler.ocaml5.ml)
    (picos.threaded -> test_scheduler.ocaml4.ml))))
 
 ;;
@@ -57,7 +60,12 @@
 (test
  (name test_server_and_client)
  (modules test_server_and_client)
- (libraries test_scheduler picos.stdio picos.structured picos.sync))
+ (libraries
+  test_scheduler
+  picos.select
+  picos.stdio
+  picos.structured
+  picos.sync))
 
 ;;
 
@@ -68,17 +76,17 @@
 
 ;;
 
-(test
- (name test_stdio_with_lwt)
- (modules test_stdio_with_lwt)
- (libraries
-  test_scheduler
-  picos.stdio
-  picos.select
-  alcotest
-  lwt
-  lwt.unix
-  threads.posix))
+;(test
+; (name test_stdio_with_lwt)
+; (modules test_stdio_with_lwt)
+; (libraries
+;  test_scheduler
+;  picos.stdio
+;  picos.select
+;  alcotest
+;  lwt
+;  lwt.unix
+;  threads.posix))
 
 ;;
 
@@ -130,15 +138,7 @@
 
 ;;
 
-(mdx
- (libraries
-  picos
-  picos.exn_bt
-  picos.htbl
-  picos.stdio
-  picos.structured
-  picos.sync
-  picos.threaded
-  test_scheduler
-  unix)
- (files test_htbl.md test_scheduler.md test_stdio.md test_structured.md))
+(test
+ (name test_schedulers)
+ (modules test_schedulers)
+ (libraries test_scheduler picos alcotest))

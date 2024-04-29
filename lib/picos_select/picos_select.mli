@@ -117,6 +117,9 @@ val check_configured : unit -> unit
     ℹ️ The intended use case for [check_configure ()] is at the point of
     entry of schedulers and other facilities that use this module. *)
 
+val reconfigure_signal_handlers : unit -> unit
+(** *)
+
 (** {1 Examples}
 
     First we open some modules for convenience:

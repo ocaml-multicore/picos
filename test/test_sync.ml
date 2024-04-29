@@ -16,7 +16,7 @@ end
 let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
 
 let test_mutex_and_condition_basics () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~one_domain:true @@ fun () ->
   let mutex = Mutex.create () in
   let condition = Condition.create () in
 
@@ -43,7 +43,7 @@ let test_mutex_and_condition_basics () =
            done
 
 let test_mutex_and_condition_errors () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~one_domain:true @@ fun () ->
   let mutex = Mutex.create () in
   let condition = Condition.create () in
   Mutex.protect mutex @@ fun () ->
@@ -154,7 +154,7 @@ let test_mutex_and_condition_cancelation () =
   Array.iter (fun step -> assert (limit <= Atomic.get step)) steps
 
 let test_lazy_basics () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~one_domain:true @@ fun () ->
   assert (101 = (Lazy.from_fun (fun () -> 101) |> Lazy.force_val));
   assert (42 = (Lazy.from_val 40 |> Lazy.map (( + ) 2) |> Lazy.force));
   assert (42 = (Lazy.from_val 21 |> Lazy.map_val (( * ) 2) |> Lazy.force_val));
@@ -165,7 +165,7 @@ let test_lazy_basics () =
   | exception Stdlib.Lazy.Undefined -> ()
 
 let test_lazy_cancelation () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~one_domain:true @@ fun () ->
   let susp ?to_signal ~to_await result =
     Lazy.from_fun @@ fun () ->
     Option.iter Trigger.signal to_signal;
