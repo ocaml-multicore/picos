@@ -1,13 +1,14 @@
 module Queue = Picos_mpsc_queue
 
 module Spec = struct
-  type cmd = Push of int | Push_head of int | Pop
+  type cmd = Push of int | Push_head of int | Pop | Pop_all
 
   let show_cmd c =
     match c with
     | Push i -> "Push " ^ string_of_int i
     | Push_head i -> "Push_head " ^ string_of_int i
     | Pop -> "Pop"
+    | Pop_all -> "Pop_all"
 
   type state = int list
   type sut = int Queue.t
@@ -29,6 +30,7 @@ module Spec = struct
              Gen.map (fun i -> Push i) Gen.nat;
              Gen.map (fun i -> Push_head i) Gen.nat;
              Gen.return Pop;
+             Gen.return Pop_all;
            ]))
 
   let init_state = []
@@ -40,6 +42,7 @@ module Spec = struct
     | Push i -> s @ [ i ]
     | Push_head i -> i :: s
     | Pop -> ( match s with _ :: s -> s | [] -> [])
+    | Pop_all -> []
 
   let precond _ _ = true
 
@@ -54,6 +57,7 @@ module Spec = struct
             match Queue.pop_exn d with
             | i -> Some i
             | exception Queue.Empty -> None )
+    | Pop_all -> Res (list int, Queue.pop_all d |> List.of_seq)
 
   let postcond c (s : state) res =
     let open STM in
@@ -62,6 +66,7 @@ module Spec = struct
     | Push_head _, Res ((Unit, _), ()) -> true
     | Pop, Res ((Option Int, _), res) ->
         (match s with [] -> None | x :: _ -> Some x) = res
+    | Pop_all, Res ((List Int, _), res) -> res = s
     | _, _ -> false
 end
 
