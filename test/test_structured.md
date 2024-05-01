@@ -190,10 +190,11 @@ Exception: Failure "I failed".
 # Test_scheduler.run @@ fun () ->
   let winner = ref 0 in
   Run.any [
-    (fun () -> Control.sleep ~seconds:0.3; winner := 3 );
-    (fun () -> Control.sleep ~seconds:0.2; winner := 2 );
+    (fun () -> Control.sleep ~seconds:0.9; winner := 3 );
+    (fun () -> Control.sleep ~seconds:0.5; winner := 2 );
     (fun () -> Control.sleep ~seconds:0.1; winner := 1 );
   ];
+  (* This is non-deterministic and may need to changed if flaky *)
   !winner
 - : int = 1
 ```
