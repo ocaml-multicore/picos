@@ -101,3 +101,45 @@ and pop_head_exn t backoff (Cons head_r as head : (_, [< `Cons ]) tdt) =
     pop_exn t backoff (Atomic.get t.head)
 
 let[@inline] pop_exn t = pop_exn t Backoff.default (Atomic.get t.head)
+
+let rec prepend_to_seq t tl =
+  match t with
+  | H Head -> tl
+  | H (Cons r) -> fun () -> Seq.Cons (r.value, prepend_to_seq r.next tl)
+
+let rev = function T Tail -> H Head | T (Snoc r) -> H (rev_to Head (Snoc r))
+
+let rev_prepend_to_seq t tl =
+  let t = ref (Either.Left t) in
+  fun () ->
+    let t =
+      match !t with
+      | Left t' ->
+          let t' = rev t' in
+          t := Right t';
+          t'
+      | Right t' -> t'
+    in
+    prepend_to_seq t tl ()
+
+let rec drop_tail_after cut = function
+  | T Tail -> impossible ()
+  | T (Snoc r) ->
+      if r.prev == cut then r.prev <- T Tail else drop_tail_after cut r.prev
+
+let rec drop_head_after cut = function
+  | H Head -> impossible ()
+  | H (Cons r) ->
+      if r.next == cut then r.next <- H Head else drop_head_after cut r.next
+
+let rec pop_all t =
+  let head = Atomic.get t.head in
+  let tail = Atomic.get t.tail in
+  if Atomic.get (Sys.opaque_identity t.head) == head then begin
+    if not (Atomic.compare_and_set t.tail tail (T Tail)) then
+      drop_tail_after tail (Atomic.get t.tail);
+    if not (Atomic.compare_and_set t.head head (H Head)) then
+      drop_head_after head (Atomic.get t.head);
+    Seq.empty |> rev_prepend_to_seq tail |> prepend_to_seq head
+  end
+  else pop_all t

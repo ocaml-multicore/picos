@@ -28,3 +28,7 @@ val pop_exn : 'a t -> 'a
     ⚠️ This should only be called by the owner / consumer of the queue.
 
     @raise Empty in case the queue was empty. *)
+
+val pop_all : 'a t -> 'a Seq.t
+(** [pop_all queue] removes all values from the [queue] and returns them as a
+    sequence. *)
