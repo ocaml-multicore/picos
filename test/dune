@@ -64,7 +64,12 @@
 (test
  (name test_stdio)
  (modules test_stdio)
- (libraries test_scheduler picos.stdio alcotest))
+ (libraries
+  test_scheduler
+  picos.mpsc_queue
+  picos.stdio
+  picos.structured
+  alcotest))
 
 ;;
 
@@ -130,15 +135,14 @@
 
 ;;
 
-(mdx
- (libraries
-  picos
-  picos.exn_bt
-  picos.htbl
-  picos.stdio
-  picos.structured
-  picos.sync
-  picos.threaded
-  test_scheduler
-  unix)
- (files test_htbl.md test_scheduler.md test_stdio.md test_structured.md))
+(test
+ (name test_schedulers)
+ (modules test_schedulers)
+ (libraries picos test_scheduler alcotest))
+
+;;
+
+(test
+ (name test_structured)
+ (modules test_structured)
+ (libraries picos picos.structured picos.sync test_scheduler alcotest))
