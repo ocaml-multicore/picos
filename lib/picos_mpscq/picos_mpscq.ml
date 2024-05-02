@@ -59,40 +59,50 @@ let rec pop_exn t backoff = function
       else
         let backoff = Backoff.once backoff in
         pop_exn t backoff (Atomic.get t.head)
-  | H Head ->
-      if Atomic.get t.tail != T Tail then
-        match Atomic.exchange t.tail (T Tail) with
-        | T Tail -> impossible ()
-        | T (Snoc snoc_r) -> begin
-            match snoc_r.prev with
+  | H Head -> begin
+      match Atomic.get t.tail with
+      | T (Snoc tail_r) -> begin
+          let (Snoc snoc_r : (_, [< `Snoc ]) tdt) =
+            match tail_r.prev with
+            | T (Snoc _ as snoc) ->
+                tail_r.prev <- T Tail;
+                snoc
             | T Tail -> begin
+                match Atomic.exchange t.tail (T Tail) with
+                | T Tail -> impossible ()
+                | T (Snoc _ as snoc) -> snoc
+              end
+          in
+          match snoc_r.prev with
+          | T Tail -> begin
+              match Atomic.get t.head with
+              | H Head -> snoc_r.value
+              | H (Cons _ as head) ->
+                  let next = Cons { value = snoc_r.value; next = H Head } in
+                  append_to head (H next);
+                  pop_head_exn t backoff head
+            end
+          | T (Snoc _ as prev) -> begin
+              let next = Cons { value = snoc_r.value; next = H Head } in
+              let (Cons cons_r as next : (_, [< `Cons ]) tdt) =
+                rev_to next prev
+              in
+              if Atomic.compare_and_set t.head (H Head) cons_r.next then
+                cons_r.value
+              else
                 match Atomic.get t.head with
-                | H Head -> snoc_r.value
+                | H Head -> impossible ()
                 | H (Cons _ as head) ->
-                    let next = Cons { value = snoc_r.value; next = H Head } in
                     append_to head (H next);
                     pop_head_exn t backoff head
-              end
-            | T (Snoc _ as prev) ->
-                let next = Cons { value = snoc_r.value; next = H Head } in
-                let (Cons cons_r as next : (_, [< `Cons ]) tdt) =
-                  rev_to next prev
-                in
-                if Atomic.compare_and_set t.head (H Head) cons_r.next then
-                  cons_r.value
-                else begin
-                  match Atomic.get t.head with
-                  | H Head -> impossible ()
-                  | H (Cons _ as head) ->
-                      append_to head (H next);
-                      pop_head_exn t backoff head
-                end
-          end
-      else begin
-        match Atomic.get t.head with
-        | H Head -> raise_notrace Empty
-        | H (Cons _ as head) -> pop_head_exn t backoff head
-      end
+            end
+        end
+      | T Tail -> begin
+          match Atomic.get t.head with
+          | H Head -> raise_notrace Empty
+          | H (Cons _ as head) -> pop_head_exn t backoff head
+        end
+    end
 
 and pop_head_exn t backoff (Cons head_r as head : (_, [< `Cons ]) tdt) =
   if Atomic.compare_and_set t.head (H head) head_r.next then head_r.value
