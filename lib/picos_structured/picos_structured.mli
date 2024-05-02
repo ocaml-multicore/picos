@@ -5,7 +5,16 @@
     serve as an example of what can be done and to also provide practical means
     for programming with fibers.  Hopefully there will be many more libraries
     implemented in Picos like this providing different approaches, patterns, and
-    idioms for structuring concurrent programs. *)
+    idioms for structuring concurrent programs.
+
+    For the {{!examples} examples} we open some modules:
+
+    {[
+      open Picos_structured.Finally
+      open Picos_structured
+      open Picos_stdio
+      open Picos_sync
+    ]} *)
 
 open Picos
 
@@ -250,7 +259,15 @@ module Run : sig
       ⚠️ It is not guaranteed that any of the actions in the list are called.  In
       particular, after any action raises an unhandled exception or after the
       main fiber is canceled, the actions that have not yet started may be
-      skipped entirely. *)
+      skipped entirely.
+
+      [all] is roughly equivalent to
+      {[
+        let all actions =
+          Bundle.join_after @@ fun bundle ->
+          List.iter (Bundle.fork bundle) actions
+      ]}
+      but treats the list of actions as a single computation. *)
 
   val any : (unit -> unit) list -> unit
   (** [any actions] starts the actions as separate fibers and waits until one of
@@ -261,19 +278,24 @@ module Run : sig
       ⚠️ It is not guaranteed that any of the actions in the list are called.  In
       particular, after the first action returns successfully or after any
       action raises an unhandled exception or after the main fiber is canceled,
-      the actions that have not yet started may be skipped entirely. *)
+      the actions that have not yet started may be skipped entirely.
+
+      [any] is roughly equivalent to
+      {[
+        let any actions =
+          Bundle.join_after @@ fun bundle ->
+          try
+            actions
+            |> List.iter @@ fun action ->
+               Bundle.fork bundle @@ fun () ->
+               action ();
+               Bundle.terminate bundle
+          with Control.Terminate -> ()
+      ]}
+      but treats the list of actions as a single computation. *)
 end
 
 (** {1 Examples}
-
-    First we open some modules for convenience:
-
-    {[
-      open Picos_structured.Finally
-      open Picos_structured
-      open Picos_stdio
-      open Picos_sync
-    ]}
 
     {2 Understanding cancelation}
 

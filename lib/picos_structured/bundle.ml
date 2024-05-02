@@ -92,3 +92,9 @@ let fork_as_promise t thunk =
     raise canceled_exn
 
 let fork t thunk = fork_as_promise t thunk |> ignore
+
+(* *)
+
+let is_running t = Computation.is_running t.bundle
+let unsafe_incr t = Atomic.incr t.num_fibers
+let unsafe_reset t = Atomic.set t.num_fibers 1
