@@ -2,3 +2,7 @@
  (name picos_mpsc_queue)
  (public_name picos.mpsc_queue)
  (libraries backoff multicore-magic))
+
+(mdx
+ (libraries picos.mpsc_queue)
+ (files picos_mpsc_queue.mli))
