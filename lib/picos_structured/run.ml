@@ -1,12 +1,32 @@
-let all actions =
-  Bundle.join_after @@ fun bundle -> List.iter (Bundle.fork bundle) actions
+open Picos
 
-let any actions =
-  Bundle.join_after @@ fun bundle ->
+let wrap_all t main =
+  Bundle.unsafe_incr t;
+  fun () ->
+    if Bundle.is_running t then begin
+      try main () with exn -> Bundle.error t (Exn_bt.get exn)
+    end;
+    Bundle.decr t
+
+let wrap_any t main =
+  Bundle.unsafe_incr t;
+  fun () ->
+    if Bundle.is_running t then begin
+      try
+        main ();
+        Bundle.terminate t
+      with exn -> Bundle.error t (Exn_bt.get exn)
+    end;
+    Bundle.decr t
+
+let run actions wrap =
+  Bundle.join_after @@ fun t ->
   try
-    actions
-    |> List.iter @@ fun action ->
-       Bundle.fork bundle @@ fun () ->
-       action ();
-       Bundle.terminate bundle
-  with Control.Terminate -> ()
+    let mains = List.map (wrap t) actions in
+    Fiber.spawn ~forbid:false t.bundle mains
+  with exn ->
+    Bundle.unsafe_reset t;
+    raise exn
+
+let all actions = run actions wrap_all
+let any actions = run actions wrap_any
