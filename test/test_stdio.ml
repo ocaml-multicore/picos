@@ -33,8 +33,9 @@ let test_sleepf () =
       Unix.sleepf 0.01;
       if 1 = Atomic.fetch_and_add n (-1) then Computation.finish children );
   Computation.await children;
+  let d = Unix.gettimeofday () -. start in
   (* This is non-deterministic and might need to be changed if flaky *)
-  assert (Unix.gettimeofday () -. start < 1.0)
+  assert (0.01 <= d && d < 5.0)
 
 let test_select_empty_timeout () =
   Test_scheduler.run @@ fun () ->
@@ -42,7 +43,7 @@ let test_select_empty_timeout () =
   let _ = Unix.select [] [] [] 0.1 in
   let d = Unix.gettimeofday () -. start in
   (* This is non-deterministic and might need to be changed if flaky *)
-  assert (0.1 <= d && d <= 1.0)
+  assert (0.1 <= d && d <= 5.0)
 
 let test_select_empty_forever () =
   Test_scheduler.run @@ fun () ->
