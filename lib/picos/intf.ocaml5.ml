@@ -3,7 +3,7 @@ module type Trigger = sig
   type exn_bt
 
   (** Schedulers may handle the {!Await} effect to customize the behavior of
-      [await].
+      {!await}.
 
       In case the fiber permits propagation of cancelation, the trigger should
       be attached to the computation of the fiber for the duration of suspending
@@ -25,7 +25,7 @@ module type Computation = sig
   type exn_bt
 
   (** Schedulers may handle the {!Cancel_after} effect to customize the behavior
-      of [cancel_after].
+      of {!cancel_after}.
 
       The scheduler should typically attach a trigger to the computation passed
       with the effect and arrange the operation to be canceled upon signal.
@@ -84,7 +84,7 @@ module type Fiber = sig
       ]} *)
 
   (** Schedulers may handle the {!Current} effect to customize the behavior of
-      [current].
+      {!current}.
 
       ⚠️ A handler should eventually resume the fiber without propagating
       cancelation.  A scheduler may, of course, decide to reschedule the current
@@ -95,7 +95,7 @@ module type Fiber = sig
   type _ Effect.t += private Current : t Effect.t
 
   (** Schedulers may handle the {!Yield} effect to customize the behavior of
-      [yield].
+      {!yield}.
 
       Just like with {!Current}, a handler should either continue or discontinue
       the fiber, but, unlike with {!Current}, the scheduler should give priority
@@ -104,7 +104,7 @@ module type Fiber = sig
   type _ Effect.t += private Yield : unit Effect.t
 
   (** Schedulers may handle the {!Spawn} effect to customize the behavior of
-      [spawn].
+      {!spawn}.
 
       The scheduler is free to run the newly created fibers on any domain and
       decide which fiber to give priority to. *)
