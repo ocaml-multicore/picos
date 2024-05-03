@@ -164,23 +164,36 @@ let test_can_wait_promises () =
   in
   assert (Promise.await promise = 42)
 
-let test_all_errors () =
-  Test_scheduler.run @@ fun () ->
-  match
-    Run.all
-      [
-        (fun () -> raise Not_found);
-        (fun () -> Control.block ());
-        (fun () -> raise Exit);
-        (fun () -> ignore (1 / 0));
-      ]
-  with
-  | () -> assert false
-  | exception Control.Errors exn_bts ->
-      let is exn (exn_bt : Exn_bt.t) = exn == exn_bt.exn in
-      assert (List.exists (is Not_found) exn_bts);
-      assert (List.exists (is Exit) exn_bts);
-      assert (List.exists (is Division_by_zero) exn_bts)
+let test_any_and_all_errors () =
+  [ Run.all; Run.any ]
+  |> List.iter @@ fun run_op ->
+     Test_scheduler.run @@ fun () ->
+     let raised = Picos_mpsc_queue.create () in
+     let raiser exn () =
+       Picos_mpsc_queue.push raised exn;
+       raise exn
+     in
+     match
+       run_op
+         [
+           raiser Not_found;
+           (fun () -> Control.block ());
+           raiser Exit;
+           raiser Division_by_zero;
+         ]
+     with
+     | () -> assert false
+     | exception exn ->
+         let exn_bts =
+           match exn with
+           | Control.Errors exn_bts -> exn_bts
+           | exn -> [ Exn_bt.get exn ]
+         in
+         Picos_mpsc_queue.pop_all raised
+         |> Seq.iter @@ fun exn ->
+            assert (
+              exn_bts
+              |> List.exists @@ fun (exn_bt : Exn_bt.t) -> exn == exn_bt.exn)
 
 let test_race_any () =
   Test_scheduler.run @@ fun () ->
@@ -217,7 +230,7 @@ let () =
         Alcotest.test_case "error in promise terminates" `Quick
           test_error_in_promise_terminates;
         Alcotest.test_case "can wait promises" `Quick test_can_wait_promises;
-        Alcotest.test_case "all errors" `Quick test_all_errors;
+        Alcotest.test_case "any and all errors" `Quick test_any_and_all_errors;
         Alcotest.test_case "race any" `Quick test_race_any;
       ] );
   ]

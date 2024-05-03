@@ -145,4 +145,10 @@
 (test
  (name test_structured)
  (modules test_structured)
- (libraries picos picos.structured picos.sync test_scheduler alcotest))
+ (libraries
+  picos
+  picos.mpsc_queue
+  picos.structured
+  picos.sync
+  test_scheduler
+  alcotest))
