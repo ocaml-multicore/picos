@@ -176,6 +176,7 @@ let test_any_and_all_errors () =
      match
        run_op
          [
+           (fun () -> raise Control.Terminate (* Not counted as an error *));
            raiser Not_found;
            (fun () -> Control.block ());
            raiser Exit;
