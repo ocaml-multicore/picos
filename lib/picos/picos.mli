@@ -799,7 +799,11 @@ module Fiber : sig
 
       ⚠️ The [current] operation must always resume the fiber without propagating
       cancelation.  A scheduler may, of course, decide to reschedule the current
-      fiber to be resumed later. *)
+      fiber to be resumed later.
+
+      Because the scheduler does not discontinue a fiber calling [current], it
+      is recommended that the caller {{!check} checks} the cancelation status at
+      the next convenient moment to do so. *)
 
   val has_forbidden : t -> bool
   (** [has_forbidden fiber] determines whether the fiber {!forbid}s or

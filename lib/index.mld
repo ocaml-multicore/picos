@@ -2,7 +2,7 @@
 
 {1 Introduction}
 
-Picos, or {{:https://en.wikipedia.org/wiki/Metric_prefix} pico}-scheduler
+{!Picos}, or {{:https://en.wikipedia.org/wiki/Metric_prefix} pico}-scheduler
 framework, is a framework for building
 {{:https://en.wikipedia.org/wiki/Interoperability} interoperable} elements of
 {{:https://v2.ocaml.org/manual/effects.html} effects based}

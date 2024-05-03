@@ -2,19 +2,29 @@ module type Trigger = sig
   type t
   type exn_bt
 
-  (** Schedulers may handle the {!Await} effect to customize the behavior of
+  (** Schedulers must handle the {!Await} effect to implement the behavior of
       {!await}.
 
-      In case the fiber permits propagation of cancelation, the trigger should
-      be attached to the computation of the fiber for the duration of suspending
-      the fiber.
+      In case the fiber permits propagation of cancelation, the trigger must be
+      attached to the computation of the fiber for the duration of suspending
+      the fiber by the scheduler.
 
-      Typically the handler calls {!on_signal} to attach a scheduler specific
-      [resume] action to the [trigger].
+      Typically the scheduler calls {{!Fiber.try_suspend} [try_suspend]}, which
+      in turn calls {!on_signal}, to attach a scheduler specific [resume] action
+      to the [trigger].  The scheduler must guarantee that the fiber will be
+      resumed after {!signal} has been called on the [trigger].
 
-      Whether being resumed due to cancelation or not, the trigger should be
+      Whether being resumed due to cancelation or not, the trigger must be
       either {{!signal} signaled} outside of the effect handler, or {{!dispose}
       disposed} by the effect handler, before resuming the fiber.
+
+      In case the fiber permits propagation of cancelation and the computation
+      associated with the fiber has been canceled the scheduler is free to
+      continue the fiber immediately with the cancelation exception after
+      {{!dispose} disposing} the trigger.
+
+      ⚠️ A scheduler must not discontinue, i.e. raise an exception to, the fiber
+      as a response to {!Await}.
 
       The scheduler is free to choose which ready fiber to resume next. *)
   type _ Effect.t += private Await : t -> exn_bt option Effect.t
@@ -24,17 +34,24 @@ module type Computation = sig
   type _ t
   type exn_bt
 
-  (** Schedulers may handle the {!Cancel_after} effect to customize the behavior
-      of {!cancel_after}.
+  (** Schedulers must handle the {!Cancel_after} effect to implement the
+      behavior of {!cancel_after}.
 
-      The scheduler should typically attach a trigger to the computation passed
-      with the effect and arrange the operation to be canceled upon signal.
+      The scheduler should typically {{!try_attach} attach} a {{!Trigger}
+      trigger} to the computation passed with the effect and arrange the
+      timeout to be canceled upon signal to avoid space leaks.
 
       The scheduler should measure time using a monotonic clock.
 
       In case the fiber permits propagation of cancelation and the computation
       associated with the fiber has been canceled the scheduler is free to
-      discontinue the fiber before setting up the timeout. *)
+      discontinue the fiber before setting up the timeout.
+
+      If the fiber is continued normally, i.e. without raising an exception, the
+      scheduler should guarantee that the cancelation will be delivered
+      eventually.
+
+      The scheduler is free to choose which ready fiber to resume next. *)
   type _ Effect.t +=
     private
     | Cancel_after : {
@@ -83,31 +100,50 @@ module type Fiber = sig
         | Some exn_bt -> Exn_bt.discontinue_with k exn_bt h
       ]} *)
 
-  (** Schedulers may handle the {!Current} effect to customize the behavior of
+  (** Schedulers must handle the {!Current} effect to implement the behavior of
       {!current}.
 
-      ⚠️ A handler should eventually resume the fiber without propagating
-      cancelation.  A scheduler may, of course, decide to reschedule the current
-      fiber to be resumed later.
+      ⚠️ The scheduler must eventually resume the fiber without propagating
+      cancelation.  This is necessary to allow a fiber to control the
+      propagation of cancelation through the {{!t} fiber}.
 
-      Note that in typical use cases of {!current} it makes sense to give
+      The scheduler is free to choose which ready fiber to resume next.
+      However, in typical use cases of {!current} it makes sense to give
       priority to the fiber performing {!Current}, but this is not required. *)
   type _ Effect.t += private Current : t Effect.t
 
-  (** Schedulers may handle the {!Yield} effect to customize the behavior of
+  (** Schedulers must handle the {!Yield} effect to implement the behavior of
       {!yield}.
 
-      Just like with {!Current}, a handler should either continue or discontinue
-      the fiber, but, unlike with {!Current}, the scheduler should give priority
-      to running other ready fibers before resuming the fiber performing
-      {!Yield}. *)
+      In case the fiber permits propagation of cancelation and the computation
+      associated with the fiber has been canceled the scheduler is free to
+      discontinue the fiber immediately.
+
+      The scheduler should give priority to running other ready fibers before
+      resuming the fiber performing {!Yield}.  A scheduler that always
+      immediately resumes the fiber performing {!Yield} may prevent an otherwise
+      valid program from making progress. *)
   type _ Effect.t += private Yield : unit Effect.t
 
-  (** Schedulers may handle the {!Spawn} effect to customize the behavior of
+  (** Schedulers must handle the {!Spawn} effect to implement the behavior of
       {!spawn}.
 
+      In case the fiber permits propagation of cancelation and the computation
+      associated with the fiber has been canceled the scheduler is free to
+      discontinue the fiber immediately before spawning new fibers.
+
       The scheduler is free to run the newly created fibers on any domain and
-      decide which fiber to give priority to. *)
+      decide which fiber to give priority to.
+
+      ⚠️ The scheduler should guarantee that, when [Spawn] returns normally, all
+      of the [mains] will eventually be called by the scheduler and, when
+      [Spawn] raises an exception, none of the [mains] will be called.  In other
+      words, [Spawn] should check cancelation just once and be all or nothing.
+      Furthermore, in case a newly spawned fiber is canceled before its main is
+      called, the scheduler must still call the main.  This allows a program to
+      ensure, i.e. keep track of, that all fibers it spawns are terminated
+      properly and any resources transmitted to spawned fibers will be disposed
+      properly. *)
   type _ Effect.t +=
     private
     | Spawn : {
