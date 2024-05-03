@@ -22,11 +22,11 @@ let rec block trigger t =
     | () ->
         Mutex.unlock t.mutex;
         block trigger t
-    | exception exn ->
+    | exception async_exn ->
         (* Condition.wait may be interrupted by asynchronous exceptions and we
            must make sure to unlock even in that case. *)
         Mutex.unlock t.mutex;
-        raise exn
+        raise async_exn
   end
 
 let resume trigger t _ =
@@ -71,15 +71,66 @@ and spawn : type a. _ -> forbid:bool -> a Computation.t -> _ =
  fun t ~forbid computation mains ->
   Fiber.check t.fiber;
   let packed = Computation.Packed computation in
-  mains
-  |> List.iter @@ fun main ->
-     Thread.create
-       (fun () ->
-         (* We need to (recursively) install the handler on each new thread
-            that we create. *)
-         Handler.using handler (create_packed ~forbid packed) main)
-       ()
-     |> ignore
+  match mains with
+  | [ main ] ->
+      Thread.create
+        (fun () ->
+          (* We need to (recursively) install the handler on each new thread
+             that we create. *)
+          Handler.using handler (create_packed ~forbid packed) main)
+        ()
+      |> ignore
+  | mains -> begin
+      (* We try to be careful to implement the all-or-nothing behaviour based on
+         the assumption that we may run out of threads well before we run out of
+         memory.  In a thread pool based scheduler this should actually not
+         require special treatment. *)
+      let all_or_nothing = ref `Wait in
+      match
+        mains
+        |> List.iter @@ fun main ->
+           Thread.create
+             (fun () ->
+               if !all_or_nothing == `Wait then begin
+                 Mutex.lock t.mutex;
+                 match
+                   while
+                     match !all_or_nothing with
+                     | `Wait ->
+                         Condition.wait t.condition t.mutex;
+                         true
+                     | `All | `Nothing -> false
+                   do
+                     ()
+                   done
+                 with
+                 | () -> Mutex.unlock t.mutex
+                 | exception async_exn ->
+                     (* Condition.wait may be interrupted by asynchronous
+                        exceptions and we must make sure to unlock even in that
+                        case. *)
+                     Mutex.unlock t.mutex;
+                     raise async_exn
+               end;
+               if !all_or_nothing == `All then
+                 (* We need to (recursively) install the handler on each new
+                    thread that we create. *)
+                 Handler.using handler (create_packed ~forbid packed) main)
+             ()
+           |> ignore
+      with
+      | () ->
+          Mutex.lock t.mutex;
+          all_or_nothing := `All;
+          Mutex.unlock t.mutex;
+          Condition.broadcast t.condition
+      | exception exn ->
+          Mutex.lock t.mutex;
+          all_or_nothing := `Nothing;
+          Mutex.unlock t.mutex;
+          Condition.broadcast t.condition;
+          raise exn
+    end
 
 and handler = Handler.{ current; spawn; yield; cancel_after; await }
 

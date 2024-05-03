@@ -88,6 +88,8 @@ let fork_as_promise t thunk =
     Fiber.spawn ~forbid:false child [ main ];
     child
   with canceled_exn ->
+    (* We don't need to worry about deatching the [canceler], because at this
+       point we know the bundle computation has completed. *)
     decr t;
     raise canceled_exn
 
