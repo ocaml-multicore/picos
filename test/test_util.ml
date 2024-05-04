@@ -8,7 +8,7 @@ let in_place_shuffle array =
     array.(j) <- t
   done
 
-let shuffle array =
-  let copy = Array.copy array in
-  in_place_shuffle copy;
-  copy
+let shuffle list =
+  let array = Array.of_list list in
+  in_place_shuffle array;
+  Array.to_list array

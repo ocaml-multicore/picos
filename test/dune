@@ -9,6 +9,10 @@
    (picos.fifos -> test_scheduler.ocaml5.ml)
    (picos.threaded -> test_scheduler.ocaml4.ml))))
 
+(library
+ (name test_util)
+ (modules test_util))
+
 ;;
 
 (test
@@ -151,4 +155,5 @@
   picos.structured
   picos.sync
   test_scheduler
+  test_util
   alcotest))

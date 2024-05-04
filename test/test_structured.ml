@@ -170,14 +170,17 @@ let test_any_and_all_errors () =
        raise exn
      in
      match
-       run_op
-         [
-           (fun () -> raise Control.Terminate (* Not counted as an error *));
-           raiser Not_found;
-           (fun () -> Control.block ());
-           raiser Exit;
-           raiser Division_by_zero;
-         ]
+       let ops =
+         Test_util.shuffle
+           [
+             (fun () -> raise Control.Terminate (* Not counted as an error *));
+             raiser Not_found;
+             (fun () -> Control.block ());
+             raiser Exit;
+             raiser Division_by_zero;
+           ]
+       in
+       run_op ops
      with
      | () -> assert false
      | exception exn ->
@@ -192,21 +195,44 @@ let test_any_and_all_errors () =
               exn_bts
               |> List.exists @@ fun (exn_bt : Exn_bt.t) -> exn == exn_bt.exn)
 
+let test_any_and_all_returns () =
+  [ 0; 1; 2 ]
+  |> List.iter @@ fun n_terminates ->
+     [ 1; 2 ]
+     |> List.iter @@ fun n_incr ->
+        [ (Run.all, n_incr, n_incr); (Run.any, 1, n_incr) ]
+        |> List.iter @@ fun (run_op, min, max) ->
+           Test_scheduler.run @@ fun () ->
+           let count = Atomic.make 0 in
+           let ops =
+             List.init n_terminates (fun _ () ->
+                 raise Control.Terminate (* Not counted as an error *))
+             @ List.init n_incr (fun _ () -> Atomic.incr count)
+             |> Test_util.shuffle
+           in
+           run_op ops;
+           let n = Atomic.get count in
+           assert (min <= n);
+           assert (n <= max)
+
 let test_race_any () =
   Test_scheduler.run @@ fun () ->
   let winner = ref 0 in
-  Run.any
-    [
-      (fun () ->
-        Control.sleep ~seconds:0.9;
-        winner := 3);
-      (fun () ->
-        Control.sleep ~seconds:0.5;
-        winner := 2);
-      (fun () ->
-        Control.sleep ~seconds:0.1;
-        winner := 1);
-    ];
+  let ops =
+    Test_util.shuffle
+      [
+        (fun () ->
+          Control.sleep ~seconds:0.9;
+          winner := 3);
+        (fun () ->
+          Control.sleep ~seconds:0.5;
+          winner := 2);
+        (fun () ->
+          Control.sleep ~seconds:0.1;
+          winner := 1);
+      ]
+  in
+  Run.any ops;
   (* This is non-deterministic and may need to changed if flaky *)
   assert (!winner = 1)
 
@@ -228,6 +254,7 @@ let () =
           test_error_in_promise_terminates;
         Alcotest.test_case "can wait promises" `Quick test_can_wait_promises;
         Alcotest.test_case "any and all errors" `Quick test_any_and_all_errors;
+        Alcotest.test_case "any and all returns" `Quick test_any_and_all_returns;
         Alcotest.test_case "race any" `Quick test_race_any;
       ] );
   ]
