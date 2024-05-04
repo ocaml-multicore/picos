@@ -28,10 +28,9 @@ let test_fork_after_terminate () =
 let test_fork_after_escape () =
   Test_scheduler.run @@ fun () ->
   let escape = ref (Obj.magic ()) in
-  check Bundle.join_after
-    begin
-      fun bundle -> escape := bundle
-    end;
+  begin
+    check Bundle.join_after @@ fun bundle -> escape := bundle
+  end;
   match Bundle.fork !escape (fun () -> Printf.printf "Hello!\n%!") with
   | () -> assert false
   | exception Invalid_argument _ -> ()
@@ -43,26 +42,23 @@ let test_exception_in_child_terminates () =
     let condition = Condition.create () in
     let blocked = ref false in
     check Bundle.join_after @@ fun bundle ->
-    Bundle.fork bundle
+    begin
+      Bundle.fork bundle @@ fun () ->
       begin
-        fun () ->
-          Mutex.protect mutex
-            begin
-              fun () ->
-                while not !blocked do
-                  Condition.wait condition mutex
-                done
-            end;
-          raise Exit
+        Mutex.protect mutex @@ fun () ->
+        while not !blocked do
+          Condition.wait condition mutex
+        done
       end;
-    Mutex.protect mutex
-      begin
-        fun () ->
-          blocked := true;
-          while true do
-            Condition.wait condition mutex
-          done
-      end
+      raise Exit
+    end;
+    begin
+      Mutex.protect mutex @@ fun () ->
+      blocked := true;
+      while true do
+        Condition.wait condition mutex
+      done
+    end
   with
   | () -> assert false
   | exception Exit -> ()
