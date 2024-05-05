@@ -6,7 +6,7 @@
   (select
    test_scheduler.ml
    from
-   (picos.fifos -> test_scheduler.ocaml5.ml)
+   (picos.fifos picos.randos -> test_scheduler.ocaml5.ml)
    (picos.threaded -> test_scheduler.ocaml4.ml))))
 
 (library

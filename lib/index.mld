@@ -149,6 +149,7 @@ These are minimalistic, but fully-functioning, schedulers provided as samples.
 {!modules:
   Picos_fifos
   Picos_lwt
+  Picos_randos
   Picos_threaded
 }
 

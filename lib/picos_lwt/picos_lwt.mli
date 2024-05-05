@@ -1,5 +1,4 @@
-(** A {!Picos} compatible direct style interface to {!Lwt} with given
-    implementation of [sleep].
+(** Direct style {!Picos} compatible interface to {!Lwt} for OCaml 5.
 
     This basically gives you an alternative direct style interface to
     programming with {!Lwt}.  All the scheduling decisions will be made by
