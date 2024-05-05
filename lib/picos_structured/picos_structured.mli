@@ -242,16 +242,26 @@ module Run : sig
   (** Operations for running fibers in specific patterns. *)
 
   val all : (unit -> unit) list -> unit
-  (** [all actions] starts all the actions as separate fibers and waits until
-      they all complete. *)
+  (** [all actions] starts the actions as separate fibers and waits until they
+      all complete or one of them raises an unhandled exception other than
+      {{!Control.Terminate} [Terminate]}, which is not counted as an error,
+      after which the remaining fibers will be canceled.
+
+      ⚠️ It is not guaranteed that any of the actions in the list are called.  In
+      particular, after any action raises an unhandled exception or after the
+      main fiber is canceled, the actions that have not yet started may be
+      skipped entirely. *)
 
   val any : (unit -> unit) list -> unit
-  (** [any actions] starts all the actions as separate fibers and waits until at
-      least one of them completes.  The rest of the started fibers will then be
-      canceled.
+  (** [any actions] starts the actions as separate fibers and waits until one of
+      them completes or raises an unhandled exception other than
+      {{!Control.Terminate} [Terminate]}, which is not counted as an error,
+      after which the rest of the started fibers will be canceled.
 
-      ⚠️ Calling [any []] is equivalent to calling
-      {{!Control.block} [block ()]}. *)
+      ⚠️ It is not guaranteed that any of the actions in the list are called.  In
+      particular, after the first action returns successfully or after any
+      action raises an unhandled exception or after the main fiber is canceled,
+      the actions that have not yet started may be skipped entirely. *)
 end
 
 (** {1 Examples}
