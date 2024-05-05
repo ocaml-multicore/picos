@@ -63,41 +63,36 @@ let rec next t =
           (fun k ->
             Collection.push t.ready (Continue (fiber, k));
             next t)
+      and return =
+        Some
+          (fun k ->
+            Collection.push t.ready (Return k);
+            next t)
       in
       let[@alert "-handler"] effc (type a) :
           a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option = function
         | Fiber.Current -> current
         | Fiber.Spawn r ->
-            Some
-              (fun k ->
-                begin
-                  if Fiber.is_canceled fiber then
-                    Collection.push t.ready (Continue (fiber, k))
-                  else begin
-                    Collection.push t.ready (Return k);
-                    spawn t 0 r.forbid (Packed r.computation) r.mains
-                  end
-                end;
-                next t)
+            if Fiber.is_canceled fiber then yield
+            else begin
+              spawn t 0 r.forbid (Packed r.computation) r.mains;
+              return
+            end
         | Fiber.Yield -> yield
-        | Computation.Cancel_after r ->
-            Some
-              (fun k ->
-                if Fiber.is_canceled fiber then
-                  Collection.push t.ready (Continue (fiber, k))
-                else begin
-                  begin
-                    match
-                      Select.cancel_after r.computation ~seconds:r.seconds
-                        r.exn_bt
-                    with
-                    | () -> Collection.push t.ready (Return k)
-                    | exception exn ->
-                        let exn_bt = Exn_bt.get exn in
-                        Collection.push t.ready (Raise (k, exn_bt))
-                  end;
-                  next t
-                end)
+        | Computation.Cancel_after r -> begin
+            if Fiber.is_canceled fiber then yield
+            else
+              match
+                Select.cancel_after r.computation ~seconds:r.seconds r.exn_bt
+              with
+              | () -> return
+              | exception exn ->
+                  let exn_bt = Exn_bt.get exn in
+                  Some
+                    (fun k ->
+                      Collection.push t.ready (Raise (k, exn_bt));
+                      next t)
+          end
         | Trigger.Await trigger ->
             Some
               (fun k ->
