@@ -38,6 +38,14 @@ val to_seq : ('k, 'v) t -> ('k * 'v) Seq.t
 
     🐌 This is a linear time operation. *)
 
+val find_random_exn : ('k, 'v) t -> 'k
+(** [find_random_exn htbl] tries to find a random binding from the hash table
+    and returns the key of the binding or raises {!Not_found} in case the hash
+    table is empty.
+
+    🐌 This is an expected constant time operation with worst case linear time
+    complexity. *)
+
 (** {2 Adding bindings} *)
 
 val try_add : ('k, 'v) t -> 'k -> 'v -> bool

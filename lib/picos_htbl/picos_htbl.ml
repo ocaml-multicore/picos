@@ -1,3 +1,5 @@
+let[@inline never] impossible () = failwith "impossible"
+
 type 'k hashed_type = (module Stdlib.Hashtbl.HashedType with type t = 'k)
 
 type ('k, 'v, _) tdt =
@@ -436,3 +438,47 @@ let rec snapshot t ~clear backoff =
 
 let to_seq t = snapshot t ~clear:false Backoff.default
 let remove_all t = snapshot t ~clear:true Backoff.default
+
+(* *)
+
+let rec try_find_random_non_empty_bucket buckets seed i =
+  let bucket = Array.unsafe_get buckets i in
+  match Atomic.get bucket with
+  | B Nil | B (Resize { spine = Nil }) ->
+      let mask = Array.length buckets - 1 in
+      let i = (i + 1) land mask in
+      if i <> seed land mask then
+        try_find_random_non_empty_bucket buckets seed i
+      else Nil
+  | B (Cons cons_r) | B (Resize { spine = Cons cons_r }) -> Cons cons_r
+
+let try_find_random_non_empty_bucket t =
+  let buckets = (Atomic.get t).buckets in
+  let seed = Random.bits () in
+  try_find_random_non_empty_bucket buckets seed
+    (seed land (Array.length buckets - 1))
+
+let rec length spine n =
+  match spine with Nil -> n | Cons r -> length r.rest (n + 1)
+
+let length spine = length spine 0
+
+let rec nth spine i =
+  match spine with
+  | Nil -> impossible ()
+  | Cons r -> if i <= 0 then r.key else nth r.rest (i - 1)
+
+let find_random_exn t =
+  match try_find_random_non_empty_bucket t with
+  | (Cons cons_r as spine : (_, _, [< `Nil | `Cons ]) tdt) ->
+      (* We found a non-empty bucket - the fast way. *)
+      if cons_r.rest == Nil then cons_r.key
+      else
+        let n = length spine in
+        nth spine (Random.int n)
+  | Nil ->
+      (* We couldn't find a non-empty bucket - the slow way. *)
+      let bindings = to_seq t |> Array.of_seq in
+      let n = Array.length bindings in
+      if n <> 0 then fst (Array.unsafe_get bindings (Random.int n))
+      else raise_notrace Not_found

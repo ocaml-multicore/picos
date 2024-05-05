@@ -55,6 +55,7 @@ let test_exception_in_child_terminates () =
     begin
       Mutex.protect mutex @@ fun () ->
       blocked := true;
+      Condition.signal condition;
       while true do
         Condition.wait condition mutex
       done

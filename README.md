@@ -20,6 +20,7 @@ that defines the essential interoperability framework. The rest of the libraries
 are either sample schedulers (e.g.
 [`picos.fifos`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_fifos/index.html),
 [`picos.lwt`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_lwt/index.html),
+[`picos.randos`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_randos/index.html),
 and
 [`picos.threaded`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_threaded/index.html)),
 scheduler agnostic libraries (e.g.
