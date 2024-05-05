@@ -199,9 +199,9 @@ let test_any_and_all_errors () =
 let test_any_and_all_returns () =
   [ 0; 1; 2 ]
   |> List.iter @@ fun n_terminates ->
-     [ 1; 2 ]
+     [ 0; 1; 2 ]
      |> List.iter @@ fun n_incr ->
-        [ (Run.all, n_incr, n_incr); (Run.any, 1, n_incr) ]
+        [ (Run.all, n_incr, n_incr); (Run.any, Int.min 1 n_incr, n_incr) ]
         |> List.iter @@ fun (run_op, min, max) ->
            Test_scheduler.run @@ fun () ->
            let count = Atomic.make 0 in
