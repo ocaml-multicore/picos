@@ -109,16 +109,18 @@ let main () =
     Printf.printf "  Client %s read %d\n%!" id n
   in
 
-  Bundle.join_after @@ fun bundle ->
-  Bundle.fork bundle server;
   begin
-    Mutex.protect mutex @@ fun () ->
-    while !server_addr == loopback_0 do
-      Condition.wait condition mutex
-    done
+    Bundle.join_after @@ fun bundle ->
+    Bundle.fork bundle server;
+    begin
+      Mutex.protect mutex @@ fun () ->
+      while !server_addr == loopback_0 do
+        Condition.wait condition mutex
+      done
+    end;
+    Run.all [ client "A"; client "B" ];
+    Bundle.terminate bundle
   end;
-  Run.all [ client "A"; client "B" ];
-  Bundle.terminate bundle;
 
   Printf.printf "Server and Client test: OK\n%!"
 
@@ -126,5 +128,6 @@ let () =
   Printf.printf "Using %sblocking sockets and %s:\n%!"
     (if use_nonblock then "non-" else "")
     (if is_ocaml4 then "threads on OCaml 4" else "fibers on OCaml 5");
-  try Test_scheduler.run main
-  with Exit -> Printf.printf "Server and Client test: SKIPPED\n%!"
+  try Test_scheduler.run main with
+  | Exit -> Printf.printf "Server and Client test: SKIPPED\n%!"
+  | exn -> Printf.printf "Error: %s\n%!" (Printexc.to_string exn)
