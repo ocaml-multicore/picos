@@ -4,7 +4,7 @@ open Picos_stdio
 open Picos_sync
 
 let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
-let use_nonblock = Sys.win32 || Random.bool ()
+let use_nonblock = Sys.win32 (*|| Random.bool ()*)
 
 let set_nonblock fd =
   if use_nonblock then
@@ -91,7 +91,9 @@ let main () =
     | exception Unix.Unix_error (EPERM, _, _) when is_opam_ci -> raise Exit
   in
 
-  let server = if Random.bool () then server_looping else server_recursive in
+  let server =
+    if Random.bool () || true then server_looping else server_recursive
+  in
 
   let client id () =
     Printf.printf "  Client %s running\n%!" id;

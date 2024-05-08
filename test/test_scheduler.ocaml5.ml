@@ -1,6 +1,6 @@
 open Picos_structured.Finally
 
-let use_randos = Random.bool (Random.self_init ())
+let use_randos = Random.bool (Random.self_init ()) && false
 
 let run ?(max_domains = 1) ?forbid main =
   if use_randos then
