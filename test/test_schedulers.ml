@@ -7,7 +7,7 @@ let test_returns () =
   assert (actual = 42)
 
 let test_current () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
   let fiber_parent = Fiber.current () in
   let fiber_child = ref fiber_parent in
   let computation = Computation.create () in

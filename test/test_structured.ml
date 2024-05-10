@@ -1,4 +1,4 @@
-open Picos
+module Exn_bt = Picos.Exn_bt
 open Picos_structured
 open Picos_sync
 
@@ -37,7 +37,7 @@ let test_fork_after_escape () =
 
 let test_exception_in_child_terminates () =
   match
-    Test_scheduler.run @@ fun () ->
+    Test_scheduler.run ~max_domains:2 @@ fun () ->
     let mutex = Mutex.create () in
     let condition = Condition.create () in
     let blocked = ref false in
@@ -65,7 +65,7 @@ let test_exception_in_child_terminates () =
   | exception Exit -> ()
 
 let test_cancelation_awaits_children () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~max_domains:3 @@ fun () ->
   let blocked = ref false in
   let slept = ref false in
   begin
@@ -97,7 +97,7 @@ let test_cancelation_awaits_children () =
   assert !slept
 
 let test_termination_nests () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~max_domains:3 @@ fun () ->
   let mutex = Mutex.create () in
   let condition = Condition.create () in
   let blocked = ref false in
@@ -131,7 +131,7 @@ let test_termination_nests () =
   end
 
 let test_promise_cancelation_does_not_terminate () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
   Bundle.join_after @@ fun bundle ->
   let promise = Bundle.fork_as_promise bundle @@ fun () -> Control.block () in
   Control.yield ();
@@ -140,7 +140,7 @@ let test_promise_cancelation_does_not_terminate () =
 
 let test_error_in_promise_terminates () =
   match
-    Test_scheduler.run @@ fun () ->
+    Test_scheduler.run ~max_domains:2 @@ fun () ->
     Bundle.join_after @@ fun bundle ->
     let promise =
       Bundle.fork_as_promise bundle @@ fun () -> failwith "I failed"
@@ -152,7 +152,7 @@ let test_error_in_promise_terminates () =
   | exception Failure _ -> ()
 
 let test_can_wait_promises () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
   Bundle.join_after @@ fun bundle ->
   let promise =
     Bundle.fork_as_promise bundle @@ fun () ->
@@ -164,7 +164,7 @@ let test_can_wait_promises () =
 let test_any_and_all_errors () =
   [ Run.all; Run.any ]
   |> List.iter @@ fun run_op ->
-     Test_scheduler.run @@ fun () ->
+     Test_scheduler.run ~max_domains:6 @@ fun () ->
      let raised = Picos_mpsc_queue.create () in
      let raiser exn () =
        Picos_mpsc_queue.push raised exn;
@@ -203,7 +203,8 @@ let test_any_and_all_returns () =
      |> List.iter @@ fun n_incr ->
         [ (Run.all, n_incr, n_incr); (Run.any, Int.min 1 n_incr, n_incr) ]
         |> List.iter @@ fun (run_op, min, max) ->
-           Test_scheduler.run @@ fun () ->
+           Test_scheduler.run ~max_domains:(n_terminates + n_incr + 1)
+           @@ fun () ->
            let count = Atomic.make 0 in
            let ops =
              List.init n_terminates (fun _ () ->
@@ -217,7 +218,7 @@ let test_any_and_all_returns () =
            assert (n <= max)
 
 let test_race_any () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~max_domains:4 @@ fun () ->
   let winner = ref 0 in
   let ops =
     Test_util.shuffle

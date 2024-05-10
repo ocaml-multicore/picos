@@ -19,7 +19,7 @@ let test_fls_basics =
   in
 
   fun () ->
-    Test_scheduler.run @@ fun () ->
+    Test_scheduler.run ~max_domains:2 @@ fun () ->
     let first =
       run_in_fiber @@ fun () ->
       let fiber = Fiber.current () in
@@ -103,7 +103,7 @@ let test_thread_cancelation () =
 
 let test_cancel_after () =
   Alcotest.check_raises "should be canceled" Not_found @@ fun () ->
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
   let computation = Computation.create () in
   let main =
     Computation.capture computation @@ fun () ->

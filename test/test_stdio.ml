@@ -1,4 +1,3 @@
-open Picos
 open Picos_structured.Finally
 open Picos_structured
 open Picos_stdio
@@ -24,15 +23,9 @@ let test_openfile_and_read () =
   assert (Bytes.to_string bytes = "open Picos")
 
 let test_sleepf () =
-  Test_scheduler.run @@ fun () ->
-  let children = Computation.create () in
-  let n = Atomic.make 100 in
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
   let start = Unix.gettimeofday () in
-  Fiber.spawn ~forbid:false children
-    ( List.init (Atomic.get n) @@ fun _ () ->
-      Unix.sleepf 0.01;
-      if 1 = Atomic.fetch_and_add n (-1) then Computation.finish children );
-  Computation.await children;
+  Run.all (List.init 100 @@ fun _ () -> Unix.sleepf 0.01);
   let d = Unix.gettimeofday () -. start in
   (* This is non-deterministic and might need to be changed if flaky *)
   assert (0.01 <= d && d < 5.0)
@@ -46,7 +39,7 @@ let test_select_empty_timeout () =
   assert (0.1 <= d && d <= 5.0)
 
 let test_select_empty_forever () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
   Bundle.join_after @@ fun bundle ->
   begin
     Bundle.fork bundle @@ fun () ->
@@ -57,7 +50,7 @@ let test_select_empty_forever () =
   Bundle.terminate bundle
 
 let test_select () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
   let@ msg_inn1, msg_out1 =
     finally Unix.close_pair @@ fun () ->
     Unix.socketpair PF_UNIX SOCK_STREAM 0 ~cloexec:true
