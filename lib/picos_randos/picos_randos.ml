@@ -19,6 +19,11 @@ module Collection = struct
   let pop_exn t =
     let key = Picos_htbl.find_random_exn t in
     Picos_htbl.remove_exn t key
+
+  let is_empty t =
+    match Picos_htbl.find_random_exn t with
+    | _ -> false
+    | exception Not_found -> true
 end
 
 type ready =
@@ -31,16 +36,18 @@ type ready =
 
 type t = {
   ready : ready Collection.t;
-  needs_wakeup : bool Atomic.t;
+  num_waiters_non_zero : bool ref;
   num_alive_fibers : int Atomic.t;
-  mutex : Mutex.t;
-  condition : Condition.t;
   resume :
     Trigger.t ->
     Fiber.t ->
     (Exn_bt.t option, unit) Effect.Deep.continuation ->
     unit;
   retc : unit -> unit;
+  num_waiters : int ref;
+  condition : Condition.t;
+  mutex : Mutex.t;
+  mutable run : bool;
 }
 
 let rec spawn t n forbid packed = function
@@ -48,6 +55,7 @@ let rec spawn t n forbid packed = function
   | main :: mains ->
       let fiber = Fiber.create_packed ~forbid packed in
       Collection.push t.ready (Spawn (fiber, main));
+      if !(t.num_waiters_non_zero) then Condition.signal t.condition;
       spawn t (n + 1) forbid packed mains
 
 let rec next t =
@@ -111,29 +119,51 @@ let rec next t =
   | Resume (fiber, k) -> Fiber.resume fiber k
   | exception Not_found ->
       if Atomic.get t.num_alive_fibers <> 0 then begin
-        if Atomic.get t.needs_wakeup then begin
-          Mutex.lock t.mutex;
-          match
-            if Atomic.get t.needs_wakeup then Condition.wait t.condition t.mutex
-          with
-          | () -> Mutex.unlock t.mutex
-          | exception exn ->
+        Mutex.lock t.mutex;
+        if Collection.is_empty t.ready && Atomic.get t.num_alive_fibers <> 0
+        then begin
+          let n = !(t.num_waiters) + 1 in
+          t.num_waiters := n;
+          if n = 1 then t.num_waiters_non_zero := true;
+          match Condition.wait t.condition t.mutex with
+          | () ->
+              let n = !(t.num_waiters) - 1 in
+              t.num_waiters := n;
+              if n = 0 then t.num_waiters_non_zero := false;
               Mutex.unlock t.mutex;
-              raise exn
+              next t
+          | exception async_exn ->
+              let n = !(t.num_waiters) - 1 in
+              t.num_waiters := n;
+              if n = 0 then t.num_waiters_non_zero := false;
+              Mutex.unlock t.mutex;
+              raise async_exn
         end
-        else Atomic.set t.needs_wakeup true;
-        next t
+        else begin
+          Mutex.unlock t.mutex;
+          next t
+        end
+      end
+      else begin
+        Mutex.lock t.mutex;
+        Mutex.unlock t.mutex;
+        Condition.broadcast t.condition
       end
 
-let run ?(forbid = false) main =
+let context () =
   Select.check_configured ();
-  let ready = Collection.create ()
-  and needs_wakeup = Atomic.make false
-  and num_alive_fibers = Atomic.make 1
-  and mutex = Mutex.create ()
-  and condition = Condition.create () in
   let rec t =
-    { ready; needs_wakeup; num_alive_fibers; mutex; condition; resume; retc }
+    {
+      ready = Collection.create ();
+      num_waiters_non_zero = ref false |> Multicore_magic.copy_as_padded;
+      num_alive_fibers = Atomic.make 1 |> Multicore_magic.copy_as_padded;
+      resume;
+      retc;
+      num_waiters = ref 0 |> Multicore_magic.copy_as_padded;
+      condition = Condition.create ();
+      mutex = Mutex.create ();
+      run = false;
+    }
   and retc () =
     Atomic.decr t.num_alive_fibers;
     next t
@@ -141,21 +171,48 @@ let run ?(forbid = false) main =
     let resume = Resume (fiber, k) in
     Fiber.unsuspend fiber trigger |> ignore;
     Collection.push t.ready resume;
-    if
-      Atomic.get t.needs_wakeup
-      && Atomic.compare_and_set t.needs_wakeup true false
-    then begin
-      begin
-        match Mutex.lock t.mutex with
-        | () -> Mutex.unlock t.mutex
-        | exception Sys_error _ -> ()
-      end;
-      Condition.broadcast t.condition
-    end
+    let non_zero =
+      match Mutex.lock t.mutex with
+      | () ->
+          let non_zero = !(t.num_waiters_non_zero) in
+          Mutex.unlock t.mutex;
+          non_zero
+      | exception Sys_error _ -> false
+    in
+    if non_zero then Condition.signal t.condition
   in
-  let computation = Computation.create () in
-  let fiber = Fiber.create ~forbid computation in
-  let main = Computation.capture computation main in
-  Collection.push t.ready (Spawn (fiber, main));
-  next t;
-  Computation.await computation
+  t
+
+let runner_on_this_thread = next
+
+let rec await t computation =
+  if !(t.num_waiters_non_zero) then begin
+    match Condition.wait t.condition t.mutex with
+    | () -> await t computation
+    | exception async_exn ->
+        Mutex.unlock t.mutex;
+        raise async_exn
+  end
+  else begin
+    Mutex.unlock t.mutex;
+    Computation.await computation
+  end
+
+let run ?context:t_opt ?(forbid = false) main =
+  let t = match t_opt with Some t -> t | None -> context () in
+  Mutex.lock t.mutex;
+  if t.run then begin
+    Mutex.unlock t.mutex;
+    invalid_arg "already run"
+  end
+  else begin
+    t.run <- true;
+    Mutex.unlock t.mutex;
+    let computation = Computation.create () in
+    let fiber = Fiber.create ~forbid computation in
+    let main = Computation.capture computation main in
+    Collection.push t.ready (Spawn (fiber, main));
+    next t;
+    Mutex.lock t.mutex;
+    await t computation
+  end

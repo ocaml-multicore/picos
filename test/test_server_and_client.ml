@@ -128,6 +128,6 @@ let () =
   Printf.printf "Using %sblocking sockets and %s:\n%!"
     (if use_nonblock then "non-" else "")
     (if is_ocaml4 then "threads on OCaml 4" else "fibers on OCaml 5");
-  try Test_scheduler.run main with
+  try Test_scheduler.run ~max_domains:4 main with
   | Exit -> Printf.printf "Server and Client test: SKIPPED\n%!"
   | exn -> Printf.printf "Error: %s\n%!" (Printexc.to_string exn)

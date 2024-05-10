@@ -1,5 +1,6 @@
 open Picos
 open Picos_sync
+open Picos_structured
 
 module Fiber = struct
   include Fiber
@@ -9,14 +10,12 @@ module Fiber = struct
     Fiber.spawn ~forbid:false computation
       [ Computation.capture computation thunk ];
     computation
-
-  let run thunk = Computation.await (start thunk)
 end
 
 let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
 
 let test_mutex_and_condition_basics () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
   let mutex = Mutex.create () in
   let condition = Condition.create () in
 
@@ -43,17 +42,20 @@ let test_mutex_and_condition_basics () =
            done
 
 let test_mutex_and_condition_errors () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
   let mutex = Mutex.create () in
   let condition = Condition.create () in
   Mutex.protect mutex @@ fun () ->
+  Bundle.join_after @@ fun bundle ->
   begin
-    match Fiber.run (fun () -> Mutex.unlock mutex) with
+    Bundle.fork bundle @@ fun () ->
+    match Mutex.unlock mutex with
     | () -> assert false
     | exception Sys_error _ -> ()
   end;
   begin
-    match Fiber.run (fun () -> Condition.wait condition mutex) with
+    Bundle.fork bundle @@ fun () ->
+    match Condition.wait condition mutex with
     | () -> assert false
     | exception Sys_error _ -> ()
   end
@@ -165,7 +167,7 @@ let test_lazy_basics () =
   | exception Stdlib.Lazy.Undefined -> ()
 
 let test_lazy_cancelation () =
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
   let susp ?to_signal ~to_await result =
     Lazy.from_fun @@ fun () ->
     Option.iter Trigger.signal to_signal;
