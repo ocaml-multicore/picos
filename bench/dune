@@ -4,7 +4,7 @@
   (run %{test} -brief))
  (libraries
   picos
-  picos.mpsc_queue
+  picos.mpscq
   picos.htbl
   picos.sync
   picos.domain

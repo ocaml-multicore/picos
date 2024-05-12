@@ -10,4 +10,4 @@
    from
    (picos.select -> select.some.ml)
    (-> select.none.ml))
-  picos.mpsc_queue))
+  picos.mpscq))

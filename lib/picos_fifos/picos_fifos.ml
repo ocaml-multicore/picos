@@ -1,5 +1,5 @@
 open Picos
-module Queue = Picos_mpsc_queue
+module Queue = Picos_mpscq
 
 (* As a minor optimization, we avoid allocating closures, which take slightly
    more memory than values of this type. *)
