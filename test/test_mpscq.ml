@@ -1,4 +1,4 @@
-module Queue = Picos_mpsc_queue
+module Queue = Picos_mpscq
 
 module Spec = struct
   type cmd = Push of int | Push_head of int | Pop | Pop_all
@@ -87,4 +87,4 @@ let () =
     in
     [ agree_test_par_asym ~count ~name:(name ^ " parallel") ]
   in
-  Stm_run.run ~name:"Picos_mpsc_queue" ~make_domain (module Spec) |> exit
+  Stm_run.run ~name:"Picos_mpscq" ~make_domain (module Spec) |> exit

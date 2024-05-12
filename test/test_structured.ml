@@ -165,9 +165,9 @@ let test_any_and_all_errors () =
   [ Run.all; Run.any ]
   |> List.iter @@ fun run_op ->
      Test_scheduler.run ~max_domains:6 @@ fun () ->
-     let raised = Picos_mpsc_queue.create () in
+     let raised = Picos_mpscq.create () in
      let raiser exn () =
-       Picos_mpsc_queue.push raised exn;
+       Picos_mpscq.push raised exn;
        raise exn
      in
      match
@@ -190,7 +190,7 @@ let test_any_and_all_errors () =
            | Control.Errors exn_bts -> exn_bts
            | exn -> [ Exn_bt.get exn ]
          in
-         Picos_mpsc_queue.pop_all raised
+         Picos_mpscq.pop_all raised
          |> Seq.iter @@ fun exn ->
             assert (
               exn_bts

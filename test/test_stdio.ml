@@ -71,7 +71,7 @@ let test_select () =
   Unix.set_nonblock syn_inn;
   Unix.set_nonblock syn_out;
 
-  let events = Picos_mpsc_queue.create () in
+  let events = Picos_mpscq.create () in
 
   Bundle.join_after @@ fun bundle ->
   Bundle.fork bundle
@@ -81,17 +81,17 @@ let test_select () =
           match Unix.select [ msg_inn1; msg_inn2 ] [] [] 0.1 with
           | inns, _, _ ->
               if List.exists (( == ) msg_inn1) inns then begin
-                Picos_mpsc_queue.push events (Printf.sprintf "Inn1");
+                Picos_mpscq.push events (Printf.sprintf "Inn1");
                 assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1);
                 assert (1 = Unix.write_substring syn_out "!" 0 1)
               end;
               if List.exists (( == ) msg_inn2) inns then begin
-                Picos_mpsc_queue.push events (Printf.sprintf "Inn2");
+                Picos_mpscq.push events (Printf.sprintf "Inn2");
                 assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1);
                 assert (1 = Unix.write_substring syn_out "!" 0 1)
               end;
               if [] == inns then begin
-                Picos_mpsc_queue.push events (Printf.sprintf "Timeout");
+                Picos_mpscq.push events (Printf.sprintf "Timeout");
                 assert (1 = Unix.write_substring syn_out "!" 0 1)
               end
         done
@@ -108,7 +108,7 @@ let test_select () =
 
   Alcotest.(check' (list string))
     ~msg:"events"
-    ~actual:(Picos_mpsc_queue.pop_all events |> List.of_seq)
+    ~actual:(Picos_mpscq.pop_all events |> List.of_seq)
     ~expected:[ "Inn1"; "Inn2"; "Timeout" ]
 
 let () =

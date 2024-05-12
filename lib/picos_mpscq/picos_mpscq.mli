@@ -43,22 +43,22 @@ val pop_all : 'a t -> 'a Seq.t
 
     An example top-level session:
     {[
-      # let q : int Picos_mpsc_queue.t =
-          Picos_mpsc_queue.create ()
-      val q : int Picos_mpsc_queue.t = <abstr>
+      # let q : int Picos_mpscq.t =
+          Picos_mpscq.create ()
+      val q : int Picos_mpscq.t = <abstr>
 
-      # Picos_mpsc_queue.push q 42
+      # Picos_mpscq.push q 42
       - : unit = ()
 
-      # Picos_mpsc_queue.push_head q 76
+      # Picos_mpscq.push_head q 76
       - : unit = ()
 
-      # Picos_mpsc_queue.push q 101
+      # Picos_mpscq.push q 101
       - : unit = ()
 
-      # Picos_mpsc_queue.pop_exn q
+      # Picos_mpscq.pop_exn q
       - : int = 76
 
-      # Picos_mpsc_queue.pop_all q |> List.of_seq
+      # Picos_mpscq.pop_all q |> List.of_seq
       - : int list = [42; 101]
     ]} *)

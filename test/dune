@@ -68,12 +68,7 @@
 (test
  (name test_stdio)
  (modules test_stdio)
- (libraries
-  test_scheduler
-  picos.mpsc_queue
-  picos.stdio
-  picos.structured
-  alcotest))
+ (libraries test_scheduler picos.mpscq picos.stdio picos.structured alcotest))
 
 ;;
 
@@ -104,10 +99,10 @@
 ;;
 
 (test
- (name test_mpsc_queue)
- (modules test_mpsc_queue)
+ (name test_mpscq)
+ (modules test_mpscq)
  (libraries
-  picos.mpsc_queue
+  picos.mpscq
   qcheck-core
   qcheck-multicoretests-util
   qcheck-stm.stm
@@ -151,7 +146,7 @@
  (modules test_structured)
  (libraries
   picos
-  picos.mpsc_queue
+  picos.mpscq
   picos.structured
   picos.sync
   test_scheduler

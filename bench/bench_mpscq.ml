@@ -1,5 +1,5 @@
 open Multicore_bench
-module Queue = Picos_mpsc_queue
+module Queue = Picos_mpscq
 
 let run_one_domain ~budgetf ?(n_msgs = 50 * Util.iter_factor) () =
   let t = Queue.create () in
