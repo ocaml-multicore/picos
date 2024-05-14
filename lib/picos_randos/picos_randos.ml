@@ -16,9 +16,9 @@ module Collection = struct
     let key = Random.bits () in
     if not (Picos_htbl.try_add t key value) then push t value
 
-  let pop_exn t =
+  let rec pop_exn t =
     let key = Picos_htbl.find_random_exn t in
-    Picos_htbl.remove_exn t key
+    try Picos_htbl.remove_exn t key with Not_found -> pop_exn t
 
   let is_empty t =
     match Picos_htbl.find_random_exn t with

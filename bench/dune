@@ -16,6 +16,11 @@
    from
    (picos.fifos -> scheduler.ocaml5.ml)
    (picos.threaded -> scheduler.ocaml4.ml))
+  (select
+   bench_fib.ml
+   from
+   (picos.randos -> bench_fib.ocaml5.ml)
+   (-> bench_fib.ocaml4.ml))
   multicore-bench
   multicore-magic
   backoff))
