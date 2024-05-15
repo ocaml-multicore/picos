@@ -244,6 +244,7 @@ let estimated_size r =
   let n = Array.length cs - 1 in
   estimated_size cs n (Atomic.get (Array.unsafe_get cs n))
 
+(** This must be called with [r.pending == Nothing]. *)
 let[@inline never] try_resize t r new_capacity ~clear =
   (* We must make sure that on every resize we use a physically different
      [Resize _] value to indicate unprocessed target buckets.  The use of
@@ -276,7 +277,8 @@ let rec adjust_estimated_size t r mask delta result =
     (* Reading the size is potentially expensive, so we only check it
        occasionally.  The bigger the table the less frequently we should need to
        resize. *)
-    if Random.bits () land mask = 0 && Atomic.get t == r then begin
+    if r.pending == Nothing && Random.bits () land mask = 0 && Atomic.get t == r
+    then begin
       let estimated_size = estimated_size r in
       let capacity = Array.length r.buckets in
       if capacity < estimated_size && capacity < max_buckets then
@@ -345,7 +347,7 @@ let mem t key = find_node t key != Nil
 (* *)
 
 let rec try_add t key value backoff =
-  let r = get t in
+  let r = Atomic.get t in
   let h = r.hash key in
   let mask = Array.length r.buckets - 1 in
   let i = h land mask in
@@ -363,9 +365,11 @@ let rec try_add t key value backoff =
         if Atomic.compare_and_set b (B before) (B after) then
           adjust_estimated_size t r mask 1 true
         else try_add t key value (Backoff.once backoff)
-  | B (Resize _) -> try_add t key value Backoff.default
+  | B (Resize _) ->
+      let _ = finish t (Atomic.get t) in
+      try_add t key value Backoff.default
 
-let try_add t key value = try_add t key value Backoff.default
+let[@inline] try_add t key value = try_add t key value Backoff.default
 
 (* *)
 
@@ -375,7 +379,7 @@ let[@tail_mod_cons] rec dissoc t key = function
       if t key r.key then r.rest else Cons { r with rest = dissoc t key r.rest }
 
 let rec remove_node t key backoff =
-  let r = get t in
+  let r = Atomic.get t in
   let h = r.hash key in
   let mask = Array.length r.buckets - 1 in
   let i = h land mask in
@@ -399,7 +403,9 @@ let rec remove_node t key backoff =
             else remove_node t key (Backoff.once backoff)
         | exception Not_found -> Nil
     end
-  | B (Resize _) -> remove_node t key Backoff.default
+  | B (Resize _) ->
+      let _ = finish t (Atomic.get t) in
+      remove_node t key Backoff.default
 
 let try_remove t key = remove_node t key Backoff.default != Nil
 
