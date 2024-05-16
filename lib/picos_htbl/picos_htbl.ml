@@ -405,42 +405,59 @@ let[@tail_mod_cons] rec dissoc t key = function
   | Cons r ->
       if t key r.key then r.rest else Cons { r with rest = dissoc t key r.rest }
 
-let rec remove_node t key backoff =
+type ('a, _) res = Value : ('a, 'a) res | Bool : ('a, bool) res
+
+let rec remove_node : type v r. (_, v) t -> _ -> _ -> (v, r) res -> r =
+ fun t key backoff res ->
   let r = Atomic.get t in
   let h = r.hash key in
   let mask = Atomic_array.length r.buckets - 1 in
   let i = h land mask in
   match Atomic_array.unsafe_fenceless_get r.buckets i with
-  | B Nil -> Nil
+  | B Nil -> begin
+      match res with Value -> raise_notrace Not_found | Bool -> false
+    end
   | B (Cons cons_r as before) -> begin
       if r.equal cons_r.key key then
         if
           Atomic_array.unsafe_compare_and_set r.buckets i (B before)
             (B cons_r.rest)
-        then adjust_estimated_size t r mask (-1) before
-        else remove_node t key (Backoff.once backoff)
+        then
+          let x : r = match res with Value -> cons_r.value | Bool -> true in
+          adjust_estimated_size t r mask (-1) x
+        else remove_node t key (Backoff.once backoff) res
       else
-        match dissoc r.equal key cons_r.rest with
-        | (Nil | Cons _) as rest ->
+        match res with
+        | Value ->
+            let rest = dissoc r.equal key cons_r.rest in
             if
               Atomic_array.unsafe_compare_and_set r.buckets i (B before)
                 (B (Cons { cons_r with rest }))
             then
-              assoc_node r.equal key cons_r.rest
-              |> adjust_estimated_size t r mask (-1)
-            else remove_node t key (Backoff.once backoff)
-        | exception Not_found -> Nil
+              match
+                assoc_node r.equal key cons_r.rest
+                |> adjust_estimated_size t r mask (-1)
+              with
+              | Cons cons_r -> cons_r.value
+              | Nil -> raise_notrace Not_found
+            else remove_node t key (Backoff.once backoff) res
+        | Bool -> begin
+            match dissoc r.equal key cons_r.rest with
+            | (Nil | Cons _) as rest ->
+                if
+                  Atomic_array.unsafe_compare_and_set r.buckets i (B before)
+                    (B (Cons { cons_r with rest }))
+                then adjust_estimated_size t r mask (-1) true
+                else remove_node t key (Backoff.once backoff) res
+            | exception Not_found -> false
+          end
     end
   | B (Resize _) ->
       let _ = finish t (Atomic.get t) in
-      remove_node t key Backoff.default
+      remove_node t key Backoff.default res
 
-let try_remove t key = remove_node t key Backoff.default != Nil
-
-let remove_exn t key =
-  match remove_node t key Backoff.default with
-  | Nil -> raise_notrace Not_found
-  | Cons r -> r.value
+let try_remove t key = remove_node t key Backoff.default Bool
+let remove_exn t key = remove_node t key Backoff.default Value
 
 (* *)
 
