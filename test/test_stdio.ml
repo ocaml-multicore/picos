@@ -74,38 +74,40 @@ let test_select () =
   let events = Picos_mpscq.create () in
 
   Bundle.join_after @@ fun bundle ->
-  Bundle.fork bundle
-    begin
-      fun () ->
-        while true do
-          match Unix.select [ msg_inn1; msg_inn2 ] [] [] 0.1 with
-          | inns, _, _ ->
-              if List.exists (( == ) msg_inn1) inns then begin
-                Picos_mpscq.push events (Printf.sprintf "Inn1");
-                assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1);
-                assert (1 = Unix.write_substring syn_out "!" 0 1)
-              end;
-              if List.exists (( == ) msg_inn2) inns then begin
-                Picos_mpscq.push events (Printf.sprintf "Inn2");
-                assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1);
-                assert (1 = Unix.write_substring syn_out "!" 0 1)
-              end;
-              if [] == inns then begin
-                Picos_mpscq.push events (Printf.sprintf "Timeout");
-                assert (1 = Unix.write_substring syn_out "!" 0 1)
-              end
-        done
-    end;
+  begin
+    Bundle.fork bundle @@ fun () ->
+    while true do
+      match Unix.select [ msg_inn1; msg_inn2 ] [] [] 0.2 with
+      | inns, _, _ ->
+          if List.exists (( == ) msg_inn1) inns then begin
+            Picos_mpscq.push events (Printf.sprintf "Inn1");
+            assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1);
+            assert (1 = Unix.write_substring syn_out "!" 0 1)
+          end;
+          if List.exists (( == ) msg_inn2) inns then begin
+            Picos_mpscq.push events (Printf.sprintf "Inn2");
+            assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1);
+            assert (1 = Unix.write_substring syn_out "!" 0 1)
+          end;
+          if [] == inns then begin
+            Picos_mpscq.push events (Printf.sprintf "Timeout");
+            assert (1 = Unix.write_substring syn_out "!" 0 1)
+          end
+    done
+  end;
 
+  Control.yield ();
   assert (1 = Unix.write_substring msg_out1 "!" 0 1);
+  Control.yield ();
   assert (1 = Unix.write_substring msg_out2 "!" 0 1);
+  Control.yield ();
   assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
   assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
-
   assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
 
   Bundle.terminate bundle;
 
+  (* This is non-deterministic and might need to be changed if flaky *)
   Alcotest.(check' (list string))
     ~msg:"events"
     ~actual:(Picos_mpscq.pop_all events |> List.of_seq)
