@@ -71,6 +71,33 @@ let create (type k) ?hashed_type () =
 
 (* *)
 
+let rec take_at backoff b =
+  match Atomic.get b with
+  | B ((Nil | Cons _) as spine) ->
+      if Atomic.compare_and_set b (B spine) (B (Resize { spine })) then spine
+      else take_at (Backoff.once backoff) b
+  | B (Resize spine_r) -> spine_r.spine
+
+let rec copy_all r target i t step =
+  let i = (i + step) land (Array.length target - 1) in
+  let spine = take_at Backoff.default (Array.unsafe_get r.buckets i) in
+  let b = Array.unsafe_get target i in
+  let (B before) = Atomic.get b in
+  (* The [before] value is physically different for each resize and so checking
+     that the resize has not finished is sufficient to ensure that the
+     [compare_and_set] below does not disrupt the next resize. *)
+  Atomic.get t == r
+  && begin
+       begin
+         match before with
+         | Resize _ -> Atomic.compare_and_set b (B before) (B spine) |> ignore
+         | Nil | Cons _ -> ()
+       end;
+       i = 0 || copy_all r target i t step
+     end
+
+(* *)
+
 let[@tail_mod_cons] rec filter t msk chk = function
   | Nil -> Nil
   | Cons r ->
@@ -78,50 +105,36 @@ let[@tail_mod_cons] rec filter t msk chk = function
         Cons { r with rest = filter t msk chk r.rest }
       else filter t msk chk r.rest
 
-let split_hi r target i t spine =
-  let high = Array.length r.buckets in
-  let b = Array.unsafe_get target (i + high) in
-  match Atomic.get b with
-  | B (Resize _ as before) ->
-      (* The [before] value is physically different for each resize and so
-         checking that the resize has not finished is sufficient to ensure that
-         the [compare_and_set] below does not disrupt the next resize. *)
-      if Atomic.get t == r then
-        let ((Nil | Cons _) as after) = filter r.hash high high spine in
-        Atomic.compare_and_set b (B before) (B after) |> ignore
-  | B (Nil | Cons _) -> ()
-
-let split_lo r target i t spine =
-  let b = Array.unsafe_get target i in
-  match Atomic.get b with
-  | B (Resize _ as before) ->
-      (* The [before] value is physically different for each resize and so
-         checking that the resize has not finished is sufficient to ensure that
-         the [compare_and_set] below does not disrupt the next resize. *)
-      if Atomic.get t == r then begin
-        let ((Nil | Cons _) as after) =
-          filter r.hash (Array.length r.buckets) 0 spine
-        in
-        Atomic.compare_and_set b (B before) (B after) |> ignore;
-        split_hi r target i t spine
-      end
-  | B (Nil | Cons _) -> split_hi r target i t spine
-
-let rec split_at r target i t backoff =
-  let b = Array.unsafe_get r.buckets i in
-  match Atomic.get b with
-  | B ((Nil | Cons _) as spine) ->
-      if Atomic.compare_and_set b (B spine) (B (Resize { spine })) then
-        split_lo r target i t spine
-      else split_at r target i t (Backoff.once backoff)
-  | B (Resize spine_r) -> split_lo r target i t spine_r.spine
-
 let rec split_all r target i t step =
-  Atomic.get t == r
-  &&
   let i = (i + step) land (Array.length r.buckets - 1) in
-  split_at r target i t Backoff.default;
-  i = 0 || split_all r target i t step
+  let spine = take_at Backoff.default (Array.unsafe_get r.buckets i) in
+  let high = Array.length r.buckets in
+  let after_lo = filter r.hash high 0 spine in
+  let after_hi = filter r.hash high high spine in
+  let b_lo = Array.unsafe_get target i in
+  let b_hi = Array.unsafe_get target (i + high) in
+  let (B before_lo) = Atomic.get b_lo in
+  let (B before_hi) = Atomic.get b_hi in
+  (* The [before_lo] and [before_hi] values are physically different for each
+     resize and so checking that the resize has not finished is sufficient to
+     ensure that the [compare_and_set] below does not disrupt the next
+     resize. *)
+  Atomic.get t == r
+  && begin
+       begin
+         match before_lo with
+         | Resize _ ->
+             Atomic.compare_and_set b_lo (B before_lo) (B after_lo) |> ignore
+         | Nil | Cons _ -> ()
+       end;
+       begin
+         match before_hi with
+         | Resize _ ->
+             Atomic.compare_and_set b_hi (B before_hi) (B after_hi) |> ignore
+         | Nil | Cons _ -> ()
+       end;
+       i = 0 || split_all r target i t step
+     end
 
 (* *)
 
@@ -129,72 +142,28 @@ let[@tail_mod_cons] rec merge rest = function
   | Nil -> rest
   | Cons r -> Cons { r with rest = merge rest r.rest }
 
-let merge_at r target i t spine_lo spine_hi =
-  let b = Array.unsafe_get target i in
-  match Atomic.get b with
-  | B (Resize _ as before) ->
-      (* The [before] value is physically different for each resize and so
-         checking that the resize has not finished is sufficient to ensure that
-         the [compare_and_set] below does not disrupt the next resize. *)
-      if Atomic.get t == r then
-        let ((Nil | Cons _) as after) = merge spine_lo spine_hi in
-        Atomic.compare_and_set b (B before) (B after) |> ignore
-  | B (Nil | Cons _) -> ()
-
-let rec merge_hi r target i t spine_lo backoff =
-  let b = Array.unsafe_get r.buckets (i + Array.length target) in
-  match Atomic.get b with
-  | B ((Nil | Cons _) as spine) ->
-      if Atomic.compare_and_set b (B spine) (B (Resize { spine })) then
-        merge_at r target i t spine_lo spine
-      else merge_hi r target i t spine_lo (Backoff.once backoff)
-  | B (Resize spine_r) -> merge_at r target i t spine_lo spine_r.spine
-
-let rec merge_lo r target i t backoff =
-  let b = Array.unsafe_get r.buckets i in
-  match Atomic.get b with
-  | B ((Nil | Cons _) as spine) ->
-      if Atomic.compare_and_set b (B spine) (B (Resize { spine })) then
-        merge_hi r target i t spine Backoff.default
-      else merge_lo r target i t (Backoff.once backoff)
-  | B (Resize spine_r) -> merge_hi r target i t spine_r.spine Backoff.default
-
 let rec merge_all r target i t step =
-  Atomic.get t == r
-  &&
   let i = (i + step) land (Array.length target - 1) in
-  merge_lo r target i t Backoff.default;
-  i = 0 || merge_all r target i t step
-
-(* *)
-
-let copy_to r target i t
-    ((Nil | Cons _) as spine : (_, _, [ `Nil | `Cons ]) tdt) =
+  let spine_lo = take_at Backoff.default (Array.unsafe_get r.buckets i) in
+  let spine_hi =
+    take_at Backoff.default
+      (Array.unsafe_get r.buckets (i + Array.length target))
+  in
+  let ((Nil | Cons _) as after) = merge spine_lo spine_hi in
   let b = Array.unsafe_get target i in
-  match Atomic.get b with
-  | B (Resize _ as before) ->
-      (* The [before] value is physically different for each resize and so
-         checking that the resize has not finished is sufficient to ensure that
-         the [compare_and_set] below does not disrupt the next resize. *)
-      if Atomic.get t == r then
-        Atomic.compare_and_set b (B before) (B spine) |> ignore
-  | B (Nil | Cons _) -> ()
-
-let rec copy_at r target i t backoff =
-  let b = Array.unsafe_get r.buckets i in
-  match Atomic.get b with
-  | B ((Nil | Cons _) as spine) ->
-      if Atomic.compare_and_set b (B spine) (B (Resize { spine })) then
-        copy_to r target i t spine
-      else copy_at r target i t (Backoff.once backoff)
-  | B (Resize spine_r) -> copy_to r target i t spine_r.spine
-
-let rec copy_all r target i t step =
+  let (B before) = Atomic.get b in
+  (* The [before] value is physically different for each resize and so checking
+     that the resize has not finished is sufficient to ensure that the
+     [compare_and_set] below does not disrupt the next resize. *)
   Atomic.get t == r
-  &&
-  let i = (i + step) land (Array.length target - 1) in
-  copy_at r target i t Backoff.default;
-  i = 0 || copy_all r target i t step
+  && begin
+       begin
+         match before with
+         | Resize _ -> Atomic.compare_and_set b (B before) (B after) |> ignore
+         | Nil | Cons _ -> ()
+       end;
+       i = 0 || merge_all r target i t step
+     end
 
 (* *)
 
