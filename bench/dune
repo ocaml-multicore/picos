@@ -11,6 +11,7 @@
   picos.thread
   picos.stdio
   picos.select
+  picos.structured
   (select
    scheduler.ml
    from
