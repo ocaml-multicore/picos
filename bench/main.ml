@@ -16,6 +16,7 @@ let benchmarks =
     ("Picos_htbl", Bench_htbl.run_suite);
     ("Picos_stdio", Bench_stdio.run_suite);
     ("Fib", Bench_fib.run_suite);
+    ("Picos binaries", Bench_binaries.run_suite);
   ]
 
 let () = Multicore_bench.Cmd.run ~benchmarks ()
