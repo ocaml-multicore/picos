@@ -61,9 +61,11 @@ module Computation = struct
   let fifo_bit = 1
   let one = 2
 
+  let empty_fifo = Continue { triggers = []; balance_and_mode = fifo_bit }
+  and empty_lifo = Continue { triggers = []; balance_and_mode = 0 }
+
   let create ?(mode : [ `FIFO | `LIFO ] = `FIFO) () =
-    let balance_and_mode = Bool.to_int (mode == `FIFO) in
-    Atomic.make (Continue { balance_and_mode; triggers = [] })
+    Atomic.make (if mode == `FIFO then empty_fifo else empty_lifo)
 
   let with_action ?(mode : [ `FIFO | `LIFO ] = `FIFO) x y action =
     let balance_and_mode = one + Bool.to_int (mode == `FIFO) in
@@ -86,11 +88,14 @@ module Computation = struct
       that someone else completed the [gc]. *)
   let rec gc balance_and_mode triggers = function
     | [] ->
-        let triggers =
-          if balance_and_mode <= one + fifo_bit then triggers
-          else List.rev triggers
-        in
-        Continue { balance_and_mode; triggers }
+        if balance_and_mode <= fifo_bit then
+          if balance_and_mode == fifo_bit then empty_fifo else empty_lifo
+        else
+          let triggers =
+            if balance_and_mode <= one + fifo_bit then triggers
+            else List.rev triggers
+          in
+          Continue { balance_and_mode; triggers }
     | r :: rs ->
         if Trigger.is_signaled r then gc balance_and_mode triggers rs
         else gc (balance_and_mode + one) (r :: triggers) rs
