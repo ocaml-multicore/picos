@@ -13,6 +13,7 @@ let ceil_pow_2_minus_1 n =
      else n)
 
 module Atomic = Multicore_magic.Transparent_atomic
+module Atomic_array = Multicore_magic.Atomic_array
 
 type 'k hashed_type = (module Stdlib.Hashtbl.HashedType with type t = 'k)
 
@@ -40,13 +41,13 @@ type ('k, 'v) bucket =
 type ('k, 'v) pending =
   | Nothing
   | Resize of {
-      buckets : ('k, 'v) bucket Atomic.t array;
+      buckets : ('k, 'v) bucket Atomic_array.t;
       non_linearizable_size : int Atomic.t array;
     }
 
 type ('k, 'v) state = {
   hash : 'k -> int;
-  buckets : ('k, 'v) bucket Atomic.t array;
+  buckets : ('k, 'v) bucket Atomic_array.t;
   equal : 'k -> 'k -> bool;
   non_linearizable_size : int Atomic.t array;
   pending : ('k, 'v) pending;
@@ -92,7 +93,7 @@ let create (type k) ?hashed_type ?min_buckets ?max_buckets () =
     | Some ((module Hashed_type) : k hashed_type) ->
         (Hashed_type.equal, Hashed_type.hash)
   in
-  let buckets = Array.init min_buckets @@ fun _ -> Atomic.make (B Nil) in
+  let buckets = Atomic_array.make min_buckets (B Nil) in
   {
     hash;
     buckets;
@@ -120,18 +121,20 @@ let max_buckets_of t = (Atomic.get t).max_buckets
 
 (* *)
 
-let rec take_at backoff b =
-  match Atomic.get b with
+let rec take_at backoff bs i =
+  match Atomic_array.unsafe_fenceless_get bs i with
   | B ((Nil | Cons _) as spine) ->
-      if Atomic.compare_and_set b (B spine) (B (Resize { spine })) then spine
-      else take_at (Backoff.once backoff) b
+      if
+        Atomic_array.unsafe_compare_and_set bs i (B spine)
+          (B (Resize { spine }))
+      then spine
+      else take_at (Backoff.once backoff) bs i
   | B (Resize spine_r) -> spine_r.spine
 
 let rec copy_all r target i t step =
-  let i = (i + step) land (Array.length target - 1) in
-  let spine = take_at Backoff.default (Array.unsafe_get r.buckets i) in
-  let b = Array.unsafe_get target i in
-  let (B before) = Atomic.get b in
+  let i = (i + step) land (Atomic_array.length target - 1) in
+  let spine = take_at Backoff.default r.buckets i in
+  let (B before) = Atomic_array.unsafe_fenceless_get target i in
   (* The [before] value is physically different for each resize and so checking
      that the resize has not finished is sufficient to ensure that the
      [compare_and_set] below does not disrupt the next resize. *)
@@ -139,7 +142,9 @@ let rec copy_all r target i t step =
   && begin
        begin
          match before with
-         | Resize _ -> Atomic.compare_and_set b (B before) (B spine) |> ignore
+         | Resize _ ->
+             Atomic_array.unsafe_compare_and_set target i (B before) (B spine)
+             |> ignore
          | Nil | Cons _ -> ()
        end;
        i = 0 || copy_all r target i t step
@@ -155,15 +160,13 @@ let[@tail_mod_cons] rec filter t msk chk = function
       else filter t msk chk r.rest
 
 let rec split_all r target i t step =
-  let i = (i + step) land (Array.length r.buckets - 1) in
-  let spine = take_at Backoff.default (Array.unsafe_get r.buckets i) in
-  let high = Array.length r.buckets in
+  let i = (i + step) land (Atomic_array.length r.buckets - 1) in
+  let spine = take_at Backoff.default r.buckets i in
+  let high = Atomic_array.length r.buckets in
   let after_lo = filter r.hash high 0 spine in
   let after_hi = filter r.hash high high spine in
-  let b_lo = Array.unsafe_get target i in
-  let b_hi = Array.unsafe_get target (i + high) in
-  let (B before_lo) = Atomic.get b_lo in
-  let (B before_hi) = Atomic.get b_hi in
+  let (B before_lo) = Atomic_array.unsafe_fenceless_get target i in
+  let (B before_hi) = Atomic_array.unsafe_fenceless_get target (i + high) in
   (* The [before_lo] and [before_hi] values are physically different for each
      resize and so checking that the resize has not finished is sufficient to
      ensure that the [compare_and_set] below does not disrupt the next
@@ -173,13 +176,17 @@ let rec split_all r target i t step =
        begin
          match before_lo with
          | Resize _ ->
-             Atomic.compare_and_set b_lo (B before_lo) (B after_lo) |> ignore
+             Atomic_array.unsafe_compare_and_set target i (B before_lo)
+               (B after_lo)
+             |> ignore
          | Nil | Cons _ -> ()
        end;
        begin
          match before_hi with
          | Resize _ ->
-             Atomic.compare_and_set b_hi (B before_hi) (B after_hi) |> ignore
+             Atomic_array.unsafe_compare_and_set target (i + high) (B before_hi)
+               (B after_hi)
+             |> ignore
          | Nil | Cons _ -> ()
        end;
        i = 0 || split_all r target i t step
@@ -192,15 +199,13 @@ let[@tail_mod_cons] rec merge rest = function
   | Cons r -> Cons { r with rest = merge rest r.rest }
 
 let rec merge_all r target i t step =
-  let i = (i + step) land (Array.length target - 1) in
-  let spine_lo = take_at Backoff.default (Array.unsafe_get r.buckets i) in
+  let i = (i + step) land (Atomic_array.length target - 1) in
+  let spine_lo = take_at Backoff.default r.buckets i in
   let spine_hi =
-    take_at Backoff.default
-      (Array.unsafe_get r.buckets (i + Array.length target))
+    take_at Backoff.default r.buckets (i + Atomic_array.length target)
   in
   let ((Nil | Cons _) as after) = merge spine_lo spine_hi in
-  let b = Array.unsafe_get target i in
-  let (B before) = Atomic.get b in
+  let (B before) = Atomic_array.unsafe_fenceless_get target i in
   (* The [before] value is physically different for each resize and so checking
      that the resize has not finished is sufficient to ensure that the
      [compare_and_set] below does not disrupt the next resize. *)
@@ -208,7 +213,9 @@ let rec merge_all r target i t step =
   && begin
        begin
          match before with
-         | Resize _ -> Atomic.compare_and_set b (B before) (B after) |> ignore
+         | Resize _ ->
+             Atomic_array.unsafe_compare_and_set target i (B before) (B after)
+             |> ignore
          | Nil | Cons _ -> ()
        end;
        i = 0 || merge_all r target i t step
@@ -220,8 +227,8 @@ let[@inline never] rec finish t r =
   match r.pending with
   | Nothing -> r
   | Resize { buckets; non_linearizable_size } ->
-      let high_source = Array.length r.buckets in
-      let high_target = Array.length buckets in
+      let high_source = Atomic_array.length r.buckets in
+      let high_target = Atomic_array.length buckets in
       (* We step by random amount to better allow cores to work in parallel.
          The number of buckets is always a power of two, so any odd number is
          relatively prime or coprime. *)
@@ -269,9 +276,7 @@ let[@inline never] try_resize t r new_capacity ~clear =
   let resize_avoid_aba =
     if clear then B Nil else B (Resize { spine = Sys.opaque_identity Nil })
   in
-  let buckets =
-    Array.init new_capacity @@ fun _ -> Atomic.make resize_avoid_aba
-  in
+  let buckets = Atomic_array.make new_capacity resize_avoid_aba in
   let non_linearizable_size =
     if clear then
       Array.init (Array.length r.non_linearizable_size) @@ fun _ ->
@@ -300,7 +305,7 @@ let rec adjust_estimated_size t r mask delta result =
       && Atomic.get t == r
     then begin
       let estimated_size = estimated_size r in
-      let capacity = Array.length r.buckets in
+      let capacity = Atomic_array.length r.buckets in
       if capacity < estimated_size && capacity < r.max_buckets then
         try_resize t r (capacity + capacity) ~clear:false |> ignore
       else if
@@ -340,9 +345,9 @@ let find_node t key =
   (* Reads can proceed in parallel with writes. *)
   let r = Atomic.get t in
   let h = r.hash key in
-  let mask = Array.length r.buckets - 1 in
+  let mask = Atomic_array.length r.buckets - 1 in
   let i = h land mask in
-  match Atomic.get (Array.unsafe_get r.buckets i) with
+  match Atomic_array.unsafe_fenceless_get r.buckets i with
   | B Nil -> Nil
   | B (Cons cons_r as cons) ->
       if r.equal cons_r.key key then cons
@@ -366,21 +371,20 @@ let mem t key = find_node t key != Nil
 let rec try_add t key value backoff =
   let r = Atomic.get t in
   let h = r.hash key in
-  let mask = Array.length r.buckets - 1 in
+  let mask = Atomic_array.length r.buckets - 1 in
   let i = h land mask in
-  let b = Array.unsafe_get r.buckets i in
-  match Atomic.get b with
+  match Atomic_array.unsafe_fenceless_get r.buckets i with
   | B Nil ->
       let after = Cons { key; value; rest = Nil } in
-      if Atomic.compare_and_set b (B Nil) (B after) then
+      if Atomic_array.unsafe_compare_and_set r.buckets i (B Nil) (B after) then
         adjust_estimated_size t r mask 1 true
       else try_add t key value (Backoff.once backoff)
   | B (Cons _ as before) ->
       if assoc_node r.equal key before != Nil then false
       else
         let after = Cons { key; value; rest = before } in
-        if Atomic.compare_and_set b (B before) (B after) then
-          adjust_estimated_size t r mask 1 true
+        if Atomic_array.unsafe_compare_and_set r.buckets i (B before) (B after)
+        then adjust_estimated_size t r mask 1 true
         else try_add t key value (Backoff.once backoff)
   | B (Resize _) ->
       let _ = finish t (Atomic.get t) in
@@ -398,21 +402,22 @@ let[@tail_mod_cons] rec dissoc t key = function
 let rec remove_node t key backoff =
   let r = Atomic.get t in
   let h = r.hash key in
-  let mask = Array.length r.buckets - 1 in
+  let mask = Atomic_array.length r.buckets - 1 in
   let i = h land mask in
-  let b = Array.unsafe_get r.buckets i in
-  match Atomic.get b with
+  match Atomic_array.unsafe_fenceless_get r.buckets i with
   | B Nil -> Nil
   | B (Cons cons_r as before) -> begin
       if r.equal cons_r.key key then
-        if Atomic.compare_and_set b (B before) (B cons_r.rest) then
-          adjust_estimated_size t r mask (-1) before
+        if
+          Atomic_array.unsafe_compare_and_set r.buckets i (B before)
+            (B cons_r.rest)
+        then adjust_estimated_size t r mask (-1) before
         else remove_node t key (Backoff.once backoff)
       else
         match dissoc r.equal key cons_r.rest with
         | (Nil | Cons _) as rest ->
             if
-              Atomic.compare_and_set b (B before)
+              Atomic_array.unsafe_compare_and_set r.buckets i (B before)
                 (B (Cons { cons_r with rest }))
             then
               assoc_node r.equal key cons_r.rest
@@ -435,7 +440,7 @@ let remove_exn t key =
 
 let rec snapshot t ~clear backoff =
   let r = get t in
-  if try_resize t r (Array.length r.buckets) ~clear then begin
+  if try_resize t r (Atomic_array.length r.buckets) ~clear then begin
     (* At this point the resize has been completed and a new array is used for
        buckets and [r.buckets] now has an immutable copy of what was in the hash
        table. *)
@@ -443,10 +448,10 @@ let rec snapshot t ~clear backoff =
     let rec loop i kvs () =
       match kvs with
       | Nil ->
-          if i = Array.length snapshot then Seq.Nil
+          if i = Atomic_array.length snapshot then Seq.Nil
           else
             loop (i + 1)
-              (match Atomic.get (Array.unsafe_get snapshot i) with
+              (match Atomic_array.unsafe_fenceless_get snapshot i with
               | B (Resize spine_r) -> spine_r.spine
               | B (Nil | Cons _) ->
                   (* After resize only [Resize] values should be left in the old
@@ -465,10 +470,9 @@ let remove_all t = snapshot t ~clear:true Backoff.default
 (* *)
 
 let rec try_find_random_non_empty_bucket buckets seed i =
-  let bucket = Array.unsafe_get buckets i in
-  match Atomic.get bucket with
+  match Atomic_array.unsafe_fenceless_get buckets i with
   | B Nil | B (Resize { spine = Nil }) ->
-      let mask = Array.length buckets - 1 in
+      let mask = Atomic_array.length buckets - 1 in
       let i = (i + 1) land mask in
       if i <> seed land mask then
         try_find_random_non_empty_bucket buckets seed i
@@ -479,7 +483,7 @@ let try_find_random_non_empty_bucket t =
   let buckets = (Atomic.get t).buckets in
   let seed = Int64.to_int (Random.bits64 ()) in
   try_find_random_non_empty_bucket buckets seed
-    (seed land (Array.length buckets - 1))
+    (seed land (Atomic_array.length buckets - 1))
 
 let rec length spine n =
   match spine with Nil -> n | Cons r -> length r.rest (n + 1)
