@@ -2,26 +2,27 @@ open Multicore_bench
 open Picos_stdio
 
 let run_one ~budgetf ~block_or_nonblock ~n_domains () =
-  let n_bytes =
-    match block_or_nonblock with `Block -> 4096 | `Nonblock -> 65536
-  in
+  let block_size = 4096 in
+  let n_blocks = match block_or_nonblock with `Block -> 1 | `Nonblock -> 16 in
 
   let init _ =
     let inn, out = Unix.pipe ~cloexec:true () in
-    (inn, out, Bytes.create 1)
+    (inn, out, Bytes.create block_size, Bytes.create 1)
   in
   let wrap _ _ = Scheduler.run in
-  let work _ (inn, out, byte) =
+  let work _ (inn, out, block, byte) =
     begin
       match block_or_nonblock with
       | `Block -> ()
       | `Nonblock -> Unix.set_nonblock inn
     end;
-    let n = Unix.write out (Bytes.create n_bytes) 0 n_bytes in
-    assert (n = n_bytes);
-    for _ = 1 to n_bytes do
-      let n : int = Unix.read inn byte 0 1 in
-      assert (n = 1)
+    for _ = 1 to n_blocks do
+      let n = Unix.write out block 0 block_size in
+      assert (n = block_size);
+      for _ = 1 to block_size do
+        let n : int = Unix.read inn byte 0 1 in
+        assert (n = 1)
+      done
     done;
     Unix.close inn;
     Unix.close out
@@ -39,7 +40,9 @@ let run_one ~budgetf ~block_or_nonblock ~n_domains () =
     | `Block -> "blocking read"
     | `Nonblock -> "non-blocking read"
   in
-  Times.to_thruput_metrics ~n:(n_bytes * n_domains) ~singular ~config times
+  Times.to_thruput_metrics
+    ~n:(block_size * n_blocks * n_domains)
+    ~singular ~config times
 
 let run_suite ~budgetf =
   Util.cross [ `Nonblock; `Block ] [ 1; 2; 4 ]
