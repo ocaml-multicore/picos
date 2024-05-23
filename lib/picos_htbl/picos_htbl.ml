@@ -1,5 +1,17 @@
 let[@inline never] impossible () = failwith "impossible"
 
+let ceil_pow_2_minus_1 n =
+  let n = Nativeint.of_int n in
+  let n = Nativeint.logor n (Nativeint.shift_right_logical n 1) in
+  let n = Nativeint.logor n (Nativeint.shift_right_logical n 2) in
+  let n = Nativeint.logor n (Nativeint.shift_right_logical n 4) in
+  let n = Nativeint.logor n (Nativeint.shift_right_logical n 8) in
+  let n = Nativeint.logor n (Nativeint.shift_right_logical n 16) in
+  Nativeint.to_int
+    (if Sys.int_size > 32 then
+       Nativeint.logor n (Nativeint.shift_right_logical n 32)
+     else n)
+
 type 'k hashed_type = (module Stdlib.Hashtbl.HashedType with type t = 'k)
 
 type ('k, 'v, _) tdt =
@@ -36,38 +48,73 @@ type ('k, 'v) state = {
   equal : 'k -> 'k -> bool;
   non_linearizable_size : int Atomic.t array;
   pending : ('k, 'v) pending;
+  min_buckets : int;
+  max_buckets : int;
 }
 
 type ('k, 'v) t = ('k, 'v) state Atomic.t
 
-let min_buckets = 16
+(* *)
 
-let max_buckets =
-  let n = Sys.max_array_length lsr 1 in
-  let n = n lor (n lsr 1) in
-  let n = n lor (n lsr 2) in
-  let n = n lor (n lsr 4) in
-  let n = n lor (n lsr 8) in
-  let n = n lor (n lsr 16) in
-  let n = if Sys.int_size <= 32 then n else n lor (n lsr 32) in
-  let n = n + 1 in
-  Int.min n (1 lsl 30 (* Limit of [hash] *))
+let lo_buckets = 1 lsl 3
 
-let create (type k) ?hashed_type () =
+and hi_buckets =
+  (* floor_pow_2 *)
+  let mask = ceil_pow_2_minus_1 Sys.max_array_length in
+  mask lxor (mask lsr 1)
+
+let min_buckets_default = 1 lsl 4
+and max_buckets_default = Int.min hi_buckets (1 lsl 30 (* Limit of [hash] *))
+
+let create (type k) ?hashed_type ?min_buckets ?max_buckets () =
+  let min_buckets =
+    match min_buckets with
+    | None -> min_buckets_default
+    | Some n ->
+        let n = Int.max lo_buckets n |> Int.min hi_buckets in
+        ceil_pow_2_minus_1 (n - 1) + 1
+  in
+  let max_buckets =
+    match max_buckets with
+    | None -> Int.max min_buckets max_buckets_default
+    | Some n ->
+        let n = Int.max min_buckets n |> Int.min hi_buckets in
+        ceil_pow_2_minus_1 (n - 1) + 1
+  in
   let equal, hash =
     match hashed_type with
-    | None -> (( = ), Stdlib.Hashtbl.seeded_hash (Random.bits ()))
+    | None ->
+        (( = ), Stdlib.Hashtbl.seeded_hash (Int64.to_int (Random.bits64 ())))
     | Some ((module Hashed_type) : k hashed_type) ->
         (Hashed_type.equal, Hashed_type.hash)
   in
   let buckets = Array.init min_buckets @@ fun _ -> Atomic.make (B Nil) in
-  let non_linearizable_size =
-    [| Atomic.make 0 |> Multicore_magic.copy_as_padded |]
-  in
-  let pending = Nothing in
-  { hash; buckets; equal; non_linearizable_size; pending }
+  {
+    hash;
+    buckets;
+    equal;
+    non_linearizable_size =
+      [| Atomic.make 0 |> Multicore_magic.copy_as_padded |];
+    pending = Nothing;
+    min_buckets;
+    max_buckets;
+  }
   |> Multicore_magic.copy_as_padded |> Atomic.make
   |> Multicore_magic.copy_as_padded
+
+(* *)
+
+let hashed_type_of (type k) (t : (k, _) t) : k hashed_type =
+  let r = Atomic.get t in
+  (module struct
+    type t = k
+
+    let hash = r.hash
+    and equal = r.equal
+  end)
+
+let min_buckets_of t = (Atomic.get t).min_buckets
+let max_buckets_of t = (Atomic.get t).max_buckets
 
 (* *)
 
@@ -176,7 +223,7 @@ let[@inline never] rec finish t r =
       (* We step by random amount to better allow cores to work in parallel.
          The number of buckets is always a power of two, so any odd number is
          relatively prime or coprime. *)
-      let step = Random.bits () lor 1 in
+      let step = Int64.to_int (Random.bits64 ()) lor 1 in
       if
         if high_source < high_target then begin
           (* We are growing the table. *)
@@ -246,14 +293,17 @@ let rec adjust_estimated_size t r mask delta result =
     (* Reading the size is potentially expensive, so we only check it
        occasionally.  The bigger the table the less frequently we should need to
        resize. *)
-    if r.pending == Nothing && Random.bits () land mask = 0 && Atomic.get t == r
+    if
+      r.pending == Nothing
+      && Int64.to_int (Random.bits64 ()) land mask = 0
+      && Atomic.get t == r
     then begin
       let estimated_size = estimated_size r in
       let capacity = Array.length r.buckets in
-      if capacity < estimated_size && capacity < max_buckets then
+      if capacity < estimated_size && capacity < r.max_buckets then
         try_resize t r (capacity + capacity) ~clear:false |> ignore
       else if
-        min_buckets < capacity
+        r.min_buckets < capacity
         && estimated_size + estimated_size + estimated_size < capacity
       then try_resize t r (capacity lsr 1) ~clear:false |> ignore
     end;
@@ -429,7 +479,7 @@ let rec try_find_random_non_empty_bucket buckets seed i =
 
 let try_find_random_non_empty_bucket t =
   let buckets = (Atomic.get t).buckets in
-  let seed = Random.bits () in
+  let seed = Int64.to_int (Random.bits64 ()) in
   try_find_random_non_empty_bucket buckets seed
     (seed land (Array.length buckets - 1))
 

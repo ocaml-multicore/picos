@@ -13,14 +13,39 @@ type (!'k, !'v) t
 type 'k hashed_type = (module Stdlib.Hashtbl.HashedType with type t = 'k)
 (** First-class module type abbreviation. *)
 
-val create : ?hashed_type:'k hashed_type -> unit -> ('k, 'v) t
+val create :
+  ?hashed_type:'k hashed_type ->
+  ?min_buckets:int ->
+  ?max_buckets:int ->
+  unit ->
+  ('k, 'v) t
 (** [create ~hashed_type:(module Key) ()] creates a new empty lock-free hash
     table.
 
-    The optional [hashed_type] argument can be used to specify the [equal] and
-    [hash] operations on keys.  Slow polymorphic equality [(=)] and slow
-    polymorphic {{!Stdlib.Hashtbl.seeded_hash} [seeded_hash (Random.bits ())]}
-    is used by default. *)
+    - The optional [hashed_type] argument can and usually should be used to
+      specify the [equal] and [hash] operations on keys.  Slow polymorphic
+      equality [(=)] and slow polymorphic {{!Stdlib.Hashtbl.seeded_hash} [seeded_hash (Bits64.to_int (Random.bits64 ()))]}
+      is used by default.
+    - The default [min_buckets] is unspecified and a given [min_buckets] may be
+      adjusted by the implementation.
+    - The default [max_buckets] is unspecified and a given [max_buckets] may be
+      adjusted by the implementation. *)
+
+val hashed_type_of : ('k, 'v) t -> 'k hashed_type
+(** [hashed_type_of htbl] returns a copy of the hashed type used when the hash
+    table [htbl] was created. *)
+
+val min_buckets_of : ('k, 'v) t -> int
+(** [min_buckets_of htbl] returns the minimum number of buckets of the hash
+    table [htbl].
+
+    ℹ️ The returned value may not be the same as given to {!create}. *)
+
+val max_buckets_of : ('k, 'v) t -> int
+(** [max_buckets_of htbl] returns the maximum number of buckets of the hash
+    table [htbl].
+
+    ℹ️ The returned value may not be the same as given to {!create}. *)
 
 (** {2 Looking up bindings} *)
 
