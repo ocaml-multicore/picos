@@ -7,13 +7,8 @@
   (select
    picos_thread.ml
    from
-   (threads.posix -> picos_thread.posix.ml)
-   (picos.domain -> picos_thread.none.ml))
-  (select
-   tls.ml
-   from
-   (thread-local-storage -> tls.thread-local-storage.ml)
-   (picos.domain !threads.posix -> tls.dls.ml))))
+   (threads.posix thread-local-storage -> picos_thread.posix.ml)
+   (picos.domain !threads.posix -> picos_thread.none.ml))))
 
 (rule
  (enabled_if
