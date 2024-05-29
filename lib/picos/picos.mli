@@ -1,11 +1,12 @@
-(** Framework for interoperable effects based concurrency.
+(** A {{:https://en.wikipedia.org/wiki/Systems_programming} systems programming}
+    interface between effects based schedulers and concurrent abstractions.
 
-    This is essentially an interface between schedulers and other elements that
-    need to communicate with a scheduler.  Perhaps an enlightening analogy is to
-    say that this is the {{:https://en.wikipedia.org/wiki/POSIX} POSIX} of
-    effects based schedulers.
+    This is essentially an interface between schedulers and concurrent
+    abstractions that need to communicate with a scheduler.  Perhaps an
+    enlightening analogy is to say that this is the
+    {{:https://en.wikipedia.org/wiki/POSIX} POSIX} of effects based schedulers.
 
-    ℹ️ Picos, i.e. this module, is not intended to be an application level
+    ℹ️ Picos, i.e. {i this module}, is not intended to be an application level
     concurrent programming library or framework.  If you are looking for a
     library or framework for programming concurrent applications, then this
     module is probably not what you are looking for.
@@ -391,7 +392,7 @@ module Trigger : sig
         {- The cancelation status of the fiber.}}
 
       The trigger and cancelation status are both updated independently and
-      atomically through code in this framework.  The key requirement left for
+      atomically through code in this interface.  The key requirement left for
       the user is to make sure that the state of the shared data structure is
       updated correctly independently of what {!await} returns.  So, for
       example, a mutex implementation must check, after getting [Some exn_bt],
@@ -458,12 +459,12 @@ module Computation : sig
         end
       ]}
 
-      In this framework, a fiber is always associated with
-      {{!Fiber.get_computation} at least a single computation}.  However,
-      {{!Fiber.spawn} it is possible for multiple fibers to share a single
-      computation} and it is also possible for a single fiber to perform
-      multiple computations.  Furthermore, the computation associated with a
-      fiber {{!Fiber.set_computation} can be changed} by the fiber.
+      A fiber is always associated with {{!Fiber.get_computation} at least a
+      single computation}.  However, {{!Fiber.spawn} it is possible for multiple
+      fibers to share a single computation} and it is also possible for a single
+      fiber to perform multiple computations.  Furthermore, the computation
+      associated with a fiber {{!Fiber.set_computation} can be changed} by the
+      fiber.
 
       Computations are not hierarchical.  In other words, computations do not
       directly implement structured concurrency.  However, it is possible to
@@ -693,14 +694,13 @@ module Computation : sig
       scoping of computations and resource cleanup at completion, which is how
       the design evolved from a more traditional cancelation context design.
 
-      In this framework, {{!Fiber.get_computation} every fiber is associated
-      with a computation}.  Being able to return a value through the computation
-      means that no separate promise is necessarily required to hold the result
-      of a fiber.  On the other hand, in this framework, {{!Fiber.spawn}
-      multiple fibers may share a single computation}.  This allows multiple
-      fibers to be canceled efficiently through a single atomic update.  In
-      other words, the design allows various higher level patterns to be
-      implemented efficiently.
+      Every fiber is {{!Fiber.get_computation} associated with a computation}.
+      Being able to return a value through the computation means that no
+      separate promise is necessarily required to hold the result of a fiber.
+      On the other hand, {{!Fiber.spawn} multiple fibers may share a single
+      computation}.  This allows multiple fibers to be canceled efficiently
+      through a single atomic update.  In other words, the design allows various
+      higher level patterns to be implemented efficiently.
 
       Instead of directly implementing a hierarchy of computations, the design
       allows {{!try_attach} attach}ing triggers to computations and

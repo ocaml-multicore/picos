@@ -8,16 +8,32 @@
 
 <p align="center"><a href="https://ocaml-multicore.github.io/picos/doc/picos/Picos/index.html"><img width="60%" src="https://raw.githubusercontent.com/ocaml-multicore/picos/main/doc/picos.svg"></a></p>
 
-Picos, or [pico](https://en.wikipedia.org/wiki/Metric_prefix)-scheduler
-framework, is a framework for building
+Picos is a
+[systems programming](https://en.wikipedia.org/wiki/Systems_programming)
+interface between effects based schedulers and concurrent abstractions. Picos is
+designed to enable an ecosystem of
 [interoperable](https://en.wikipedia.org/wiki/Interoperability) elements of
-effects based cooperative concurrent programming models.
+effects based cooperative concurrent programming models such as
+
+- [schedulers](<https://en.wikipedia.org/wiki/Scheduling_(computing)>) that
+  multiplex large numbers of
+  [user level fibers](https://en.wikipedia.org/wiki/Green_thread) to run on a
+  small number of system level threads,
+- mechanisms for managing fibers and for
+  [structuring concurrency](https://en.wikipedia.org/wiki/Structured_concurrency),
+- communication and synchronization primitives, such as
+  [mutexes and condition variables](<https://en.wikipedia.org/wiki/Monitor_(synchronization)>),
+  message queues,
+  [STM](https://en.wikipedia.org/wiki/Software_transactional_memory)s, and more,
+  and
+- integrations with low level
+  [asynchronous IO](https://en.wikipedia.org/wiki/Asynchronous_I/O) systems.
 
 The `picos` package is divided into many small(er) libraries. The core is a
 small library,
 [`picos`](https://ocaml-multicore.github.io/picos/doc/picos/Picos/index.html),
-that defines the essential interoperability framework. The rest of the libraries
-are either sample schedulers (e.g.
+that defines the essential scheduler interface. The rest of the libraries are
+either sample schedulers (e.g.
 [`picos.fifos`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_fifos/index.html),
 [`picos.lwt`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_lwt/index.html),
 [`picos.randos`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_randos/index.html),
@@ -63,12 +79,12 @@ DLA, which allows a concurrent programming library like
 to work on all of those. Unfortunately, DLA, by itself, is known to be
 insufficient and the design has not been universally accepted.
 
-By introducing an interoperability framework and key libraries, such as an IO
-library, for such a framework, we hope that the scarce resources of the OCaml
-community are not further divided into mutually incompatible ecosystems built on
-top of such mutually incompatible concurrent programming libraries, while,
-simultaneously, making it possible to experiment with many kinds of concurrent
-programming models.
+By introducing a scheduler interface and key libraries, such as an IO library,
+implemented on top of the interface, we hope that the scarce resources of the
+OCaml community are not further divided into mutually incompatible ecosystems
+built on top of such mutually incompatible concurrent programming libraries,
+while, simultaneously, making it possible to experiment with many kinds of
+concurrent programming models.
 
 It should be
 technically<sup>[\*](https://www.youtube.com/watch?v=hou0lU8WMgo)</sup> possible
