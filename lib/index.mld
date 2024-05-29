@@ -2,8 +2,9 @@
 
 {1 Introduction}
 
-{!Picos}, or {{:https://en.wikipedia.org/wiki/Metric_prefix} pico}-scheduler
-framework, is a framework for building
+{!Picos} is a {{:https://en.wikipedia.org/wiki/Systems_programming} systems
+programming} interface between effects based schedulers and concurrent
+abstractions.  Picos is designed to enable an ecosystem of
 {{:https://en.wikipedia.org/wiki/Interoperability} interoperable} elements of
 {{:https://v2.ocaml.org/manual/effects.html} effects based}
 {{:https://en.wikipedia.org/wiki/Cooperative_multitasking} cooperative}
@@ -43,22 +44,22 @@ your work and making your work Picos compatible may offer benefits:
 
 Of course, interoperability does have some costs.  It takes time to understand
 Picos and it takes time to implement Picos compatibility.  Implementing your
-programming model elements in terms of Picos primitives may not give ideal
-results.  To address concerns such as those, a conscious effort has been made to
-keep Picos as minimal and unopinionated as possible.
+programming model elements in terms of the Picos interface may not always give
+ideal results.  To address concerns such as those, a conscious effort has been
+made to keep Picos as minimal and unopinionated as possible.
 
 {2 Interoperability}
 
-Picos is essentially an interface between schedulers and other elements.  Two
-phrases, {i Picos compatible} and {i Implemented in Picos}, are used to describe
-the opposing sides of this contract.
+Picos is essentially an interface between schedulers and concurrent
+abstractions.  Two phrases, {i Picos compatible} and {i Implemented in Picos},
+are used to describe the opposing sides of this contract.
 
 {3 Picos compatible}
 
 The idea is that schedulers provide their own handlers for the Picos effects.
 By handling the Picos effects a scheduler allows any libraries built on top of
-the Picos concepts to be used with the scheduler.  Such a scheduler is then said
-to be {i Picos compatible}.
+the Picos interface to be used with the scheduler.  Such a scheduler is then
+said to be {i Picos compatible}.
 
 {3 Implemented in Picos}
 
@@ -66,7 +67,7 @@ A scheduler is just one element of a concurrent programming model.  Separately
 from making a scheduler Picos compatible, one may choose to implement other
 elements of the programming model, e.g. a particular approach to structuring
 concurrency or a particular collection of communication and synchronization
-primitives, in terms of the Picos concepts.  Such scheduler agnostic elements
+primitives, in terms of the Picos interface.  Such scheduler agnostic elements
 can then be used on any Picos compatible scheduler and are said to be {i
 Implemented in Picos}.
 
@@ -78,9 +79,9 @@ principles in mind.
 - {b Simple}: Picos should be kept as simple as possible.
 - {b Minimal}: Picos should be kept minimal.  The dependency footprint should be
   as small as possible.  Convenience features should be built on top of the
-  framework.
+  interface.
 - {b Safe}: Picos should be designed with safety in mind.  The implementation
-  must be data race free.  The framework should promote and always allow proper
+  must be data race free.  The interface should promote and always allow proper
   resource management.
 - {b Unopinionated}: Picos should not make strong design choices that are
   controversial.
@@ -132,7 +133,7 @@ The Picos package is divided into multiple libraries.
 
 {2 Core}
 
-The only essential part of the package is the core framework.
+The only essential part of the package is the core interface.
 
 {!modules:
   Picos
@@ -153,7 +154,7 @@ These are minimalistic, but fully-functioning, schedulers provided as samples.
   Picos_threaded
 }
 
-{^ You may find these useful for both understanding the core Picos framework and
+{^ You may find these useful for both understanding the core Picos interface and
    for testing your own libraries implemented in Picos.}
 
 {2 Scheduler agnostic libraries}
@@ -174,7 +175,7 @@ These are examples of libraries implemented in Picos.
 
 {2 Auxiliary libraries}
 
-These have no dependency to the core {!Picos} framework and are used in the
+These have no dependency to the core {!Picos} interface and are used in the
 implementation of the other libraries.
 
 {!modules:

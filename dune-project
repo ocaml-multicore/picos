@@ -21,9 +21,9 @@
 
 (package
  (name picos)
- (synopsis "Pico scheduler framework")
+ (synopsis "Pico scheduler interface")
  (description
-  "A framework for building interoperable elements of effects based cooperative concurrent programming models.")
+  "A systems programming interface between effects based schedulers and concurrent abstractions.")
  (depends
   (backoff
    (>= 0.1.0))
