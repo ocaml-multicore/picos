@@ -53,6 +53,8 @@ type ('k, 'v) state = {
   min_buckets : int;
   max_buckets : int;
 }
+(** This record is [7 + 1] words and should be aligned on such a boundary on the
+    second generation heap.  It is probably not worth it to pad it further. *)
 
 type ('k, 'v) t = ('k, 'v) state Atomic.t
 
@@ -100,8 +102,7 @@ let create (type k) ?hashed_type ?min_buckets ?max_buckets () =
     min_buckets;
     max_buckets;
   }
-  |> Multicore_magic.copy_as_padded |> Atomic.make
-  |> Multicore_magic.copy_as_padded
+  |> Atomic.make_contended
 
 (* *)
 
@@ -241,7 +242,6 @@ let[@inline never] rec finish t r =
       then
         let new_r =
           { r with buckets; non_linearizable_size; pending = Nothing }
-          |> Multicore_magic.copy_as_padded
         in
         if Atomic.compare_and_set t r new_r then new_r
         else finish t (Atomic.get t)
@@ -319,10 +319,7 @@ let rec adjust_estimated_size t r mask delta result =
       if i < n then Array.unsafe_get r.non_linearizable_size i
       else Atomic.make_contended 0
     in
-    let new_r =
-      { r with non_linearizable_size = new_cs }
-      |> Multicore_magic.copy_as_padded
-    in
+    let new_r = { r with non_linearizable_size = new_cs } in
     let r = if Atomic.compare_and_set t r new_r then new_r else Atomic.get t in
     adjust_estimated_size t r mask delta result
 
