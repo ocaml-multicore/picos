@@ -68,6 +68,7 @@ let run_one ~budgetf ~n_domains ?(n_ops = 400 * Util.iter_factor)
   |> Times.to_thruput_metrics ~n:n_ops ~singular:"operation" ~config
 
 let run_suite ~budgetf =
-  Util.cross [ 10; 50; 90 ] [ 1; 2; 4; 8 ]
-  |> List.concat_map @@ fun (percent_mem, n_domains) ->
-     run_one ~budgetf ~n_domains ~percent_mem ()
+  Util.cross [ 1; 2; 4; 8 ] [ 10; 50; 90 ]
+  |> List.concat_map @@ fun (n_domains, percent_mem) ->
+     if Picos_domain.recommended_domain_count () < n_domains then []
+     else run_one ~budgetf ~n_domains ~percent_mem ()
