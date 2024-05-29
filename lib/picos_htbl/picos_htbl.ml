@@ -95,8 +95,7 @@ let create (type k) ?hashed_type ?min_buckets ?max_buckets () =
     hash;
     buckets;
     equal;
-    non_linearizable_size =
-      [| Atomic.make 0 |> Multicore_magic.copy_as_padded |];
+    non_linearizable_size = [| Atomic.make_contended 0 |];
     pending = Nothing;
     min_buckets;
     max_buckets;
@@ -276,7 +275,7 @@ let[@inline never] try_resize t r new_capacity ~clear =
   let non_linearizable_size =
     if clear then
       Array.init (Array.length r.non_linearizable_size) @@ fun _ ->
-      Atomic.make 0 |> Multicore_magic.copy_as_padded
+      Atomic.make_contended 0
     else r.non_linearizable_size
   in
   let new_r = { r with pending = Resize { buckets; non_linearizable_size } } in
@@ -318,7 +317,7 @@ let rec adjust_estimated_size t r mask delta result =
          be a power of 2. *)
       Array.init (n + n + 1) @@ fun i ->
       if i < n then Array.unsafe_get r.non_linearizable_size i
-      else Atomic.make 0 |> Multicore_magic.copy_as_padded
+      else Atomic.make_contended 0
     in
     let new_r =
       { r with non_linearizable_size = new_cs }
