@@ -12,6 +12,8 @@ let ceil_pow_2_minus_1 n =
        Nativeint.logor n (Nativeint.shift_right_logical n 32)
      else n)
 
+module Atomic = Multicore_magic.Transparent_atomic
+
 type 'k hashed_type = (module Stdlib.Hashtbl.HashedType with type t = 'k)
 
 type ('k, 'v, _) tdt =
