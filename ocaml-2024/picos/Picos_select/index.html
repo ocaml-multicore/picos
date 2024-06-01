@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Picos_select (picos.Picos_select)</title><meta charset="utf-8"/><link rel="stylesheet" href="../../odoc.support/odoc.css"/><meta name="generator" content="odoc 2.4.2"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../odoc.support/highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script><script>let base_url = '../../';
+let search_urls = ['../db.js','../../sherlodoc.js'];
+</script><script src="../../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../index.html">picos</a> &#x00BB; Picos_select</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1>Module <code><span>Picos_select</span></code></h1><p>Basic <code>Unix.select</code> based IO event loop for <a href="../Picos/index.html"><code>Picos</code></a>.</p><p>The operations in this module automatically manage a <code>Thread</code> per domain that runs a <code>Unix.select</code> loop to support the operations.</p><p>⚠️ Signal handlers are unfortunately fundamentally non-compositional. The use of signal handlers in this module has been designed to be <a href="#val-configure" title="configure">configurable</a>, which should allow co-operating with other libraries using signals as long as care is taken at application startup to <a href="#val-configure"><code>configure</code></a> things.</p><p>⚠️ All the usual limitations of the <code>Unix</code> module apply.</p></header><nav class="odoc-toc"><ul><li><a href="#api">API</a><ul><li><a href="#timeouts">Timeouts</a></li><li><a href="#io">IO</a></li><li><a href="#processes">Processes</a></li><li><a href="#configuration">Configuration</a></li></ul></li><li><a href="#examples">Examples</a><ul><li><a href="#one-of-many">One of many</a></li></ul></li></ul></nav><div class="odoc-content"><h2 id="api"><a href="#api" class="anchor"></a>API</h2><h3 id="timeouts"><a href="#timeouts" class="anchor"></a>Timeouts</h3><div class="odoc-spec"><div class="spec value anchored" id="val-cancel_after"><a href="#val-cancel_after" class="anchor"></a><code><span><span class="keyword">val</span> cancel_after : 
+  <span><span><span class="type-var">_</span> <a href="../Picos/Computation/index.html#type-t">Picos.Computation.t</a></span> <span class="arrow">&#45;&gt;</span></span>
+  <span><span class="label">seconds</span>:float <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="../Picos_exn_bt/index.html#type-t">Picos.Exn_bt.t</a> <span class="arrow">&#45;&gt;</span></span>
+  unit</span></code></div><div class="spec-doc"><p><code>cancel_after computation ~seconds exn_bt</code> arranges for <code>computation</code> to be <a href="../Picos/Computation/index.html#val-cancel" title="Picos.Computation.cancel">canceled</a> with given <code>exn_bt</code> after given time in <code>seconds</code>. Completion of the <code>computation</code> before the specified time effectively cancels the timeout.</p><p>ℹ️ You can use <code>cancel_after</code> to implement the handler for the <a href="../Picos/Computation/index.html#extension-Cancel_after" title="Picos.Computation.Cancel_after"><code>Cancel_after</code></a> effect.</p></div></div><h3 id="io"><a href="#io" class="anchor"></a>IO</h3><div class="odoc-spec"><div class="spec value anchored" id="val-return_on"><a href="#val-return_on" class="anchor"></a><code><span><span class="keyword">val</span> return_on : 
+  <span><span><span class="type-var">'a</span> <a href="../Picos/Computation/index.html#type-t">Picos.Computation.t</a></span> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="../Picos_fd/index.html#type-t">Picos_fd.t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span>[ `R <span>| `W</span> <span>| `E</span> ]</span> <span class="arrow">&#45;&gt;</span></span>
+  <span><span class="type-var">'a</span> <span class="arrow">&#45;&gt;</span></span>
+  unit</span></code></div><div class="spec-doc"><p><code>return_on computation fd op value</code> arranges for <code>computation</code> to be <a href="../Picos/Computation/index.html#val-return" title="Picos.Computation.return">returned</a> with given <code>value</code> when <code>fd</code> becomes available for <code>op</code>. Completion of the <code>computation</code> before the <code>fd</code> becomes available for <code>op</code> effectively cancels the arrangement.</p><p>ℹ️ Using <code>Unix.set_nonblock</code> and <code>return_on</code> you can implement direct-style transparently asynchronous IO on top of the <code>Unix</code> module.</p></div></div><div class="odoc-spec"><div class="spec value anchored" id="val-await_on"><a href="#val-await_on" class="anchor"></a><code><span><span class="keyword">val</span> await_on : <span><a href="../Picos_fd/index.html#type-t">Picos_fd.t</a> <span class="arrow">&#45;&gt;</span></span> <span><span>[ `R <span>| `W</span> <span>| `E</span> ]</span> <span class="arrow">&#45;&gt;</span></span> <a href="../Picos_fd/index.html#type-t">Picos_fd.t</a></span></code></div><div class="spec-doc"><p><code>await_on fd op</code> awaits until <code>fd</code> becomes available for <code>op</code>.</p></div></div><div class="odoc-spec"><div class="spec module anchored" id="module-Intr"><a href="#module-Intr" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Intr/index.html">Intr</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>A mechanism to interrupt blocking <code>Unix</code> IO operations.</p></div></div><h3 id="processes"><a href="#processes" class="anchor"></a>Processes</h3><div class="odoc-spec"><div class="spec value anchored" id="val-return_on_sigchld"><a href="#val-return_on_sigchld" class="anchor"></a><code><span><span class="keyword">val</span> return_on_sigchld : <span><span><span class="type-var">'a</span> <a href="../Picos/Computation/index.html#type-t">Picos.Computation.t</a></span> <span class="arrow">&#45;&gt;</span></span> <span><span class="type-var">'a</span> <span class="arrow">&#45;&gt;</span></span> unit</span></code></div><div class="spec-doc"><p><code>return_on_sigchld computation value</code> arranges for <code>computation</code> to be <a href="../Picos/Computation/index.html#val-return" title="Picos.Computation.return">returned</a> with given <code>value</code> on next <code>Sys.sigchld</code>. Completion of the <code>computation</code> before a <code>Sys.sigchld</code> is received effectively cancels the arrangement.</p><p>⚠️ The mechanism uses the <code>Sys.sigchld</code> signal which should not be used for other purposes.</p></div></div><h3 id="configuration"><a href="#configuration" class="anchor"></a>Configuration</h3><div class="odoc-spec"><div class="spec value anchored" id="val-configure"><a href="#val-configure" class="anchor"></a><code><span><span class="keyword">val</span> configure : <span><span class="optlabel">?intr_sig</span>:int <span class="arrow">&#45;&gt;</span></span> <span><span class="optlabel">?handle_sigchld</span>:bool <span class="arrow">&#45;&gt;</span></span> <span>unit <span class="arrow">&#45;&gt;</span></span> unit</span></code></div><div class="spec-doc"><p><code>configure ~intr_sig ~handle_sigchld ()</code> can, and sometimes must, be called by an application to configure the use of signals by this module.</p><p>The optional <code>intr_sig</code> argument can be used to specify the signal used by the <a href="Intr/index.html" title="Intr">interrupt</a> mechanism. The default is to use <code>Sys.sigusr2</code>.</p><p>The optional <code>handle_sigchld</code> argument can be used to specify whether this module should setup handling of <code>Sys.sigchld</code>. The default is <code>true</code>. When explicitly specified as <code>~handle_sigchld:false</code>, the application should arrange to call <a href="#val-handle_signal"><code>handle_signal</code></a> whenever a <code>Sys.sigchld</code> signal occurs.</p><p>⚠️ This module must always be configured before use. Unless this module has been explicitly configured, calling a method of this module from the main thread on the main domain will automatically configure this module with default options. In case the application uses multiple threads or multiple domains, the application should arrange to call <code>configure</code> from the main thread on the main domain before any threads or domains besides the main are created or spawned.</p></div></div><div class="odoc-spec"><div class="spec value anchored" id="val-handle_signal"><a href="#val-handle_signal" class="anchor"></a><code><span><span class="keyword">val</span> handle_signal : <span>int <span class="arrow">&#45;&gt;</span></span> unit</span></code></div><div class="spec-doc"><p><code>handle_signal signum</code> should be called to notify this module of a signal when <a href="#val-configure" title="configure">configured</a> to not handle said signals.</p></div></div><div class="odoc-spec"><div class="spec value anchored" id="val-check_configured"><a href="#val-check_configured" class="anchor"></a><code><span><span class="keyword">val</span> check_configured : <span>unit <span class="arrow">&#45;&gt;</span></span> unit</span></code></div><div class="spec-doc"><p><code>check_configured ()</code> checks whether this module has already been <a href="#val-configure" title="configure">configured</a> or not and, if not, calls <a href="#val-configure"><code>configure</code></a> with default arguments.</p><p>ℹ️ The intended use case for <code>check_configure ()</code> is at the point of entry of schedulers and other facilities that use this module.</p></div></div><h2 id="examples"><a href="#examples" class="anchor"></a>Examples</h2><p>First we open some modules for convenience:</p><pre class="language-ocaml"><code>open Picos
+open Picos_structured.Finally
+open Picos_structured
+open Picos_stdio</code></pre><h3 id="one-of-many"><a href="#one-of-many" class="anchor"></a>One of many</h3><p>Here is an example that awaits for one of multiple alternative events:</p><pre class="language-ocaml"><code># exception Timeout
+exception Timeout
+
+# Picos_fifos.run @@ fun () -&gt;
+
+  let@ msg_inn1, msg_out1 =
+    finally Unix.close_pair @@ fun () -&gt;
+    Unix.socketpair ~cloexec:true
+      PF_UNIX SOCK_STREAM 0
+  in
+  let@ msg_inn2, msg_out2 =
+    finally Unix.close_pair @@ fun () -&gt;
+    Unix.socketpair ~cloexec:true
+      PF_UNIX SOCK_STREAM 0
+  in
+  let@ syn_inn, syn_out =
+    finally Unix.close_pair @@ fun () -&gt;
+    Unix.socketpair ~cloexec:true
+      PF_UNIX SOCK_STREAM 0
+  in
+
+  Unix.set_nonblock msg_inn1;
+  Unix.set_nonblock msg_out1;
+  Unix.set_nonblock msg_inn2;
+  Unix.set_nonblock msg_out2;
+  Unix.set_nonblock syn_inn;
+  Unix.set_nonblock syn_out;
+
+  let read1 fd =
+    let r =
+      Unix.read fd (Bytes.create 1) 0 1
+    in
+    assert (r = 1)
+  and write1 fd =
+    let w =
+      Unix.write_substring fd &quot;!&quot; 0 1
+    in
+    assert (w = 1)
+  in
+
+  Bundle.join_after begin fun bundle -&gt;
+    Bundle.fork bundle begin fun () -&gt;
+      while true do
+        let select =
+          Computation.create ()
+        in
+        Picos_select.return_on
+          select msg_inn1 `R `Inn1;
+        Picos_select.return_on
+          select msg_inn2 `R `Inn2;
+        Picos_select.cancel_after
+          select ~seconds:0.1
+            (Exn_bt.get_callstack 0
+              Timeout);
+
+        match
+          Computation.await select
+        with
+        | `Inn1 -&gt;
+          Printf.printf &quot;Inn1\n%!&quot;;
+          read1 msg_inn1;
+          write1 syn_out
+        | `Inn2 -&gt;
+          Printf.printf &quot;Inn2\n%!&quot;;
+          read1 msg_inn2;
+          write1 syn_out;
+        | exception Timeout -&gt;
+          Printf.printf &quot;Timeout\n%!&quot;;
+          write1 syn_out
+        | exception exn -&gt;
+          Computation.cancel select
+            (Exn_bt.get_callstack 0
+              Exit);
+          raise exn
+      done
+    end;
+
+    write1 msg_out1;
+    read1 syn_inn;
+    write1 msg_out2;
+    read1 syn_inn;
+    read1 syn_inn;
+
+    Bundle.terminate bundle
+  end
+Inn1
+Inn2
+Timeout
+- : unit = ()</code></pre><p>This approach of using the completion of a computation to select one of multiple events can be generalized.</p></div></body></html>

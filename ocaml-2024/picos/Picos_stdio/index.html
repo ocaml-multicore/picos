@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Picos_stdio (picos.Picos_stdio)</title><meta charset="utf-8"/><link rel="stylesheet" href="../../odoc.support/odoc.css"/><meta name="generator" content="odoc 2.4.2"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../odoc.support/highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script><script>let base_url = '../../';
+let search_urls = ['../db.js','../../sherlodoc.js'];
+</script><script src="../../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../index.html">picos</a> &#x00BB; Picos_stdio</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1>Module <code><span>Picos_stdio</span></code></h1><p>Basic IO facilities based on OCaml standard libraries for <a href="../Picos/index.html"><code>Picos</code></a>.</p></header><nav class="odoc-toc"><ul><li><a href="#modules">Modules</a></li><li><a href="#examples">Examples</a><ul><li><a href="#a-pair-of-pipes">A pair of pipes</a></li></ul></li></ul></nav><div class="odoc-content"><h2 id="modules"><a href="#modules" class="anchor"></a>Modules</h2><div class="odoc-spec"><div class="spec module anchored" id="module-Unix"><a href="#module-Unix" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Unix/index.html">Unix</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>A transparently asynchronous replacement for a subset of the <span class="xref-unresolved" title="Deps.Unix"><code>Unix</code></span> module that comes with OCaml.</p></div></div><h2 id="examples"><a href="#examples" class="anchor"></a>Examples</h2><p>First we open some modules for convenience:</p><pre class="language-ocaml"><code>open Picos_structured.Finally
+open Picos_structured
+open Picos_stdio</code></pre><h3 id="a-pair-of-pipes"><a href="#a-pair-of-pipes" class="anchor"></a>A pair of pipes</h3><p>Here is a simple example of two fibers communicating through a pair of pipes:</p><pre class="language-ocaml"><code># Picos_fifos.run @@ fun () -&gt;
+
+  let@ msg_i, msg_o =
+    finally Unix.close_pair @@ fun () -&gt;
+    Unix.socketpair ~cloexec:true
+      PF_UNIX SOCK_STREAM 0
+  in
+  let@ syn_i, syn_o =
+    finally Unix.close_pair @@ fun () -&gt;
+    Unix.socketpair ~cloexec:true
+      PF_UNIX SOCK_STREAM 0
+  in
+
+  Unix.set_nonblock msg_i;
+  Unix.set_nonblock msg_o;
+  Unix.set_nonblock syn_i;
+  Unix.set_nonblock syn_o;
+
+  Bundle.join_after begin fun bundle -&gt;
+    Bundle.fork bundle begin fun () -&gt;
+      let bytes = Bytes.create 100 in
+      while true do
+        let n =
+          Unix.read msg_i bytes 0 100
+        in
+        if n &gt; 0 then begin
+          Printf.printf &quot;%s\n%!&quot;
+            (Bytes.sub_string bytes 0 n);
+          let w =
+            Unix.write_substring
+              syn_o &quot;!&quot; 0 1
+          in
+          assert (w = 1)
+        end
+      done
+    end;
+
+    let send_string s =
+      let n = String.length s in
+      let w =
+        Unix.write_substring msg_o s 0 n
+      in
+      assert (w = n);
+      let r =
+        Unix.read syn_i
+          (Bytes.create 1) 0 1
+      in
+      assert (r = 1)
+    in
+
+    send_string &quot;Hello, world!&quot;;
+    send_string &quot;POSIX with OCaml&quot;;
+
+    Bundle.terminate bundle
+  end
+Hello, world!
+POSIX with OCaml
+- : unit = ()</code></pre></div></body></html>
