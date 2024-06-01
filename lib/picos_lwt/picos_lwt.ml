@@ -1,7 +1,12 @@
 open Picos
 open Lwt.Infix
+include Intf
+
+let[@inline never] not_main_thread () =
+  invalid_arg "not called from the main thread"
 
 let await thunk =
+  if not (Picos_thread.is_main_thread ()) then not_main_thread ();
   let computation = Computation.create () in
   let promise =
     Lwt.try_bind thunk
@@ -23,17 +28,17 @@ let await thunk =
   end
   else Computation.await computation
 
-let[@alert "-handler"] rec run :
+let[@alert "-handler"] rec go :
     type a r.
     Fiber.t ->
-    (float -> unit Lwt.t) ->
+    (module System) ->
     (a, r) Effect.Shallow.continuation ->
     (a, Exn_bt.t) Result.t ->
     r Lwt.t =
- fun fiber sleep k v ->
+ fun fiber ((module System) as system) k v ->
   let effc (type a) :
       a Effect.t -> ((a, _) Effect.Shallow.continuation -> _) option = function
-    | Fiber.Current -> Some (fun k -> run fiber sleep k (Ok fiber))
+    | Fiber.Current -> Some (fun k -> go fiber system k (Ok fiber))
     | Fiber.Spawn r ->
         Some
           (fun k ->
@@ -44,44 +49,50 @@ let[@alert "-handler"] rec run :
                   (fun main ->
                     let fiber = Fiber.create_packed ~forbid:r.forbid packed in
                     Lwt.async @@ fun () ->
-                    run fiber sleep (Effect.Shallow.fiber main) (Ok ()))
+                    go fiber system (Effect.Shallow.fiber main) (Ok ()))
                   r.mains;
-                run fiber sleep k (Ok ())
-            | Some exn_bt -> run fiber sleep k (Error exn_bt))
+                go fiber system k (Ok ())
+            | Some exn_bt -> go fiber system k (Error exn_bt))
     | Fiber.Yield ->
         Some
           (fun k ->
             match Fiber.canceled fiber with
-            | None -> Lwt.pause () >>= fun () -> run fiber sleep k (Ok ())
-            | Some exn_bt -> run fiber sleep k (Error exn_bt))
+            | None -> Lwt.pause () >>= fun () -> go fiber system k (Ok ())
+            | Some exn_bt -> go fiber system k (Error exn_bt))
     | Computation.Cancel_after r ->
         Some
           (fun k ->
             match Fiber.canceled fiber with
             | None ->
                 let timeout =
-                  sleep r.seconds >>= fun () ->
-                  Computation.cancel r.computation r.exn_bt;
-                  Lwt.return_unit
+                  Lwt.try_bind
+                    (fun () -> System.sleep r.seconds)
+                    (fun () ->
+                      Computation.cancel r.computation r.exn_bt;
+                      Lwt.return_unit)
+                    (function
+                      | Lwt.Canceled -> Lwt.return_unit | exn -> Lwt.reraise exn)
                 in
                 let canceler =
-                  Trigger.from_action timeout () @@ fun _ sleep _ ->
-                  Lwt.cancel sleep
+                  Trigger.from_action timeout () @@ fun _ timeout _ ->
+                  Lwt.cancel timeout
                 in
                 if Computation.try_attach r.computation canceler then
                   Lwt.async @@ fun () -> timeout
                 else Trigger.signal canceler;
-                run fiber sleep k (Ok ())
-            | Some exn_bt -> run fiber sleep k (Error exn_bt))
+                go fiber system k (Ok ())
+            | Some exn_bt -> go fiber system k (Error exn_bt))
     | Trigger.Await trigger ->
         Some
           (fun k ->
-            let promise, resolver = Lwt.wait () in
-            let resume _trigger resolver _ = Lwt.wakeup resolver () in
-            if Fiber.try_suspend fiber trigger resolver () resume then
-              promise >>= fun () ->
-              run fiber sleep k (Ok (Fiber.canceled fiber))
-            else run fiber sleep k (Ok (Fiber.canceled fiber)))
+            let t = System.trigger () in
+            if
+              Fiber.try_suspend fiber trigger System.signal t
+              @@ fun _ signal t -> signal t
+            then
+              System.await t >>= fun () ->
+              go fiber system k (Ok (Fiber.canceled fiber))
+            else go fiber system k (Ok (Fiber.canceled fiber)))
     | _ -> None
   in
   let handler = Effect.Shallow.{ retc = Lwt.return; exnc = Lwt.fail; effc } in
@@ -89,14 +100,8 @@ let[@alert "-handler"] rec run :
   | Ok v -> Effect.Shallow.continue_with k v handler
   | Error exn_bt -> Exn_bt.discontinue_with k exn_bt handler
 
-let run ?(forbid = false) ~sleep main =
+let run ?(forbid = false) system main =
+  if not (Picos_thread.is_main_thread ()) then not_main_thread ();
   let computation = Computation.create () in
   let fiber = Fiber.create ~forbid computation in
-  run fiber sleep (Effect.Shallow.fiber main) (Ok ())
-
-include Intf
-
-module Make (Sleep : Sleep) : S = struct
-  let run ?forbid main = run ?forbid ~sleep:Sleep.sleep main
-  let await = await
-end
+  go fiber system (Effect.Shallow.fiber main) (Ok ())

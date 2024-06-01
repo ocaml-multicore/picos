@@ -112,7 +112,8 @@ val handle_signal : int -> unit
 val check_configured : unit -> unit
 (** [check_configured ()] checks whether this module has already been
     {{!configure} configured} or not and, if not, calls {!configure} with
-    default arguments.
+    default arguments.  In either case, calling [check_configured ()] will
+    (re)configure signal handling for the current thread.
 
     ℹ️ The intended use case for [check_configure ()] is at the point of
     entry of schedulers and other facilities that use this module. *)

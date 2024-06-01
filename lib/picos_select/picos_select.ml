@@ -275,38 +275,9 @@ let[@poll error] [@inline never] try_configure ~intr_sig ~intr_sigs
        true
      end
 
-let is_sigchld signum = signum = Sys.sigchld
 let is_intr_sig signum = signum = config.intr_sig
 
-let rec configure ?(intr_sig = Sys.sigusr2) ?(handle_sigchld = true) () =
-  if not (Picos_thread.is_main_thread ()) then
-    invalid_arg "must be called from the main thread on the main domain";
-  assert (Sys.sigabrt = -1 && Sys.sigxfsz < Sys.sigabrt);
-  if intr_sig < Sys.sigxfsz || 0 <= intr_sig || intr_sig = Sys.sigchld then
-    invalid_arg "invalid interrupt signal number";
-  if not (try_configure ~intr_sig ~intr_sigs:[ intr_sig ] ~handle_sigchld) then
-    invalid_arg "already configured";
-
-  if not Sys.win32 then begin
-    if config.bits land handle_sigchld_bit <> 0 then begin
-      let previously_blocked = Thread.sigmask SIG_BLOCK [ Sys.sigchld ] in
-      assert (not (List.exists is_sigchld previously_blocked));
-      let old_behavior =
-        Sys.signal Sys.sigchld (Sys.Signal_handle handle_signal)
-      in
-      assert (old_behavior == Signal_default)
-    end;
-    begin
-      let previously_blocked = Thread.sigmask SIG_BLOCK config.intr_sigs in
-      assert (not (List.exists is_intr_sig previously_blocked));
-      let old_behavior =
-        Sys.signal config.intr_sig (Sys.Signal_handle handle_signal)
-      in
-      assert (old_behavior == Signal_default)
-    end
-  end
-
-and handle_signal signal =
+let handle_signal signal =
   if signal = Sys.sigchld then begin
     Picos_htbl.remove_all chld_awaiters
     |> Seq.iter @@ fun (_, Return r) ->
@@ -317,7 +288,30 @@ and handle_signal signal =
     let (Req r) = Picos_thread.TLS.get intr_key in
     Computation.return r.computation Signaled
 
-let check_configured () = if config.intr_sigs = [] then configure ()
+let reconfigure_signal_handlers () =
+  if not Sys.win32 then begin
+    Sys.signal config.intr_sig (Sys.Signal_handle handle_signal) |> ignore;
+    Thread.sigmask SIG_BLOCK config.intr_sigs |> ignore;
+    if config.bits land handle_sigchld_bit <> 0 then begin
+      Sys.signal Sys.sigchld (Sys.Signal_handle handle_signal) |> ignore;
+      Thread.sigmask SIG_BLOCK [ Sys.sigchld ] |> ignore
+    end
+  end
+
+let configure ?(intr_sig = Sys.sigusr2) ?(handle_sigchld = true) () =
+  if not (Picos_thread.is_main_thread ()) then
+    invalid_arg "must be called from the main thread on the main domain";
+  assert (Sys.sigabrt = -1 && Sys.sigxfsz < Sys.sigabrt);
+  if intr_sig < Sys.sigxfsz || 0 <= intr_sig || intr_sig = Sys.sigchld then
+    invalid_arg "invalid interrupt signal number";
+  if not (try_configure ~intr_sig ~intr_sigs:[ intr_sig ] ~handle_sigchld) then
+    invalid_arg "already configured";
+
+  reconfigure_signal_handlers ()
+
+let check_configured () =
+  if config.intr_sigs == [] then configure ()
+  else reconfigure_signal_handlers ()
 
 let[@inline never] init s =
   check_configured ();
