@@ -1,24 +1,30 @@
-module type Sleep = sig
-  (** Minimal signature for an implementation of {!sleep} using {!Lwt}. *)
+module type System = sig
+  (** Signature for a module that {!Picos_lwt.run} requires for interoperating
+      with the system that {!Lwt} runs on. *)
 
   val sleep : float -> unit Lwt.t
-  (** [sleep seconds] should return a cancelable promise that resolves after
-      given number of [seconds] (unless canceled). *)
-end
+  (** [sleep seconds] returns a cancelable promise that resolves after the given
+      number of seconds. *)
 
-module type S = sig
-  (** Direct style {!Picos} compatible interface to {!Lwt}. *)
+  type trigger
+  (** Represents a semi thread-safe signaling mechanism. *)
 
-  val run : ?forbid:bool -> (unit -> 'a) -> 'a Lwt.t
-  (** [run main] runs the [main] program implemented in {!Picos} as a promise
-      with {!Lwt} as the scheduler.  In other words, the [main] program will be
-      run as a {!Lwt} promise or fiber.
+  val trigger : unit -> trigger
+  (** [trigger ()] returns a new thread-safe, single use signaling mechanism.
 
-      The optional [forbid] argument defaults to [false] and determines whether
-      propagation of cancelation is initially allowed. *)
+      ⚠️ This may only be called on the main thread on which {!Lwt} runs. *)
 
-  val await : (unit -> 'a Lwt.t) -> 'a
-  (** [await thunk] awaits for the promise returned by [thunk ()] to resolve and
-      returns the result.  This should only be called from inside a fiber
-      started through {!run}. *)
+  val signal : trigger -> unit
+  (** [signal trigger] resolves the promise that {{!await} [await trigger]}
+      returns.
+
+      ℹ️ It must be safe to call [signal] from any thread or domain.  As a
+      special case this need not be thread-safe in case the system only allows a
+      single thread. *)
+
+  val await : trigger -> unit Lwt.t
+  (** [await trigger] returns a promise thet resolves, on the main thread, after
+      {{!signal} [signal trigger]} has been called.
+
+      ⚠️ This may only be called on the main thread on which {!Lwt} runs. *)
 end

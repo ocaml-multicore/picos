@@ -5,4 +5,5 @@
   (>= %{ocaml_version} 5.0.0))
  (libraries
   (re_export picos)
-  (re_export lwt)))
+  (re_export lwt)
+  picos.thread))

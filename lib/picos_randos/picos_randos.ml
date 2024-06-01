@@ -183,7 +183,9 @@ let context () =
   in
   t
 
-let runner_on_this_thread = next
+let runner_on_this_thread t =
+  Select.check_configured ();
+  next t
 
 let rec await t computation =
   if !(t.num_waiters_non_zero) then begin
@@ -199,7 +201,13 @@ let rec await t computation =
   end
 
 let run ?context:t_opt ?(forbid = false) main =
-  let t = match t_opt with Some t -> t | None -> context () in
+  let t =
+    match t_opt with
+    | Some t ->
+        Select.check_configured ();
+        t
+    | None -> context ()
+  in
   Mutex.lock t.mutex;
   if t.run then begin
     Mutex.unlock t.mutex;

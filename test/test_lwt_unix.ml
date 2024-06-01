@@ -1,8 +1,7 @@
 open Picos
 
 let basics () =
-  Lwt_main.run
-  @@ Picos_lwt.run ~sleep:Lwt_unix.sleep
+  Lwt_main.run @@ Picos_lwt_unix.run
   @@ fun () ->
   let computation = Computation.create () in
   let child =

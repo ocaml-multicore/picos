@@ -13,6 +13,7 @@ let paths =
     lib "picos_fifos";
     lib "picos_htbl";
     lib "picos_lwt";
+    lib "picos_lwt_unix";
     lib "picos_mpscq";
     lib "picos_randos";
     lib "picos_rc";

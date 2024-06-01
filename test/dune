@@ -3,11 +3,18 @@
  (modules test_scheduler)
  (libraries
   (re_export picos)
+  picos.select
   (select
    test_scheduler.ml
    from
-   (picos.fifos picos.randos picos.structured -> test_scheduler.ocaml5.ml)
-   (picos.threaded -> test_scheduler.ocaml4.ml))))
+   (picos.fifos
+    picos.randos
+    picos.lwt_unix
+    picos.structured
+    picos.thread
+    ->
+    test_scheduler.ocaml5.ml)
+   (picos.threaded lwt.unix -> test_scheduler.ocaml4.ml))))
 
 (library
  (name test_util)
@@ -40,7 +47,7 @@
  (modules test_lwt_unix)
  (build_if
   (>= %{ocaml_version} 5.0.0))
- (libraries picos.lwt lwt.unix alcotest))
+ (libraries picos.lwt_unix alcotest))
 
 ;;
 
