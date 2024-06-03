@@ -93,12 +93,18 @@ let create (type k) ?hashed_type ?min_buckets ?max_buckets () =
     | Some ((module Hashed_type) : k hashed_type) ->
         (Hashed_type.equal, Hashed_type.hash)
   in
-  let buckets = Atomic_array.make min_buckets (B Nil) in
   {
     hash;
-    buckets;
+    buckets = Atomic_array.make min_buckets (B Nil);
     equal;
-    non_linearizable_size = [| Atomic.make_contended 0 |];
+    non_linearizable_size =
+      Array.init
+        (ceil_pow_2_minus_1
+           (Multicore_magic.instantaneous_domain_index () lor 1)
+           (* Calling [...index ()] helps to ensure [at_exit] processing does
+              not raise.  This also potentially adjusts the counter width for
+              the number of domains. *))
+        (fun _ -> Atomic.make_contended 0);
     pending = Nothing;
     min_buckets;
     max_buckets;
