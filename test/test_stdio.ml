@@ -15,7 +15,9 @@ let test_openfile_and_read () =
   Test_scheduler.run @@ fun () ->
   let@ fd =
     finally Unix.close @@ fun () ->
-    Unix.openfile "test_stdio.ml" [ O_RDONLY ] 0o400
+    try Unix.openfile "test_stdio.ml" [ O_RDONLY ] 0o400
+    with Unix.Unix_error (ENOENT, _, _) ->
+      Unix.openfile "test/test_stdio.ml" [ O_RDONLY ] 0o400
   in
   let n = 10 in
   let bytes = Bytes.create n in
