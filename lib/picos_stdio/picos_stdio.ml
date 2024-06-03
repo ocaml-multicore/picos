@@ -313,7 +313,9 @@ module Unix = struct
       match
         Unix.waitpid (Wait_flag.to_flags (bits lor Wait_flag.nohang_bit)) pid
       with
-      | exception Unix_error (EINTR, _, _) -> waitpid_unix ~bits ~pid
+      | exception Unix_error (EINTR, _, _) ->
+          Computation.finish computation;
+          waitpid_unix ~bits ~pid
       | (pid_or_0, _) as result ->
           if pid_or_0 = 0 then begin
             Computation.await computation;
