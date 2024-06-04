@@ -40,9 +40,10 @@ module Finally : sig
       {@ocaml skip[
         Bundle.join_after @@ fun bundle ->
         let rec accept () =
-          let@ client =
+          let@ client_fd =
             finally Unix.close @@ fun () ->
-            Unix.accept ~cloexec:true socket |> fst
+            Unix.accept ~cloexec:true server_fd
+            |> fst
           in
           (* fork to accept other clients *)
           Bundle.fork bundle accept;
@@ -76,13 +77,14 @@ module Finally : sig
         Bundle.join_after @@ fun bundle ->
         while true do
           (* loop to accept clients *)
-          let^ client =
+          let^ client_fd =
             finally Unix.close @@ fun () ->
-            Unix.accept ~closexec:true socket |> fst
+            Unix.accept ~closexec:true server_fd
+            |> fst
           in
           (* fork to handle this client *)
           Bundle.fork bundle @@ fun () ->
-            let@ client = move client in
+            let@ client_fd = move client_fd in
             (* handle client... omitted *)
         done
       ]}
@@ -314,8 +316,8 @@ end
           end;
 
           Bundle.fork bundle begin fun () ->
-            let mutex = Mutex.create () in
-            let condition = Condition.create () in
+            let condition = Condition.create ()
+            and mutex = Mutex.create () in
             Mutex.protect mutex begin fun () ->
               while true do
                 Condition.wait condition mutex
@@ -324,14 +326,15 @@ end
           end;
 
           Bundle.fork bundle begin fun () ->
-            let@ inn, out =
-              finally Unix.close_pair @@ fun () ->
+            let@ inn, out = finally
+              Unix.close_pair @@ fun () ->
               Unix.socketpair ~cloexec:true
                 PF_UNIX SOCK_STREAM 0
             in
             Unix.set_nonblock inn;
             let n =
-              Unix.read inn (Bytes.create 1) 0 1
+              Unix.read inn (Bytes.create 1)
+                0 1
             in
             assert (n = 1)
           end;
@@ -407,30 +410,30 @@ end
     We first define a function for the server:
 
     {[
-      let run_server socket =
-        Unix.listen socket 8;
+      let run_server server_fd =
+        Unix.listen server_fd 8;
 
         Bundle.join_after begin fun bundle ->
           while true do
-            let^ client =
+            let^ client_fd =
               finally Unix.close @@ fun () ->
               Unix.accept
-                ~cloexec:true socket |> fst
+                ~cloexec:true server_fd |> fst
             in
 
             (* Fork a fiber for client *)
             Bundle.fork bundle begin fun () ->
-              let@ client = move client in
-              Unix.set_nonblock client;
+              let@ client_fd =
+                move client_fd
+              in
+              Unix.set_nonblock client_fd;
 
-              let bytes =
-                Bytes.create 100
-              in
+              let bs = Bytes.create 100 in
               let n =
-                Unix.read client bytes 0
-                  (Bytes.length bytes)
+                Unix.read client_fd bs 0
+                  (Bytes.length bs)
               in
-              Unix.write client bytes 0 n
+              Unix.write client_fd bs 0 n
               |> ignore
             end
           done
@@ -445,14 +448,14 @@ end
     Let's then define a function for the clients:
 
     {[
-      let run_client addr =
+      let run_client server_addr =
         let@ socket =
           finally Unix.close @@ fun () ->
           Unix.socket ~cloexec:true
             PF_INET SOCK_STREAM 0
         in
         Unix.set_nonblock socket;
-        Unix.connect socket addr;
+        Unix.connect socket server_addr;
 
         let msg = "Hello!" in
         Unix.write_substring
@@ -479,33 +482,33 @@ end
 
     {[
       let main () =
-        let@ socket =
+        let@ server_fd =
           finally Unix.close @@ fun () ->
           Unix.socket ~cloexec:true
             PF_INET SOCK_STREAM 0
         in
-        Unix.set_nonblock socket;
+        Unix.set_nonblock server_fd;
 
         (* Let system determine the port *)
-        Unix.bind socket Unix.(
+        Unix.bind server_fd Unix.(
           ADDR_INET(inet_addr_loopback, 0));
 
-        let addr =
-          Unix.getsockname socket
+        let server_addr =
+          Unix.getsockname server_fd
         in
 
         Bundle.join_after begin fun bundle ->
           (* Start server *)
           let server =
             Bundle.fork_as_promise bundle
-            @@ fun () -> run_server socket
+            @@ fun () -> run_server server_fd
           in
 
           (* Run clients concurrently *)
           Bundle.join_after begin fun bundle ->
             for _ = 1 to 5 do
-              Bundle.fork bundle (fun () ->
-                run_client addr)
+              Bundle.fork bundle @@ fun () ->
+                run_client server_addr
             done
           end;
 
