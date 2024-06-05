@@ -1,3 +1,40 @@
+## 0.4.0
+
+- Renamed `Picos_mpsc_queue` to `Picos_mpscq`. (@polytypic)
+
+- Core API changes:
+
+  - Added `Computation.returned`. (@polytypic)
+
+- `Lwt` interop improvements:
+
+  - Fixed `Picos_lwt` handling of `Cancel_after` to not raise in case of
+    cancelation. (@polytypic)
+
+  - Redesigned `Picos_lwt` to take a `System` module, which must implement a
+    semi thread-safe trigger mechanism to allow unblocking `Lwt` promises on the
+    main thread. (@polytypic)
+
+  - Added `Picos_lwt_unix` interface to `Lwt`, which includes an internal
+    `System` module implemented using `Lwt_unix`. (@polytypic)
+
+  - Dropped thunking from `Picos_lwt.await`. (@polytypic)
+
+- Added a randomized multicore scheduler `Picos_randos` for testing.
+  (@polytypic)
+
+- Changed `Picos_select.check_configured` to always (re)configure signal
+  handling on the current thread. (@polytypic)
+
+- `Picos_structured`:
+
+  - Added a minimalistic `Promise` abstraction. (@polytypic)
+  - Changed to more consistently not treat `Terminate` as an error. (@polytypic)
+
+- Changed schedulers to take `~forbid` as an optional argument. (@polytypic)
+
+- Various minor additions, fixes, and documentation improvements. (@polytypic)
+
 ## 0.3.0
 
 - Core API changes:
