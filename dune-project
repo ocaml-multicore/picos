@@ -96,4 +96,25 @@
     (>= 2.4.1)
     :with-doc))
   (ocaml
-   (>= 4.14.0))))
+   (>= 4.14.0)))
+ (depopts
+  (cohttp
+   (and
+    (>= 5.3.1)
+    :with-test))
+  (cohttp-lwt
+   (and
+    (>= 5.3.0)
+    :with-test))
+  (cohttp-lwt-unix
+   (and
+    (>= 5.3.0)
+    :with-test))
+  (conduit-lwt-unix
+   (and
+    (>= 6.2.2)
+    :with-test))
+  (uri
+   (and
+    (>= 4.4.0)
+    :with-test))))
