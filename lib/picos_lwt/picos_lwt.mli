@@ -18,8 +18,8 @@ include module type of Intf
 
 val run : ?forbid:bool -> (module System) -> (unit -> 'a) -> 'a Lwt.t
 (** [run (module System) main] runs the [main] program implemented in {!Picos}
-    as a promise with {!Lwt} as the scheduler with given {!System} module.  In
-    other words, the [main] program will be run as a {!Lwt} promise or fiber.
+    as a promise with {!Lwt} as the scheduler using the given {!System} module.
+    In other words, the [main] program will be run as a {!Lwt} promise or fiber.
 
     ℹ️ Inside [main] you can use anything implemented in Picos for concurrent
     programming.  In particular, you only need to call [run] with a {!System}
