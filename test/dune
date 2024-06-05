@@ -159,3 +159,25 @@
   test_scheduler
   test_util
   alcotest))
+
+;;
+
+(test
+ (name test_picos_lwt_unix_with_cohttp)
+ (modules test_picos_lwt_unix_with_cohttp)
+ (build_if
+  (and
+   (>= %{ocaml_version} 5)
+   %{lib-available:cohttp-lwt-unix}
+   %{lib-available:cohttp-lwt}
+   %{lib-available:cohttp}
+   %{lib-available:conduit-lwt-unix}
+   %{lib-available:uri}))
+ (libraries
+  picos.lwt_unix
+  picos.structured
+  cohttp
+  cohttp-lwt
+  cohttp-lwt-unix
+  conduit-lwt-unix
+  uri))
