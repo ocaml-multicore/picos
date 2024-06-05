@@ -7,7 +7,7 @@ let basics () =
   let child =
     Computation.capture computation @@ fun () ->
     while true do
-      Picos_lwt.await (fun () -> Lwt_unix.sleep 0.01)
+      Picos_lwt.await (Lwt_unix.sleep 0.01)
     done
   in
   Fiber.spawn ~forbid:false computation [ child ];
