@@ -7,9 +7,8 @@
     ℹ️ This is a {{!System} system} independent interface to {!Lwt}.  See
     {!Picos_lwt_unix} for a {!Unix} specific interface. *)
 
-val await : (unit -> 'a Lwt.t) -> 'a
-(** [await thunk] awaits for the promise returned by [thunk ()] to resolve and
-    returns the result.
+val await : 'a Lwt.t -> 'a
+(** [await promise] awaits for the [promise] to resolve and returns the result.
 
     ⚠️ This may only be called on the main thread on which {!Lwt} runs from
     inside a fiber started through {!run}. *)
