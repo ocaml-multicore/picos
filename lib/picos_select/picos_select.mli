@@ -12,6 +12,7 @@
     ⚠️ All the usual limitations of the {!Unix} module apply. *)
 
 open Picos
+open Picos_sync
 
 (** {1 API} *)
 
@@ -26,6 +27,11 @@ val cancel_after : _ Computation.t -> seconds:float -> Exn_bt.t -> unit
     ℹ️ You can use [cancel_after] to implement the handler for the
     {{!Picos.Computation.Cancel_after} [Cancel_after]} effect. *)
 
+val timeout : seconds:float -> unit Event.t
+(** [timeout ~seconds] returns an {{!Picos_sync.Event} event} that, on each time
+    after being {{!Picos_sync.Event.sync} synchronized} on, can be committed to
+    after the specified number of [seconds]. *)
+
 (** {2 IO} *)
 
 val return_on : 'a Computation.t -> Picos_fd.t -> [ `R | `W | `E ] -> 'a -> unit
@@ -39,6 +45,10 @@ val return_on : 'a Computation.t -> Picos_fd.t -> [ `R | `W | `E ] -> 'a -> unit
 
 val await_on : Picos_fd.t -> [ `R | `W | `E ] -> Picos_fd.t
 (** [await_on fd op] awaits until [fd] becomes available for [op]. *)
+
+val on : Picos_fd.t -> [ `R | `W | `E ] -> unit Event.t
+(** [on fd op] returns an {{!Picos_sync.Event} event} that can be committed to
+    when [fd] becomes available for [op]. *)
 
 module Intr : sig
   (** A mechanism to interrupt blocking {!Unix} IO operations.
@@ -82,6 +92,10 @@ val return_on_sigchld : 'a Computation.t -> 'a -> unit
 
     ⚠️ The mechanism uses the {!Sys.sigchld} signal which should not be used for
     other purposes. *)
+
+val on_sigchld : unit Event.t
+(** [on_sigchld] is an {{!Picos_sync.Event} event} that can be committed to
+    after a {!Sys.sigchld} signal has occurred. *)
 
 (** {2 Configuration} *)
 
@@ -127,6 +141,7 @@ val check_configured : unit -> unit
       open Picos_structured.Finally
       open Picos_structured
       open Picos_stdio
+      open Picos_sync
     ]}
 
     {2 One of many}
@@ -134,9 +149,6 @@ val check_configured : unit -> unit
     Here is an example that awaits for one of multiple alternative events:
 
     {[
-      # exception Timeout
-      exception Timeout
-
       # Picos_fifos.run @@ fun () ->
 
         let@ msg_inn1, msg_out1 =
@@ -177,37 +189,26 @@ val check_configured : unit -> unit
         Bundle.join_after begin fun bundle ->
           Bundle.fork bundle begin fun () ->
             while true do
-              let select =
-                Computation.create ()
-              in
-              Picos_select.return_on
-                select msg_inn1 `R `Inn1;
-              Picos_select.return_on
-                select msg_inn2 `R `Inn2;
-              Picos_select.cancel_after
-                select ~seconds:0.1
-                  (Exn_bt.get_callstack 0
-                    Timeout);
-
-              match
-                Computation.await select
-              with
-              | `Inn1 ->
-                Printf.printf "Inn1\n%!";
-                read1 msg_inn1;
-                write1 syn_out
-              | `Inn2 ->
-                Printf.printf "Inn2\n%!";
-                read1 msg_inn2;
-                write1 syn_out;
-              | exception Timeout ->
-                Printf.printf "Timeout\n%!";
-                write1 syn_out
-              | exception exn ->
-                Computation.cancel select
-                  (Exn_bt.get_callstack 0
-                    Exit);
-                raise exn
+              Event.select [
+                Picos_select.on msg_inn1 `R
+                  |> Event.map begin fun () ->
+                    print_endline "Inn1";
+                    read1 msg_inn1;
+                    write1 syn_out
+                  end;
+                Picos_select.on msg_inn2 `R
+                  |> Event.map begin fun () ->
+                    print_endline "Inn2";
+                    read1 msg_inn2;
+                    write1 syn_out;
+                  end;
+                Picos_select.timeout
+                    ~seconds:0.1
+                  |> Event.map begin fun () ->
+                    print_endline "Timeout";
+                    write1 syn_out
+                  end;
+              ]
             done
           end;
 
@@ -225,5 +226,5 @@ val check_configured : unit -> unit
       - : unit = ()
     ]}
 
-    This approach of using the completion of a computation to select one of
-    multiple events can be generalized. *)
+    Above we use the {{!Picos_sync.Event} [Event]} module providing composable
+    events. *)
