@@ -1,4 +1,5 @@
 open Picos
+open Picos_sync
 
 let handle_sigchld_bit = 0b01
 let select_thread_running_on_main_domain_bit = 0b10
@@ -373,6 +374,21 @@ let[@alert "-handler"] cancel_after computation ~seconds exn_bt =
   if not (Computation.try_attach computation remover) then
     Trigger.signal remover
 
+let[@alert "-handler"] timeout ~seconds =
+  let request outer to_result =
+    let inner =
+      Computation.with_action to_result outer @@ fun _ to_result outer ->
+      Computation.return outer to_result
+    in
+    let canceler =
+      Trigger.from_action () inner @@ fun _ _ inner ->
+      Computation.cancel inner exit_exn_bt
+    in
+    if Computation.try_attach outer canceler then
+      cancel_after inner ~seconds exit_exn_bt
+  in
+  Event.from_request { request }
+
 (* *)
 
 let wakeup_action _trigger s (Return_on r) = if r.alive then wakeup s `Alive
@@ -404,6 +420,12 @@ let await_on file_descr op =
   with exn ->
     Computation.cancel computation exit_exn_bt;
     raise exn
+
+let on file_descr op =
+  let request computation to_result =
+    return_on computation file_descr op to_result
+  in
+  Event.from_request { request }
 
 (* *)
 
@@ -523,3 +545,5 @@ let[@alert "-handler"] return_on_sigchld computation value =
   in
   if not (Computation.try_attach computation remover) then
     Trigger.signal remover
+
+let on_sigchld = Event.from_request { request = return_on_sigchld }

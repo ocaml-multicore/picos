@@ -410,7 +410,7 @@ module Computation : sig
       {{!is_running} running to completed}.
 
       A hopefully enlightening analogy is that a computation is a kind of
-      single-shot atomic event.
+      single-shot atomic {{!Picos_sync.Event} event}.
 
       Another hopefully helpful analogy is that a computation is basically like
       a {{!Picos_structured.Promise} cancelable promise} and a basic
@@ -695,14 +695,14 @@ module Computation : sig
       computations able to support a variety of purposes such as the
       implementation of {{!Picos_structured} structured concurrency}.
 
-      The computation concept can be seen as a kind of single-shot atomic event
-      that is a generalization of both a cancelation context or token and of a
-      {{!Picos_structured.Promise} promise}.  Unlike a typical promise
-      mechanism, a computation can be canceled.  Unlike a typical cancelation
-      mechanism, a computation can and should also be completed in case it is
-      not canceled.  This promotes proper scoping of computations and resource
-      cleanup at completion, which is how the design evolved from a more
-      traditional cancelation context design.
+      The computation concept can be seen as a kind of single-shot atomic
+      {{!Picos_sync.Event} event} that is a generalization of both a cancelation
+      context or token and of a {{!Picos_structured.Promise} promise}.  Unlike a
+      typical promise mechanism, a computation can be canceled.  Unlike a
+      typical cancelation mechanism, a computation can and should also be
+      completed in case it is not canceled.  This promotes proper scoping of
+      computations and resource cleanup at completion, which is how the design
+      evolved from a more traditional cancelation context design.
 
       Every fiber is {{!Fiber.get_computation} associated with a computation}.
       Being able to return a value through the computation means that no
