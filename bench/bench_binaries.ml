@@ -4,9 +4,15 @@ open Multicore_bench
 let lib_suffix = if Sys.os_type == "Win32" then "lib" else "a"
 
 let paths =
-  let lib name = (name, "lib/" ^ name ^ "/" ^ name ^ "." ^ lib_suffix) in
+  let lib ?(subs = []) name =
+    let path base name = "lib/" ^ base ^ "/" ^ name ^ "." ^ lib_suffix in
+    ( name,
+      path name name
+      :: List.map (fun sub -> path (name ^ "/" ^ sub) (name ^ "_" ^ sub)) subs
+    )
+  in
   [
-    lib "picos";
+    lib "picos" ~subs:[ "bootstrap"; "ocaml5"; "ocaml4" ];
     lib "picos_domain";
     lib "picos_exn_bt";
     lib "picos_fd";
@@ -37,20 +43,27 @@ let run_suite ~budgetf:_ =
   with
   | prefix -> begin
       paths
-      |> List.concat_map @@ fun (name, path) ->
+      |> List.concat_map @@ fun (name, paths) ->
          match
-           let@ file =
-             finally Unix.close @@ fun () ->
-             Unix.openfile (prefix ^ "/" ^ path) [] 0
-           in
-           Unix.fstat file
+           paths
+           |> List.filter_map @@ fun path ->
+              match
+                let@ file =
+                  finally Unix.close @@ fun () ->
+                  Unix.openfile (prefix ^ "/" ^ path) [] 0
+                in
+                Unix.fstat file
+              with
+              | stats -> Some stats.st_size
+              | exception Unix.Unix_error (ENOENT, _, _) -> None
          with
-         | stats ->
+         | [] -> []
+         | sizes ->
+             let total_size = List.fold_left ( + ) 0 sizes in
              [
                Metric.make ~metric:"binary size" ~config:name ~units:"kB"
                  ~trend:`Lower_is_better ~description:"Library binary size"
-                 (`Float (Float.of_int stats.st_size *. (1.0 /. 1024.0)));
+                 (`Float (Float.of_int total_size *. (1.0 /. 1024.0)));
              ]
-         | exception Unix.Unix_error (ENOENT, _, _) -> []
     end
   | exception Not_found -> []
