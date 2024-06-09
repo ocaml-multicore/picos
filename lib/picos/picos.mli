@@ -383,12 +383,9 @@ module Trigger : sig
       suspend-resume scenario, there are three distinct pieces of state:
 
       {ol
-
         {- The state of shared data structure(s) used for communication and / or
-        synchronization.}
-
+           synchronization.}
         {- The state of the trigger.}
-
         {- The cancelation status of the fiber.}}
 
       The trigger and cancelation status are both updated independently and
