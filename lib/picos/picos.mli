@@ -408,7 +408,9 @@ module Computation : sig
       - returned, or
       - canceled,
 
-      of some sort of computation.
+      of some sort of computation and most importantly allows anyone to be
+      {{!try_attach} notified} when the status of the computation changes from
+      {{!is_running} running to completed}.
 
       A hopefully enlightening analogy is that a computation is a kind of
       single-shot atomic event.
