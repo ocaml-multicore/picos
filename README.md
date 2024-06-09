@@ -49,7 +49,7 @@ or auxiliary libraries.
 
 ⚠️ Please note that Picos is still considered experimental and unstable.
 
-### Why?
+## Motivation
 
 There are already several concrete effects-based concurrent programming
 libraries and models being developed. Here is a list of some such publicly
@@ -100,3 +100,21 @@ to
 Please read
 [the reference manual](https://ocaml-multicore.github.io/picos/doc/picos/index.html)
 for further information.
+
+## Introduction
+
+### The architecture of Picos
+
+#### Understanding Cancelation
+
+#### Trigger
+
+#### Computation
+
+#### Fiber
+
+### Elements of Concurrency
+
+### Performance
+
+### Future of Schedulers
