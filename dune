@@ -1,0 +1,11 @@
+(mdx
+ (enabled_if
+  (< %{ocaml_version} 5.0.0))
+ (libraries picos picos.exn_bt picos.structured picos.threaded)
+ (files README.md))
+
+(mdx
+ (enabled_if
+  (>= %{ocaml_version} 5.0.0))
+ (libraries picos picos.exn_bt picos.structured picos.fifos)
+ (files README.md))
