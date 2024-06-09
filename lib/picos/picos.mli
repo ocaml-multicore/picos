@@ -413,8 +413,9 @@ module Computation : sig
       single-shot atomic event.
 
       Another hopefully helpful analogy is that a computation is basically like
-      a cancelable promise and a basic non-cancelable promise can be implemented
-      trivially on top of a computation.
+      a {{!Picos_structured.Promise} cancelable promise} and a basic
+      non-cancelable promise can be implemented trivially on top of a
+      computation.
 
       To define a computation, one first {{!create} creates} it and then
       arranges for the computation to be completed by {{!return} returning} a
@@ -685,13 +686,23 @@ module Computation : sig
 
   (** {2 Design rationale}
 
+      The main feature of the computation concept is that anyone can efficiently
+      {{!try_attach} attach} {{!Trigger} triggers} to a computation to get
+      notified when the status of the computation changes from running to
+      completed and can also efficiently {{!detach} detach} such triggers in
+      case getting a notification is no longer necessary.  This allows the
+      status change to be propagated omnidirectionally and is what makes
+      computations able to support a variety of purposes such as the
+      implementation of {{!Picos_structured} structured concurrency}.
+
       The computation concept can be seen as a kind of single-shot atomic event
       that is a generalization of both a cancelation context or token and of a
-      promise.  Unlike a typical promise mechanism, a computation can be
-      canceled.  Unlike a typical cancelation mechanism, a computation can and
-      should also be completed in case it is not canceled.  This promotes proper
-      scoping of computations and resource cleanup at completion, which is how
-      the design evolved from a more traditional cancelation context design.
+      {{!Picos_structured.Promise} promise}.  Unlike a typical promise
+      mechanism, a computation can be canceled.  Unlike a typical cancelation
+      mechanism, a computation can and should also be completed in case it is
+      not canceled.  This promotes proper scoping of computations and resource
+      cleanup at completion, which is how the design evolved from a more
+      traditional cancelation context design.
 
       Every fiber is {{!Fiber.get_computation} associated with a computation}.
       Being able to return a value through the computation means that no
