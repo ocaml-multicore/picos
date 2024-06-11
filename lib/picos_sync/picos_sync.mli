@@ -373,6 +373,57 @@ module Ivar : sig
       variable has either been assigned a value or has been poisoned. *)
 end
 
+module Stream : sig
+  (** A lock-free, poisonable, many-to-many, stream.
+
+      Readers can {!tap} into a stream to get a {!cursor} for reading all the
+      values {{!push} pushed} to the stream starting from the {!cursor}
+      position.  Conversely, values {{!push} pushed} to a stream are lost unless
+      a reader has a {!cursor} to the position in the stream. *)
+
+  type !'a t
+  (** Represents a stream of values of type ['a]. *)
+
+  val create : ?padded:bool -> unit -> 'a t
+  (** [create ()] returns a new stream. *)
+
+  val push : 'a t -> 'a -> unit
+  (** [push stream value] adds the [value] to the current position of the
+      [stream] and advances the stream to the next position unless the [stream]
+      has been {{!poison} poisoned} in which case only the exception given to
+      {!poison} will be raised. *)
+
+  val poison : 'a t -> Exn_bt.t -> unit
+  (** [poison stream exn_bt] marks the stream as poisoned at the current
+      position, which means that subsequent attempts to {!push} to the [stream]
+      will raise the given exception with backtrace. *)
+
+  type !'a cursor
+  (** Represents a (past or current) position in a stream. *)
+
+  val tap : 'a t -> 'a cursor
+  (** [tap stream] returns a {!cursor} to the current position of the
+      [stream]. *)
+
+  val peek_opt : 'a cursor -> ('a * 'a cursor) option
+  (** [peek_opt cursor] immediately returns [Some (value, next)] with the
+      [value] pushed to the position and a cursor to the [next] position, when
+      the [cursor] points to a past position in the stream.  Otherwise returns
+      [None] or raises the exception that the stream was poisoned with. *)
+
+  val read : 'a cursor -> 'a * 'a cursor
+  (** [read cursor] immediately returns [(value, next)] with the [value] pushed
+      to the position and a cursor to the [next] position, when the [cursor]
+      points to a past position in the stream.  If the [cursor] points to the
+      current position of the stream, [read cursor] waits until a value is
+      pushed to the stream or the stream is poisoned, in which case the
+      exception that the stream was poisoned with will be raised. *)
+
+  val read_evt : 'a cursor -> ('a * 'a cursor) Event.t
+  (** [read_evt cursor] returns an {{!Event} event} that {{!read} reads} from
+      the [cursor] position. *)
+end
+
 (** {1 Examples}
 
     {2 A simple bounded queue}

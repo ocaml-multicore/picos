@@ -15,6 +15,7 @@ let benchmarks =
     ("Picos_mpscq", Bench_mpscq.run_suite);
     ("Picos_htbl", Bench_htbl.run_suite);
     ("Picos_stdio", Bench_stdio.run_suite);
+    ("Picos_sync Stream", Bench_stream.run_suite);
     ("Fib", Bench_fib.run_suite);
     ("Picos binaries", Bench_binaries.run_suite);
     ("Bounded_q with Picos_sync", Bench_bounded_q.run_suite);
