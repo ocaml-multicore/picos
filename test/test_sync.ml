@@ -203,6 +203,34 @@ let test_lazy_cancelation () =
   | _ -> assert false
   | exception Exit -> Trigger.signal to_await
 
+let test_event_basics () =
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
+  assert (
+    Event.select
+      [
+        Event.from_computation (Computation.create ());
+        Event.from_computation (Computation.returned 51) |> Event.map (( + ) 50);
+      ]
+    = 101);
+  begin
+    let c = Computation.create () in
+    Computation.cancel_after c ~seconds:0.1 (Exn_bt.get_callstack 0 Not_found);
+    match Event.sync (Event.from_computation c) with
+    | () -> assert false
+    | exception Not_found -> ()
+  end;
+  begin
+    match
+      [
+        Event.guard (fun () -> raise Exit);
+        Event.from_computation (Computation.returned 42);
+      ]
+      |> Event.choose |> Event.sync
+    with
+    | _ -> assert false
+    | exception Exit -> ()
+  end
+
 let () =
   [
     ( "Mutex and Condition",
@@ -217,5 +245,6 @@ let () =
         Alcotest.test_case "basics" `Quick test_lazy_basics;
         Alcotest.test_case "cancelation" `Quick test_lazy_cancelation;
       ] );
+    ("Event", [ Alcotest.test_case "basics" `Quick test_event_basics ]);
   ]
   |> Alcotest.run "Picos_sync"
