@@ -161,6 +161,17 @@ let test_can_wait_promises () =
   in
   assert (Promise.await promise = 42)
 
+let test_can_select_promises () =
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
+  Bundle.join_after @@ fun bundle ->
+  let a =
+    Bundle.fork_as_promise bundle @@ fun () ->
+    Control.sleep ~seconds:0.1;
+    42
+  and b = Bundle.fork_as_promise bundle @@ fun () -> Event.select [] in
+  assert (Event.select [ Promise.completed a; Promise.completed b ] = 42);
+  Bundle.terminate bundle
+
 let test_any_and_all_errors () =
   [ Run.all; Run.any ]
   |> List.iter @@ fun run_op ->
@@ -255,6 +266,7 @@ let () =
         Alcotest.test_case "error in promise terminates" `Quick
           test_error_in_promise_terminates;
         Alcotest.test_case "can wait promises" `Quick test_can_wait_promises;
+        Alcotest.test_case "can select promises" `Quick test_can_select_promises;
         Alcotest.test_case "any and all errors" `Quick test_any_and_all_errors;
         Alcotest.test_case "any and all returns" `Quick test_any_and_all_returns;
         Alcotest.test_case "race any" `Quick test_race_any;

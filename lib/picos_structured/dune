@@ -1,7 +1,11 @@
 (library
  (name picos_structured)
  (public_name picos.structured)
- (libraries picos backoff multicore-magic))
+ (libraries
+  (re_export picos.sync)
+  picos
+  backoff
+  multicore-magic))
 
 (mdx
  (enabled_if

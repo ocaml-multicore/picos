@@ -254,6 +254,13 @@ module Event : sig
   val from_request : 'a request -> 'a t
   (** [from_request { request }] creates an {{!Event} event} from the request
       function. *)
+
+  val from_computation : 'a Computation.t -> 'a t
+  (** [from_computation source] creates an {{!Event} event} that can be
+      committed to once the given [source] computation has completed.
+
+      ℹ️ Committing to some other event does not cancel the [source]
+      computation. *)
 end
 
 (** {1 Examples}

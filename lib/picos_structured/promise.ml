@@ -1,9 +1,11 @@
 open Picos
+open Picos_sync
 
 type 'a t = 'a Computation.t
 
 let of_value = Computation.returned
 let await = Computation.await
+let completed = Event.from_computation
 let is_running = Computation.is_running
 
 let try_terminate ?callstack t =

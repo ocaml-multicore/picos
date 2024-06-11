@@ -13,6 +13,7 @@
     ]} *)
 
 open Picos
+open Picos_sync
 
 (** {1 Modules} *)
 
@@ -170,6 +171,10 @@ module Promise : sig
       exception that the evaluation of the promise raised, or raises the
       {{!Control.Terminate} [Terminate]} exception in case the promise has been
       canceled. *)
+
+  val completed : 'a t -> 'a Event.t
+  (** [completed promise] returns an {{!Picos_sync.Event} event} that can be
+      committed to once the promise has completed. *)
 
   val is_running : 'a t -> bool
   (** [is_running promise] determines whether the completion of the promise is
