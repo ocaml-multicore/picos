@@ -169,6 +169,12 @@ These are examples of libraries implemented in Picos.
   Picos_select
 }
 
+{^ These libraries are both meant to serve as examples of what can be done and
+   to also provide practical means for programming with fibers.  Hopefully there
+   will be many more libraries implemented in Picos like these providing
+   different approaches, patterns, and idioms for structuring concurrent
+   programs.}
+
 {^ The IO libraries in this package are built only on top of the standard
    libraries distributed with OCaml and are hopefully useful for building simple
    applications.  Bindings to asynchronous system IO libraries are outside the

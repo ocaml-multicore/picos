@@ -1,12 +1,15 @@
 (** Basic communication and synchronization primitives for {!Picos}.
 
-    The optional [padded] argument taken by several constructor functions, e.g.
-    {!Mutex.create} and {!Condition.create}, defaults to [false].  When
-    explicitly specified as [~padded:true] the object is allocated in a way to
-    avoid {{:https://en.wikipedia.org/wiki/False_sharing} false sharing}.  For
-    relatively long lived objects this can improve performance and make
-    performance more stable at the cost of using more memory.  It is not
-    recommended to use [~padded:true] for short lived objects. *)
+    This library essentially provides a conventional set of communication and
+    synchronization primitives for concurrent programming with any Picos
+    compatible scheduler.
+
+    For the {{!examples} examples} we open some modules:
+
+    {[
+      open Picos_structured
+      open Picos_sync
+    ]} *)
 
 (** {1 Modules} *)
 
@@ -255,13 +258,6 @@ end
 
 (** {1 Examples}
 
-    First we open some modules for convenience:
-
-    {[
-      open Picos_structured
-      open Picos_sync
-    ]}
-
     {2 A simple bounded queue}
 
     Here is an example of a simple bounded (blocking) queue using a mutex and
@@ -378,3 +374,13 @@ end
     Notice how the producer was able to push three elements to the queue after
     which the fourth push blocked and the consumer was started.  Also, after
     canceling the consumer, the queue could still be used just fine. *)
+
+(** {1 Conventions}
+
+    The optional [padded] argument taken by several constructor functions, e.g.
+    {!Mutex.create} and {!Condition.create}, defaults to [false].  When
+    explicitly specified as [~padded:true] the object is allocated in a way to
+    avoid {{:https://en.wikipedia.org/wiki/False_sharing} false sharing}.  For
+    relatively long lived objects this can improve performance and make
+    performance more stable at the cost of using more memory.  It is not
+    recommended to use [~padded:true] for short lived objects. *)

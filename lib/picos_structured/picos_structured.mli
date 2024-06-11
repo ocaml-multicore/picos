@@ -1,11 +1,7 @@
 (** Basic structured concurrency primitives for {!Picos}.
 
     This library essentially provides one application programming interface for
-    structuring fibers with any Picos compatible scheduler.  This library is
-    both meant to serve as an example of what can be done and to also provide
-    practical means for programming with fibers.  Hopefully there will be many
-    more libraries implemented in Picos like this providing different
-    approaches, patterns, and idioms for structuring concurrent programs.
+    structuring fibers with any Picos compatible scheduler.
 
     For the {{!examples} examples} we open some modules:
 
