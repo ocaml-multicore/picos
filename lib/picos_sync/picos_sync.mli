@@ -240,7 +240,7 @@ module Event : sig
     request : 'r. (unit -> 'r) Computation.t -> ('a -> 'r) -> unit;
   }
   [@@unboxed]
-  (** Represents a function that request a concurrent service to update a
+  (** Represents a function that requests a concurrent service to update a
       {{!Picos.Computation} computation}.
 
       ⚠️ Raising an exception from a [request] function will result in raising
