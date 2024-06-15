@@ -41,40 +41,34 @@ module Counting = struct
       else if not (Atomic.compare_and_set t (Obj.repr before) (Obj.repr after))
       then cleanup t trigger (Backoff.once backoff)
 
-  let rec acquire t backoff =
+  let rec acquire t node backoff =
     (* The acquire operation will mutate the atomic location and will be
        sequentially consistent.  The fenceless get here performs better on
        ARM. *)
     let before = Multicore_magic.fenceless_get t in
-    if Obj.is_int before then
-      let count = Obj.obj before in
-      if 0 < count then begin
-        let after = Obj.repr (count - 1) in
-        if not (Atomic.compare_and_set t before after) then
-          acquire t (Backoff.once backoff)
-      end
-      else
-        let trigger = Trigger.create () in
-        let after = Q.singleton trigger in
-        if Atomic.compare_and_set t before (Obj.repr after) then begin
-          match Trigger.await trigger with
-          | None -> ()
-          | Some (exn, bt) ->
-              cleanup t trigger Backoff.default;
-              Printexc.raise_with_backtrace exn bt
-        end
-        else acquire t (Backoff.once backoff)
+    if Obj.is_int before && 0 < (Obj.obj before : int) then begin
+      let after = Obj.repr (Obj.obj before - 1) in
+      if not (Atomic.compare_and_set t before after) then
+        acquire t node (Backoff.once backoff)
+    end
     else
-      let trigger = Trigger.create () in
-      let after = Q.snoc (Obj.obj before) trigger in
+      let cons =
+        match node with
+        | S.T Nil ->
+            let trigger = Trigger.create () in
+            S.Cons { value = trigger; next = T Nil }
+        | S.T (Cons _ as cons) -> cons
+      in
+      let after = Q.add_cons (Obj.obj before) cons in
       if Atomic.compare_and_set t before (Obj.repr after) then begin
+        let trigger = S.value cons in
         match Trigger.await trigger with
         | None -> ()
         | Some (exn, bt) ->
             cleanup t trigger Backoff.default;
             Printexc.raise_with_backtrace exn bt
       end
-      else acquire t (Backoff.once backoff)
+      else acquire t (T cons) (Backoff.once backoff)
 
   let rec try_acquire t backoff =
     let before = Atomic.get t in
@@ -92,7 +86,7 @@ module Counting = struct
     if Obj.is_int state then Obj.obj state else 0
 
   let[@inline] release t = release t Backoff.default
-  let[@inline] acquire t = acquire t Backoff.default
+  let[@inline] acquire t = acquire t (T Nil) Backoff.default
   let[@inline] try_acquire t = try_acquire t Backoff.default
 end
 

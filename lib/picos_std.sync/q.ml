@@ -1,19 +1,9 @@
-type ('a, _) tdt =
-  | Nil : ('a, [> `Nil ]) tdt
-  | Cons : { value : 'a; mutable next : 'a spine } -> ('a, [> `Cons ]) tdt
-
-and 'a spine = S : ('a, [< `Nil | `Cons ]) tdt -> 'a spine [@@unboxed]
-
-type 'a cons = ('a, [ `Cons ]) tdt
-
-external as_cons : 'a spine -> 'a cons = "%identity"
-
 type ('a, _) queue =
   | Zero : ('a, [> `Zero ]) queue
   | One : {
-      head : 'a cons;
-      tail : 'a cons;
-      cons : 'a cons;
+      head : 'a S.cons;
+      tail : 'a S.cons;
+      cons : 'a S.cons;
     }
       -> ('a, [> `One ]) queue
 
@@ -21,21 +11,28 @@ type ('a, 'n) one = ('a, ([< `One ] as 'n)) queue
 type 'a t = T : ('a, [< `Zero | `One ]) queue -> 'a t [@@unboxed]
 
 let[@inline] singleton value =
-  let cons = Cons { value; next = S Nil } in
+  let cons = S.Cons { value; next = T Nil } in
   T (One { head = cons; tail = cons; cons })
 
 let[@inline] exec (One o : (_, _) one) =
   if o.tail != o.cons then
     let (Cons tl) = o.tail in
-    if tl.next != S o.cons then tl.next <- S o.cons
+    if tl.next != T o.cons then tl.next <- T o.cons
 
 let[@inline] snoc (One o as t : (_, _) one) value =
   exec t;
-  let cons = Cons { value; next = S Nil } in
+  let cons = S.Cons { value; next = T Nil } in
   T (One { head = o.head; tail = o.cons; cons })
 
 let[@inline] add t value =
   match t with T Zero -> singleton value | T (One _ as o) -> snoc o value
+
+let[@inline] add_cons t cons =
+  match t with
+  | T Zero -> T (One { head = cons; tail = cons; cons })
+  | T (One r as o) ->
+      exec o;
+      T (One { head = r.head; tail = r.cons; cons })
 
 let[@inline] head (One { head = Cons hd; _ } : (_, _) one) = hd.value
 
@@ -44,32 +41,23 @@ let[@inline] tail (One o as t : (_, _) one) =
   if o.head == o.cons then T Zero
   else
     let (Cons hd) = o.head in
-    T (One { head = as_cons hd.next; tail = o.cons; cons = o.cons })
+    T (One { head = S.as_cons hd.next; tail = o.cons; cons = o.cons })
 
-let rec iter (Cons cons_r : _ cons) action =
-  action cons_r.value;
-  match cons_r.next with S Nil -> () | S (Cons _ as cons) -> iter cons action
-
-let[@inline] iter (One o as t : (_, _) one) action =
+let[@inline] iter action (One o as t : (_, _) one) =
   exec t;
-  iter o.head action
-
-let rec find_tail (Cons cons_r as cons : _ cons) =
-  match cons_r.next with S Nil -> cons | S (Cons _ as cons) -> find_tail cons
-
-let[@tail_mod_cons] rec reject (Cons cons_r : _ cons) value =
-  if cons_r.value != value then
-    match cons_r.next with
-    | S Nil -> raise_notrace Not_found
-    | S (Cons _ as cons) ->
-        S (Cons { value = cons_r.value; next = reject cons value })
-  else cons_r.next
+  S.iter action o.head o.cons
 
 let remove (One o as t : (_, _) one) value =
   exec t;
-  match reject o.head value with
-  | S Nil -> T Zero
-  | S (Cons _ as head) ->
-      let tail = find_tail head in
+  match S.reject o.head value with
+  | S.T Nil -> T Zero
+  | S.T (Cons _ as head) ->
+      let tail = S.find_tail head in
       T (One { head; tail; cons = tail })
   | exception Not_found -> T t
+
+let reverse_as_queue = function
+  | S.T Nil -> T Zero
+  | S.T (Cons cons_r as tail) ->
+      let head = S.reverse_to tail cons_r.next in
+      T (One { head; tail; cons = tail })
