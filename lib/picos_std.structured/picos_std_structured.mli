@@ -457,6 +457,11 @@ end
           end;
 
           Flock.fork begin fun () ->
+            let ch = Ch.create () in
+            Ch.give ch "never"
+          end;
+
+          Flock.fork begin fun () ->
             let stream = Stream.create () in
             Stream.read (Stream.tap stream)
             |> ignore
@@ -514,6 +519,8 @@ end
       count of the latch never reaches [0],
     - {{!Picos_std_sync.Ivar.read} [Ivar.read]} never returns, because the
       incremental variable is never filled,
+    - {{!Picos_std_sync.Ch.give} [Ch.give]} never returns, because no fiber
+      {{!Picos_std_sync.Ch.take} takes} the message,
     - {{!Picos_std_sync.Stream.read} [Stream.read]} never returns, because the
       stream is never pushed to,
     - {{!Picos_io.Unix.read} [Unix.read]} never returns, because the socket is
