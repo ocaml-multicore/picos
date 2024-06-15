@@ -1,7 +1,7 @@
 let[@inline never] not_main_thread () =
   invalid_arg "not called from the main thread"
 
-let ready = Picos_mpscq.create ()
+let ready = Picos_mpscq.create ~padded:true ()
 
 type notification = { mutable ref_count : int; mutable id : int }
 

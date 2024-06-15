@@ -38,7 +38,7 @@ let await t fiber packed canceler =
 let join_after fn =
   let t =
     let num_fibers = Atomic.make 1 in
-    let bundle = Computation.create () in
+    let bundle = Computation.create ~mode:`LIFO () in
     let errors = Control.Errors.create () in
     let finished = Trigger.create () in
     { num_fibers; bundle; errors; finished }
@@ -70,7 +70,7 @@ let rec incr t backoff =
 
 let fork_as_promise t thunk =
   incr t Backoff.default;
-  let child = Computation.create () in
+  let child = Computation.create ~mode:`LIFO () in
   try
     let canceler = Computation.attach_canceler ~from:t.bundle ~into:child in
     let main () =

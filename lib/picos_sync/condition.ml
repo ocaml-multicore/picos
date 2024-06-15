@@ -3,9 +3,7 @@ open Picos
 type state = Empty | Queue of { head : Trigger.t list; tail : Trigger.t list }
 type t = state Atomic.t
 
-let create ?(padded = false) () =
-  let t = Atomic.make Empty in
-  if padded then Multicore_magic.copy_as_padded t else t
+let create ?padded () = Multicore_magic.copy_as ?padded @@ Atomic.make Empty
 
 let broadcast t =
   if Atomic.get t != Empty then

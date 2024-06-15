@@ -182,7 +182,7 @@ let test_any_and_all_errors () =
   [ Run.all; Run.any ]
   |> List.iter @@ fun run_op ->
      Test_scheduler.run ~max_domains:6 @@ fun () ->
-     let raised = Picos_mpscq.create () in
+     let raised = Picos_mpscq.create ~padded:true () in
      let raiser exn () =
        Picos_mpscq.push raised exn;
        raise exn
