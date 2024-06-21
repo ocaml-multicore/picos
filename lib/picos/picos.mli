@@ -289,7 +289,7 @@ module Trigger : sig
       should assume that the [resume] action might be called from a different
       domain running in parallel with neither effect nor exception handlers and
       that if the attached action doesn't return the system may deadlock or if
-      actions doesn't return quickly it may cause performance issues.
+      the action doesn't return quickly it may cause performance issues.
 
       ⚠️ It is considered an error to make multiple calls to [on_signal] with a
       specific [trigger].
