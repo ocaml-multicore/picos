@@ -145,7 +145,8 @@ module Control : sig
   (** [block ()] suspends the current fiber until it is canceled at which point
       the cancelation exception will be raised.
 
-      ⚠️ Beware that [protect block] never returns and you don't want that. *)
+      @raise Invalid_argument in case propagation of cancelation has been
+        {{!protect} forbidden}. *)
 end
 
 module Promise : sig

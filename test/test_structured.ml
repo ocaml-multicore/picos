@@ -96,6 +96,12 @@ let test_cancelation_awaits_children () =
   end;
   assert !slept
 
+let test_block_raises () =
+  Test_scheduler.run @@ fun () ->
+  match Control.protect Control.block with
+  | () -> assert false
+  | exception Invalid_argument _ -> ()
+
 let test_termination_nests () =
   Test_scheduler.run ~max_domains:3 @@ fun () ->
   let mutex = Mutex.create () in
@@ -260,6 +266,8 @@ let () =
           test_exception_in_child_terminates;
         Alcotest.test_case "cancelation awaits children" `Quick
           test_cancelation_awaits_children;
+        Alcotest.test_case "block raises when forbidden" `Quick
+          test_block_raises;
         Alcotest.test_case "termination nests" `Quick test_termination_nests;
         Alcotest.test_case "promise cancelation does not terminate" `Quick
           test_promise_cancelation_does_not_terminate;
