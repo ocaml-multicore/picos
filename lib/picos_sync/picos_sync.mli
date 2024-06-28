@@ -14,7 +14,7 @@
 (** {1 Modules} *)
 
 module Mutex : sig
-  (** A mutex implementation for {!Picos}.
+  (** A mutual-exclusion lock or mutex.
 
       ℹ️ This intentionally mimics the interface of {!Stdlib.Mutex}.  Unlike with
       the standard library mutex, blocking on this mutex potentially allows an
@@ -74,7 +74,7 @@ module Mutex : sig
 end
 
 module Condition : sig
-  (** A condition implementation for {!Picos}.
+  (** A condition variable.
 
       ℹ️ This intentionally mimics the interface of {!Stdlib.Condition}.  Unlike
       with the standard library condition variable, blocking on this condition
@@ -105,7 +105,7 @@ module Condition : sig
 end
 
 module Lazy : sig
-  (** A lazy implementation for {!Picos}.
+  (** A lazy suspension.
 
       ℹ️ This intentionally mimics the interface of {!Stdlib.Lazy}.  Unlike with
       the standard library suspensions an attempt to force a suspension from
@@ -162,7 +162,7 @@ module Lazy : sig
 end
 
 module Event : sig
-  (** An implementation of first-class synchronous communication for {!Picos}.
+  (** First-class synchronous communication abstraction.
 
       Events describe a thing that might happen in the future, or a concurrent
       offer or request that might be accepted or succeed, but is cancelable if
@@ -261,6 +261,66 @@ module Event : sig
 
       ℹ️ Committing to some other event does not cancel the [source]
       computation. *)
+end
+
+module Latch : sig
+  (** A dynamic single-use countdown latch.
+
+      Latches are typically used for determining when a finite set of parallel
+      computations is done.  If the size of the set is known a priori, then the
+      latch can be initialized with the size as initial count and then each
+      computation just {{!decr} decrements} the latch.
+
+      If the size is unknown, i.e. it is determined dynamically, then a latch is
+      initialized with a count of one, the a priori known computations are
+      started and then the latch is {{!decr} decremented}.  When a computation
+      is stsrted, the latch is {{!try_incr} incremented}, and then {{!decr}
+      decremented} once the computation has finished. *)
+
+  type t
+  (** Represents a dynamic countdown latch. *)
+
+  val create : int -> t
+  (** [create initial] creates a new countdown latch with the specified
+      [initial] count.
+
+      @raise Invalid_argument in case the specified [initial] count is
+        negative. *)
+
+  val try_decr : t -> bool
+  (** [try_decr latch] attempts to decrement the count of the latch and returns
+      [true] in case the count of the latch was greater than zero and [false] in
+      case the count already was zero. *)
+
+  val decr : t -> unit
+  (** [decr latch] is equivalent to:
+      {@ocaml skip[
+        if not (try_decr latch) then
+          invalid_arg "zero count"
+      ]}
+
+      @raise Invalid_argument in case the count of the latch is zero. *)
+
+  val try_incr : t -> bool
+  (** [try_incr latch] attempts to increment the count of the latch and returns
+      [true] on success and [false] on failure, which means that the latch has
+      already reached zero. *)
+
+  val incr : t -> unit
+  (** [incr latch] is equivalent to:
+      {@ocaml skip[
+        if not (try_incr latch) then
+          invalid_arg "zero count"
+      ]}
+
+      @raise Invalid_argument in case the count of the latch is zero. *)
+
+  val await : t -> unit
+  (** [await latch] returns after the count of the latch has reached zero. *)
+
+  val await_evt : t -> unit Event.t
+  (** [await_evt latch] returns an event that can be committed to once the count
+      of the latch has reached zero. *)
 end
 
 (** {1 Examples}

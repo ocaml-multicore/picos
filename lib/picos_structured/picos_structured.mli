@@ -107,8 +107,8 @@ module Control : sig
 
       ⚠️ If [Terminate] is raised in the main fiber of a {!Bundle}, and no other
       exceptions are raised within any fiber inside the bundle, the bundle will
-      then, of course, raise the [Terminate] exception after all the fibers have
-      been terminated. *)
+      then, of course, raise the [Terminate] exception after all of the fibers
+      have been terminated. *)
 
   exception Errors of Exn_bt.t list
   (** An exception that can be used to collect exceptions, typically indicating
@@ -200,8 +200,9 @@ module Bundle : sig
       {{!fork} forked} to the bundle remain.
 
       An unhandled exception, or error, within any fiber of the bundle causes
-      all the fibers {{!fork} forked} to the bundle to be canceled and the
-      bundle to raise the exception. *)
+      all of the fibers {{!fork} forked} to the bundle to be canceled and the
+      bundle to raise the error exception or {{!Control.Errors} error
+      exceptions} raised by all of the fibers forked into the bundle. *)
 
   type t
   (** Represents a bundle of fibers. *)
@@ -216,7 +217,7 @@ module Bundle : sig
       implicitly. *)
 
   val terminate : ?callstack:int -> t -> unit
-  (** [terminate bundle] cancels all the {{!fork} forked} fibers using the
+  (** [terminate bundle] cancels all of the {{!fork} forked} fibers using the
       {{!Control.Terminate} [Terminate]} exception.  After [terminate] has been
       called, no new fibers can be forked to the bundle.
 
@@ -373,9 +374,9 @@ end
     - {!Control.sleep} call would return only after about a month.
 
     Fibers forked to a bundle can be canceled in various ways.  In the above
-    program we call {!Bundle.terminate} to cancel all the fibers and effectively
-    close the bundle.  This allows the program to return normally immediately
-    and without leaking or leaving anything in an invalid state:
+    program we call {!Bundle.terminate} to cancel all of the fibers and
+    effectively close the bundle.  This allows the program to return normally
+    immediately and without leaking or leaving anything in an invalid state:
 
     {[
       # Picos_fifos.run main
@@ -404,6 +405,44 @@ end
     understand the exact point and state at which a fiber gets canceled and it
     is usually non-deterministic, and therefore cancelation is not recommended
     for use as a general synchronization or communication mechanism.
+
+    {2 Errors and cancelation}
+
+    Consider the following program:
+
+    {[
+      let many_errors () =
+        Bundle.join_after @@ fun bundle ->
+
+        let latch = Latch.create 1 in
+
+        let fork_raising exn =
+          Bundle.fork bundle begin fun () ->
+            Control.protect begin fun () ->
+              Latch.await latch
+            end;
+            raise exn
+          end
+        in
+
+        fork_raising Exit;
+        fork_raising Not_found;
+        fork_raising Control.Terminate;
+
+        Latch.decr latch
+    ]}
+
+    The above program starts three fibers and uses a {{!Picos_sync.Latch} latch}
+    to ensure that all of them have been started, before two of them raise
+    errors and the third raises {{!Control.Terminate} [Terminate]}, which is not
+    considered an error in this library.  Running the program
+
+    {[
+      # Picos_fifos.run many_errors
+      Exception: Errors[Stdlib.Exit; Not_found]
+    ]}
+
+    raises a collection of all of the {{!Control.Errors} errors}.
 
     {2 A simple echo server and clients}
 
