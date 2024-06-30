@@ -30,7 +30,9 @@ let test_sleepf () =
   Run.all (List.init 100 @@ fun _ () -> Unix.sleepf 0.01);
   let d = Unix.gettimeofday () -. start in
   (* This is non-deterministic and might need to be changed if flaky *)
-  assert (0.01 <= d && d < 5.0)
+  assert (0.01 <= d);
+  (* This is non-deterministic and might need to be changed if flaky *)
+  assert (d < 5.0)
 
 let test_select_empty_timeout () =
   Test_scheduler.run @@ fun () ->
@@ -38,7 +40,9 @@ let test_select_empty_timeout () =
   let _ = Unix.select [] [] [] 0.1 in
   let d = Unix.gettimeofday () -. start in
   (* This is non-deterministic and might need to be changed if flaky *)
-  assert (0.1 <= d && d <= 5.0)
+  assert (0.1 <= d);
+  (* This is non-deterministic and might need to be changed if flaky *)
+  assert (d <= 5.0)
 
 let test_select_empty_forever () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
