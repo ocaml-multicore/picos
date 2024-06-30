@@ -43,7 +43,7 @@
   ;; Test dependencies
   (multicore-bench
    (and
-    (>= 0.1.3)
+    (>= 0.1.4)
     :with-test))
   (alcotest
    (and
