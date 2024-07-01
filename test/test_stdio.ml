@@ -113,11 +113,16 @@ let test_select () =
 
   Bundle.terminate bundle;
 
+  let expected = [| "Inn1"; "Inn2"; "Timeout" |] in
+  let actual =
+    (* Ignore additional timeouts *)
+    Array.sub
+      (Array.of_seq (Picos_mpscq.pop_all events))
+      0 (Array.length expected)
+  in
+
   (* This is non-deterministic and might need to be changed if flaky *)
-  Alcotest.(check' (list string))
-    ~msg:"events"
-    ~actual:(Picos_mpscq.pop_all events |> List.of_seq)
-    ~expected:[ "Inn1"; "Inn2"; "Timeout" ]
+  Alcotest.(check' (array string)) ~msg:"events" ~actual ~expected
 
 let () =
   [
