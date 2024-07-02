@@ -329,6 +329,11 @@ end
           end;
 
           Bundle.fork bundle begin fun () ->
+            let latch = Latch.create 1 in
+            Latch.await latch
+          end;
+
+          Bundle.fork bundle begin fun () ->
             let@ inn, out = finally
               Unix.close_pair @@ fun () ->
               Unix.socketpair ~cloexec:true
@@ -369,6 +374,8 @@ end
     - {!Promise.await} never returns as the [promise] won't be completed,
     - {{!Picos_sync.Condition.wait} [Condition.wait]} never returns, because the
       condition is never signaled,
+    - {{!Picos_sync.Latch.await} [Latch.await]} never returns, because the count
+      of the latch never reaches [0],
     - {{!Picos_stdio.Unix.read} [Unix.read]} never returns, because the socket
       is never written to, and the
     - {!Control.sleep} call would return only after about a month.
