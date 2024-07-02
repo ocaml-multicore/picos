@@ -308,7 +308,7 @@ module Unix = struct
     if bits land Wait_flag.nohang_bit <> 0 then
       Unix.waitpid (Wait_flag.to_flags bits) pid
     else
-      let computation = Computation.create () in
+      let computation = Computation.create ~mode:`LIFO () in
       Picos_select.return_on_sigchld computation ();
       match
         Unix.waitpid (Wait_flag.to_flags (bits lor Wait_flag.nohang_bit)) pid
@@ -381,13 +381,13 @@ module Unix = struct
   let done_bt = Exn_bt.get_callstack 0 Done
 
   let[@alert "-handler"] select rds wrs exs seconds =
-    let overall = Computation.create () in
+    let overall = Computation.create ~mode:`LIFO () in
     let canceler =
       Trigger.from_action overall () @@ fun _ overall _ ->
       Picos_select.cancel_after overall ~seconds:0.0 done_bt
     in
     let prepare op fd =
-      let computation = Computation.create () in
+      let computation = Computation.create ~mode:`LIFO () in
       if Computation.try_attach computation canceler then
         Picos_select.return_on computation fd op true;
       computation

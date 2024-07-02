@@ -182,6 +182,10 @@ module Event : sig
       {{:https://ocaml.org/manual/5.2/api/Event.html} [Event]} module
       signature. *)
 
+  val always : 'a -> 'a t
+  (** [always value] returns an event that can always be committed to resulting
+      in the given [value]. *)
+
   (** {2 Composing events} *)
 
   val choose : 'a t list -> 'a t
@@ -321,6 +325,35 @@ module Latch : sig
   val await_evt : t -> unit Event.t
   (** [await_evt latch] returns an event that can be committed to once the count
       of the latch has reached zero. *)
+end
+
+module Ch : sig
+  (** A synchronous channel. *)
+
+  type !'a t
+  (** Represents a synchronous channel for handing over messages of type
+      ['a]. *)
+
+  val create : ?padded:bool -> unit -> 'a t
+  (** [create ()] creates a new synchronous channel. *)
+
+  val give : 'a t -> 'a -> unit
+  (** [give ch value] waits until another fiber is ready to take a message on
+      the [ch]annel and gives the message to it. *)
+
+  val give_evt : 'a t -> 'a -> unit Event.t
+  (** [give_evt ch value] returns an event that can be committed to once another
+      fiber is ready to take a message on the [ch]annel.  Committing to the
+      event results in giving the message to the other fiber. *)
+
+  val take : 'a t -> 'a
+  (** [take ch] waits until another fiber is ready to give a message on the
+      [ch]annel and takes the message from it. *)
+
+  val take_evt : 'a t -> 'a Event.t
+  (** [take_evt ch] returns an event that can be committed to once another fiber
+      is ready to give a message on the [ch]annel.  Committing to the event
+      results in taking the message from the other fiber. *)
 end
 
 (** {1 Examples}

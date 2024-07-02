@@ -414,7 +414,7 @@ let return_on computation file_descr op value =
     (Return_on { computation; file_descr; value; alive = true })
 
 let await_on file_descr op =
-  let computation = Computation.create () in
+  let computation = Computation.create ~mode:`LIFO () in
   return_on computation file_descr op file_descr;
   try Computation.await computation
   with exn ->
