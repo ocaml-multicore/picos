@@ -50,13 +50,14 @@ type t = {
   mutable run : bool;
 }
 
-let rec spawn t n forbid packed = function
-  | [] -> Atomic.fetch_and_add t.num_alive_fibers n |> ignore
+let rec spawn t forbid packed = function
+  | [] -> ()
   | main :: mains ->
       let fiber = Fiber.create_packed ~forbid packed in
+      Atomic.incr t.num_alive_fibers;
       Collection.push t.ready (Spawn (fiber, main));
       if !(t.num_waiters_non_zero) then Condition.signal t.condition;
-      spawn t (n + 1) forbid packed mains
+      spawn t forbid packed mains
 
 let rec next t =
   match Collection.pop_exn t.ready with
@@ -83,7 +84,7 @@ let rec next t =
         | Fiber.Spawn r ->
             if Fiber.is_canceled fiber then yield
             else begin
-              spawn t 0 r.forbid (Packed r.computation) r.mains;
+              spawn t r.forbid (Packed r.computation) r.mains;
               return
             end
         | Fiber.Yield -> yield
