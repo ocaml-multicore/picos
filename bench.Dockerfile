@@ -1,5 +1,6 @@
 FROM ocaml/opam:debian-ocaml-5.2
-WORKDIR bench-dir
+WORKDIR /bench-dir
+RUN sudo apt-get update
 RUN sudo ln -sf /usr/bin/opam-2.1 /usr/bin/opam
 RUN sudo chown opam .
 COPY *.opam ./
