@@ -12,9 +12,7 @@ type state =
 
 type t = state Atomic.t
 
-let create ?(padded = false) () =
-  let t = Atomic.make Unlocked in
-  if padded then Multicore_magic.copy_as_padded t else t
+let create ?padded () = Multicore_magic.copy_as ?padded @@ Atomic.make Unlocked
 
 (* We try to avoid starvation of unlock by making it so that when, at the start
    of lock or unlock, the head is empty, the tail is reversed into the head.

@@ -7,13 +7,14 @@ type t = { count : int Atomic.t; computation : unit Computation.t }
 
 let zero = Atomic.make 0
 
-let create n =
+let create ?padded n =
   if n < 0 then negative_count ();
-  let count = if 0 < n then Atomic.make n else zero
+  let count =
+    if 0 < n then Atomic.make n |> Multicore_magic.copy_as ?padded else zero
   and computation =
     if n <= 0 then Computation.finished else Computation.create ()
   in
-  { count; computation }
+  Multicore_magic.copy_as ?padded { count; computation }
 
 type _ result =
   | Unit : unit result  (** [Unit] is physically same as [()]. *)

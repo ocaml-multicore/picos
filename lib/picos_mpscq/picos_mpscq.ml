@@ -13,10 +13,10 @@ exception Empty
 
 let[@inline never] impossible () = invalid_arg "multiple consumers not allowed"
 
-let create () =
-  let tail = Multicore_magic.copy_as_padded @@ Atomic.make (T Tail) in
-  let head = Multicore_magic.copy_as_padded @@ Atomic.make (H Head) in
-  Multicore_magic.copy_as_padded { tail; head }
+let create ?padded () =
+  let tail = Multicore_magic.copy_as ?padded @@ Atomic.make (T Tail) in
+  let head = Multicore_magic.copy_as ?padded @@ Atomic.make (H Head) in
+  Multicore_magic.copy_as ?padded { tail; head }
 
 let rec push_head head (Cons r as after : (_, [< `Cons ]) tdt) backoff =
   let before = Atomic.get head in

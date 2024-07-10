@@ -280,7 +280,7 @@ module Latch : sig
   type t
   (** Represents a dynamic countdown latch. *)
 
-  val create : int -> t
+  val create : ?padded:bool -> int -> t
   (** [create initial] creates a new countdown latch with the specified
       [initial] count.
 
@@ -445,9 +445,10 @@ end
 (** {1 Conventions}
 
     The optional [padded] argument taken by several constructor functions, e.g.
-    {!Mutex.create} and {!Condition.create}, defaults to [false].  When
-    explicitly specified as [~padded:true] the object is allocated in a way to
-    avoid {{:https://en.wikipedia.org/wiki/False_sharing} false sharing}.  For
-    relatively long lived objects this can improve performance and make
-    performance more stable at the cost of using more memory.  It is not
-    recommended to use [~padded:true] for short lived objects. *)
+    {!Latch.create}, {!Mutex.create}, and {!Condition.create}, defaults to
+    [false].  When explicitly specified as [~padded:true] the object is
+    allocated in a way to avoid {{:https://en.wikipedia.org/wiki/False_sharing}
+    false sharing}.  For relatively long lived objects this can improve
+    performance and make performance more stable at the cost of using more
+    memory.  It is not recommended to use [~padded:true] for short lived
+    objects. *)

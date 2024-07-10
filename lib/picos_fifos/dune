@@ -10,4 +10,5 @@
    from
    (picos.select -> select.some.ml)
    (-> select.none.ml))
+  multicore-magic
   picos.mpscq))
