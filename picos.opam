@@ -14,7 +14,7 @@ depends: [
   "thread-local-storage" {>= "0.1"}
   "mtime" {>= "2.0.0"}
   "psq" {>= "0.2.1"}
-  "multicore-magic" {>= "2.2.0"}
+  "multicore-magic" {>= "2.3.0"}
   "lwt" {>= "5.7.0"}
   "multicore-bench" {>= "0.1.4" & with-test}
   "alcotest" {>= "1.7.0" & with-test}

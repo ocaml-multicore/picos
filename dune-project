@@ -36,7 +36,7 @@
    (>= 0.2.1))
   ;; For mpsc queue
   (multicore-magic
-   (>= 2.2.0))
+   (>= 2.3.0))
   ;; For picos.lwt
   (lwt
    (>= 5.7.0))

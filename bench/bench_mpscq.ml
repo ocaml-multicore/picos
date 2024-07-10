@@ -1,17 +1,21 @@
 open Multicore_bench
-module Queue = Picos_mpscq
 
 let run_one_domain ~budgetf ?(n_msgs = 50 * Util.iter_factor) () =
-  let t = Queue.create () in
+  let t = Picos_mpscq.create ~padded:true () in
 
   let op push =
-    if push then Queue.push t 101
-    else match Queue.pop_exn t with _ -> () | exception Queue.Empty -> ()
+    if push then Picos_mpscq.push t 101
+    else
+      match Picos_mpscq.pop_exn t with
+      | _ -> ()
+      | exception Picos_mpscq.Empty -> ()
   in
 
   let init _ =
     assert (
-      match Queue.pop_exn t with _ -> false | exception Queue.Empty -> true);
+      match Picos_mpscq.pop_exn t with
+      | _ -> false
+      | exception Picos_mpscq.Empty -> true);
     Util.generate_push_and_pop_sequence n_msgs
   in
   let work _ bits = Util.Bits.iter op bits in
@@ -25,13 +29,15 @@ let run_one ~budgetf ~n_adders () =
 
   let n_msgs = 200 / n_takers * Util.iter_factor in
 
-  let t = Queue.create () in
+  let t = Picos_mpscq.create ~padded:true () in
 
   let n_msgs_to_add = Atomic.make 0 |> Multicore_magic.copy_as_padded in
 
   let init _ =
     assert (
-      match Queue.pop_exn t with _ -> false | exception Queue.Empty -> true);
+      match Picos_mpscq.pop_exn t with
+      | _ -> false
+      | exception Picos_mpscq.Empty -> true);
     Atomic.set n_msgs_to_add n_msgs
   in
   let work i () =
@@ -40,7 +46,7 @@ let run_one ~budgetf ~n_adders () =
         let n = Util.alloc n_msgs_to_add in
         if 0 < n then begin
           for i = 1 to n do
-            Queue.push t i
+            Picos_mpscq.push t i
           done;
           work ()
         end
@@ -49,9 +55,9 @@ let run_one ~budgetf ~n_adders () =
     else
       let rec loop n =
         if 0 < n then
-          match Queue.pop_exn t with
+          match Picos_mpscq.pop_exn t with
           | _ -> loop (n - 1)
-          | exception Queue.Empty ->
+          | exception Picos_mpscq.Empty ->
               Backoff.once Backoff.default |> ignore;
               loop n
       in

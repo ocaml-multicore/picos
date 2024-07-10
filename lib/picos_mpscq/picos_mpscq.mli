@@ -8,7 +8,7 @@
 type !'a t
 (** A multi-producer, single-consumer queue. *)
 
-val create : unit -> 'a t
+val create : ?padded:bool -> unit -> 'a t
 (** [create ()] returns a new empty multi-producer, single-consumer queue. *)
 
 (** {2 Interface for producers}

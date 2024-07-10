@@ -77,7 +77,7 @@ let test_select () =
   Unix.set_nonblock syn_inn;
   Unix.set_nonblock syn_out;
 
-  let events = Picos_mpscq.create () in
+  let events = Picos_mpscq.create ~padded:true () in
 
   Bundle.join_after @@ fun bundle ->
   begin
