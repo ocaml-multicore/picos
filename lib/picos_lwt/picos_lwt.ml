@@ -9,7 +9,7 @@ let await promise =
   match Lwt.state promise with
   | Sleep ->
       if not (Picos_thread.is_main_thread ()) then not_main_thread ();
-      let computation = Computation.create () in
+      let computation = Computation.create ~mode:`LIFO () in
       let promise =
         Lwt.try_bind
           (fun () -> promise)
@@ -107,6 +107,6 @@ let[@alert "-handler"] rec go :
 
 let run ?(forbid = false) system main =
   if not (Picos_thread.is_main_thread ()) then not_main_thread ();
-  let computation = Computation.create () in
+  let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
   go fiber system (Effect.Shallow.fiber main) (Ok ())

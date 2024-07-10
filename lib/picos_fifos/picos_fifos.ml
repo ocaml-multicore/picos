@@ -143,7 +143,7 @@ let run ?(forbid = false) main =
       Condition.broadcast t.condition
     end
   in
-  let computation = Computation.create () in
+  let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
   let main = Computation.capture computation main in
   Picos_mpscq.push t.ready (Spawn (fiber, main));

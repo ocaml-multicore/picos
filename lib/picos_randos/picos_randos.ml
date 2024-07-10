@@ -217,7 +217,7 @@ let run ?context:t_opt ?(forbid = false) main =
   else begin
     t.run <- true;
     Mutex.unlock t.mutex;
-    let computation = Computation.create () in
+    let computation = Computation.create ~mode:`LIFO () in
     let fiber = Fiber.create ~forbid computation in
     let main = Computation.capture computation main in
     Collection.push t.ready (Spawn (fiber, main));
