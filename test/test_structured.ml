@@ -122,37 +122,23 @@ let test_block_raises_sys_error () =
 
 let test_termination_nests () =
   Test_scheduler.run ~max_domains:3 @@ fun () ->
-  let mutex = Mutex.create () in
-  let condition = Condition.create () in
-  let blocked = ref false in
+  let semaphore = Semaphore.Binary.make false in
+  check Flock.join_after @@ fun () ->
   begin
-    check Flock.join_after @@ fun () ->
+    Flock.fork @@ fun () ->
     begin
-      Flock.fork @@ fun () ->
+      check Flock.join_after @@ fun () ->
       begin
-        check Flock.join_after @@ fun () ->
-        begin
-          Flock.fork @@ fun () ->
-          begin
-            Mutex.protect mutex @@ fun () -> blocked := true
-          end;
-          Condition.signal condition;
-          while true do
-            Control.sleep ~seconds:1.0
-          done
-        end
+        Flock.fork @@ fun () ->
+        Semaphore.Binary.release semaphore;
+        while true do
+          Control.sleep ~seconds:1.0
+        done
       end
-    end;
-
-    begin
-      Mutex.protect mutex @@ fun () ->
-      while not !blocked do
-        Condition.wait condition mutex
-      done
-    end;
-
-    Flock.terminate ()
-  end
+    end
+  end;
+  Semaphore.Binary.acquire semaphore;
+  Flock.terminate ()
 
 let test_promise_cancelation_does_not_terminate () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->

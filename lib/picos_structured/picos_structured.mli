@@ -394,6 +394,20 @@ end
           end;
 
           Flock.fork begin fun () ->
+            let sem =
+              Semaphore.Binary.make false
+            in
+            Semaphore.Binary.acquire sem
+          end;
+
+          Flock.fork begin fun () ->
+            let sem =
+              Semaphore.Counting.make 0
+            in
+            Semaphore.Counting.acquire sem
+          end;
+
+          Flock.fork begin fun () ->
             Event.sync (Event.choose [])
           end;
 
@@ -441,10 +455,11 @@ end
         end
     ]}
 
-    First of all, note that above the {{!Picos_sync.Mutex} [Mutex]} and
-    {{!Picos_sync.Condition} [Condition]} modules come from the {!Picos_sync}
-    library and the {{!Picos_stdio.Unix} [Unix]} module comes from the
-    {!Picos_stdio} library.  They do not come from the standard OCaml libraries.
+    First of all, note that above the {{!Picos_sync.Mutex} [Mutex]},
+    {{!Picos_sync.Condition} [Condition]}, and {{!Picos_sync.Semaphore}
+    [Semaphore]} modules come from the {!Picos_sync} library and the
+    {{!Picos_stdio.Unix} [Unix]} module comes from the {!Picos_stdio} library.
+    They do not come from the standard OCaml libraries.
 
     The above program creates a {{!Flock} flock} of fibers and {{!Flock.fork}
     forks} several fibers to the flock that all block in various ways.  In
@@ -454,6 +469,9 @@ end
     - {!Promise.await} never returns as the promise won't be completed,
     - {{!Picos_sync.Condition.wait} [Condition.wait]} never returns, because the
       condition is never signaled,
+    - {{!Picos_sync.Semaphore.Binary.acquire} [Semaphore.Binary.acquire]} and
+      {{!Picos_sync.Semaphore.Counting.acquire} [Semaphore.Counting.acquire]}
+      never return, because the counts of the semaphores never change from [0],
     - {{!Picos_sync.Event.sync} [Event.sync]} never returns, because the event
       can never be committed to,
     - {{!Picos_sync.Latch.await} [Latch.await]} never returns, because the count
