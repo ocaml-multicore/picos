@@ -2,6 +2,8 @@ open Multicore_bench
 open Picos
 open Picos_sync
 
+let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
+
 (** This will keep a domain running. *)
 let yielder computation =
   let main () =
@@ -21,6 +23,8 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
   let n_ops_todo = Countdown.create ~n_domains () in
   let mutex = Mutex.create ~padded:true () in
 
+  let batch = if use_domains || n_fibers < 16 then 1000 else 100 in
+
   let init _ =
     assert (!v = 0);
     Countdown.non_atomic_set n_ops_todo n_ops
@@ -30,7 +34,7 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
     let n_live = Atomic.make (if use_domains then 1 else n_fibers) in
     let computation = Computation.create () in
     let rec work () =
-      let n = Countdown.alloc n_ops_todo ~domain_index ~batch:1000 in
+      let n = Countdown.alloc n_ops_todo ~domain_index ~batch in
       if n <> 0 then
         let rec loop n =
           if 0 < n then begin
@@ -70,10 +74,11 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
   |> Times.to_thruput_metrics ~n:n_ops ~singular:"locked yield" ~config
 
 let run_suite ~budgetf =
-  Util.cross [ false; true ] [ 1; 2; 4; 8 ]
+  Util.cross [ false; true ] [ 1; 2; 4; 8; 256; 512; 1024 ]
   |> List.concat_map @@ fun (use_domains, n_fibers) ->
      if
        use_domains
        && (n_fibers = 1 || Picos_domain.recommended_domain_count () < n_fibers)
+       || (is_ocaml4 && 256 < n_fibers)
      then []
      else run_one ~budgetf ~n_fibers ~use_domains ()
