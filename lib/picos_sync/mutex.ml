@@ -10,45 +10,28 @@ type _ tdt =
 
 type state =
   | Unlocked
-  | Locked of {
-      fiber : Fiber.Maybe.t;
-      head : [ `Entry ] tdt list;
-      tail : [ `Entry ] tdt list;
-    }
+  | Locked of { fiber : Fiber.Maybe.t; waiters : [ `Entry ] tdt Q.t }
 
 type t = state Atomic.t
 
 let create ?padded () = Multicore_magic.copy_as ?padded @@ Atomic.make Unlocked
-
-(* We try to avoid starvation of unlock by making it so that when, at the start
-   of lock or unlock, the head is empty, the tail is reversed into the head.
-   This way both lock and unlock attempt O(1) and O(n) operations at the same
-   time. *)
-
-let locked_nothing =
-  Locked { fiber = Fiber.Maybe.nothing; head = []; tail = [] }
+let locked_nothing = Locked { fiber = Fiber.Maybe.nothing; waiters = T Zero }
 
 let rec unlock_as owner t backoff =
   match Atomic.get t with
   | Unlocked -> unlocked ()
   | Locked r as before ->
       if Fiber.Maybe.equal r.fiber owner then
-        match r.head with
-        | Entry { trigger; fiber } :: rest ->
-            let after = Locked { r with fiber; head = rest } in
+        match r.waiters with
+        | T Zero ->
+            if not (Atomic.compare_and_set t before Unlocked) then
+              unlock_as owner t (Backoff.once backoff)
+        | T (One _ as q) ->
+            let (Entry { trigger; fiber }) = Q.head q in
+            let waiters = Q.tail q in
+            let after = Locked { fiber; waiters } in
             if Atomic.compare_and_set t before after then Trigger.signal trigger
             else unlock_as owner t (Backoff.once backoff)
-        | [] -> begin
-            match List.rev r.tail with
-            | Entry { trigger; fiber } :: rest ->
-                let after = Locked { fiber; head = rest; tail = [] } in
-                if Atomic.compare_and_set t before after then
-                  Trigger.signal trigger
-                else unlock_as owner t (Backoff.once backoff)
-            | [] ->
-                if not (Atomic.compare_and_set t before Unlocked) then
-                  unlock_as owner t (Backoff.once backoff)
-          end
       else not_owner ()
 
 let[@inline] unlock ?checked t =
@@ -60,28 +43,24 @@ let rec cleanup_as (Entry entry_r as entry : [ `Entry ] tdt) t backoff =
      Otherwise we must remove our entry from the queue. *)
   match Atomic.get t with
   | Locked r as before -> begin
-      match List_ext.drop_first_or_not_found entry r.head with
-      | head ->
-          let after = Locked { r with head } in
-          if not (Atomic.compare_and_set t before after) then
-            cleanup_as entry t (Backoff.once backoff)
-      | exception Not_found -> begin
-          match List_ext.drop_first_or_not_found entry r.tail with
-          | tail ->
-              let after = Locked { r with tail } in
-              if not (Atomic.compare_and_set t before after) then
-                cleanup_as entry t (Backoff.once backoff)
-          | exception Not_found -> unlock_as entry_r.fiber t Backoff.default
-        end
+      match r.waiters with
+      | T Zero -> unlock_as entry_r.fiber t backoff
+      | T (One _ as q) ->
+          let waiters = Q.remove q entry in
+          if r.waiters == waiters then unlock_as entry_r.fiber t backoff
+          else
+            let after = Locked { fiber = r.fiber; waiters } in
+            if not (Atomic.compare_and_set t before after) then
+              cleanup_as entry t (Backoff.once backoff)
     end
-  | Unlocked -> unlocked () (* impossible *)
+  | Unlocked -> unlocked ()
 
 let rec lock_as fiber t entry backoff =
   match Atomic.get t with
   | Unlocked as before ->
       let after =
         if fiber == Fiber.Maybe.nothing then locked_nothing
-        else Locked { fiber; head = []; tail = [] }
+        else Locked { fiber; waiters = T Zero }
       in
       if not (Atomic.compare_and_set t before after) then
         lock_as fiber t entry (Backoff.once backoff)
@@ -94,11 +73,12 @@ let rec lock_as fiber t entry backoff =
               Entry { trigger; fiber }
           | Entry _ as entry -> entry
         in
-        let after =
-          if r.head == [] then
-            Locked { r with head = List.rev_append r.tail [ entry ]; tail = [] }
-          else Locked { r with tail = entry :: r.tail }
+        let waiters =
+          match r.waiters with
+          | T Zero -> Q.singleton entry
+          | T (One _ as q) -> Q.snoc q entry
         in
+        let after = Locked { fiber = r.fiber; waiters } in
         if Atomic.compare_and_set t before after then begin
           match Trigger.await entry_r.trigger with
           | None -> ()
@@ -118,7 +98,7 @@ let try_lock ?checked t =
   Atomic.get t == Unlocked
   && Atomic.compare_and_set t Unlocked
        (if fiber == Fiber.Maybe.nothing then locked_nothing
-        else Locked { fiber; head = []; tail = [] })
+        else Locked { fiber; waiters = T Zero })
 
 let protect ?checked t body =
   let fiber = Fiber.Maybe.current_and_check_if checked in
