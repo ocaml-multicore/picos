@@ -174,6 +174,44 @@ let test_mutex_and_condition_cancelation () =
     msgs := msg :: !msgs
   end
 
+let test_semaphore_basics () =
+  Test_scheduler.run @@ fun () ->
+  begin
+    match Semaphore.Counting.make (-1) with
+    | _ -> assert false
+    | exception Invalid_argument _ -> ()
+  end;
+  begin
+    let s = Semaphore.Counting.make Int.max_int in
+    match Semaphore.Counting.release s with
+    | () -> assert false
+    | exception Sys_error _ ->
+        Semaphore.Counting.acquire s;
+        Semaphore.Counting.release s
+  end
+
+let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
+
+let test_semaphore_stress () =
+  Test_scheduler.run ~max_domains:4 @@ fun () ->
+  Bundle.join_after @@ fun bundle ->
+  let s = Semaphore.Counting.make ~padded:true 0 in
+  let rec loop ~n_acquire ~n_release =
+    if 0 < n_acquire && 0 < n_release then
+      if Random.bool () then fork_acquire ~n_acquire ~n_release
+      else fork_release ~n_acquire ~n_release
+    else if 0 < n_acquire then fork_acquire ~n_acquire ~n_release
+    else if 0 < n_release then fork_release ~n_acquire ~n_release
+  and fork_acquire ~n_acquire ~n_release =
+    Bundle.fork bundle (fun () -> Semaphore.Counting.acquire s);
+    loop ~n_acquire:(n_acquire - 1) ~n_release
+  and fork_release ~n_acquire ~n_release =
+    Bundle.fork bundle (fun () -> Semaphore.Counting.release s);
+    loop ~n_acquire ~n_release:(n_release - 1)
+  in
+  let n = if is_ocaml4 then 100 else 100_000 in
+  loop ~n_acquire:n ~n_release:n
+
 let test_lazy_basics () =
   Test_scheduler.run @@ fun () ->
   assert (101 = (Lazy.from_fun (fun () -> 101) |> Lazy.force_val));
@@ -256,6 +294,11 @@ let () =
           Alcotest.test_case "errors" `Quick test_mutex_and_condition_errors;
           Alcotest.test_case "cancelation" `Quick
             test_mutex_and_condition_cancelation;
+        ] );
+      ( "Semaphore",
+        [
+          Alcotest.test_case "basics" `Quick test_semaphore_basics;
+          Alcotest.test_case "stress" `Quick test_semaphore_stress;
         ] );
       ( "Lazy",
         [

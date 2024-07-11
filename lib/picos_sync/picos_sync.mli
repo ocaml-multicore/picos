@@ -106,6 +106,66 @@ module Condition : sig
       variable. *)
 end
 
+module Semaphore : sig
+  (** {!Counting} and {!Binary} semaphores.
+
+      ℹ️ This intentionally mimics the interface of {!Stdlib.Semaphore}.  Unlike
+      with the standard library semaphores, blocking on these semaphores allows
+      an effects based scheduler to run other fibers on the thread. *)
+
+  module Counting : sig
+    (** A counting semaphore. *)
+
+    type t
+    (** Represents a counting semaphore. *)
+
+    val make : ?padded:bool -> int -> t
+    (** [make initial] creates a new counting semaphore with the given [initial]
+        count.
+
+        @raise Invalid_argument in case the given [initial] count is negative. *)
+
+    val release : t -> unit
+    (** [release semaphore] increments the count of the semaphore.
+
+        @raise Sys_error in case the count would overflow. *)
+
+    val acquire : t -> unit
+    (** [acquire semaphore] waits until the count of the semaphore is greater
+        than [0] and then atomically decrements the count. *)
+
+    val try_acquire : t -> bool
+    (** [try_acquire semaphore] attempts to atomically decrement the count of
+        the semaphore unless the count is already [0]. *)
+
+    val get_value : t -> int
+    (** [get_value semaphore] returns the current count of the semaphore.  This
+        should only be used for debugging or informational messages. *)
+  end
+
+  module Binary : sig
+    (** A binary semaphore. *)
+
+    type t
+    (** Represents a binary semaphore. *)
+
+    val make : ?padded:bool -> bool -> t
+    (** [make initial] creates a new binary semaphore with count of [1] in case
+        [initial] is [true] and count of [0] otherwise. *)
+
+    val release : t -> unit
+    (** [release semaphore] sets the count of the semaphore to [1]. *)
+
+    val acquire : t -> unit
+    (** [acquire semaphore] waits until the count of the semaphore is [1] and
+        then atomically changes the count to [0]. *)
+
+    val try_acquire : t -> bool
+    (** [try_acquire semaphore] attempts to atomically change the count of the
+        semaphore from [1] to [0]. *)
+  end
+end
+
 module Lazy : sig
   (** A lazy suspension.
 
@@ -550,7 +610,8 @@ end
 (** {1 Conventions}
 
     The optional [padded] argument taken by several constructor functions, e.g.
-    {!Latch.create}, {!Mutex.create}, and {!Condition.create}, defaults to
+    {!Latch.create}, {!Mutex.create}, {!Condition.create},
+    {!Semaphore.Counting.make}, and {!Semaphore.Binary.make}, defaults to
     [false].  When explicitly specified as [~padded:true] the object is
     allocated in a way to avoid {{:https://en.wikipedia.org/wiki/False_sharing}
     false sharing}.  For relatively long lived objects this can improve
