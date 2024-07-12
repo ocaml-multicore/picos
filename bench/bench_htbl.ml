@@ -22,11 +22,11 @@ let run_one ~budgetf ~n_domains ?(n_ops = 400 * Util.iter_factor)
   let n_ops = (100 + percent_mem) * n_ops / 100 in
   let n_ops = n_ops * n_domains in
 
-  let n_ops_todo = Atomic.make 0 |> Multicore_magic.copy_as_padded in
+  let n_ops_todo = Countdown.create ~n_domains () in
 
   let before () =
     let _ : _ Seq.t = Htbl.remove_all t in
-    Atomic.set n_ops_todo n_ops
+    Countdown.non_atomic_set n_ops_todo n_ops
   in
   let init i =
     let state = Random.State.make_self_init () in
@@ -40,9 +40,9 @@ let run_one ~budgetf ~n_domains ?(n_ops = 400 * Util.iter_factor)
     end;
     state
   in
-  let work _ state =
+  let work domain_index state =
     let rec work () =
-      let n = Util.alloc n_ops_todo in
+      let n = Countdown.alloc n_ops_todo ~domain_index ~batch:1000 in
       if n <> 0 then begin
         for _ = 1 to n do
           let value = Random.State.bits state in

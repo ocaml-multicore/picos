@@ -7,13 +7,13 @@ let seconds = 0.000_000_001 (* 1 ns *)
 let run_round_trip ~budgetf ~n_domains () =
   let n_ops = if Sys.win32 then 100 else 5 * Util.iter_factor * n_domains in
 
-  let n_ops_todo = Atomic.make 0 |> Multicore_magic.copy_as_padded in
+  let n_ops_todo = Countdown.create ~n_domains () in
 
-  let init _ = Atomic.set n_ops_todo n_ops in
+  let init _ = Countdown.non_atomic_set n_ops_todo n_ops in
   let wrap _ () = Scheduler.run in
-  let work _ () =
+  let work domain_index () =
     let rec work () =
-      let n = Util.alloc n_ops_todo in
+      let n = Countdown.alloc n_ops_todo ~domain_index ~batch:10 in
       if n <> 0 then
         let rec loop n =
           if 0 < n then begin
@@ -39,11 +39,11 @@ let run_round_trip ~budgetf ~n_domains () =
 let run_async ~budgetf ~n_domains () =
   let n_ops = if Sys.win32 then 1_000 else 50 * Util.iter_factor * n_domains in
 
-  let n_ops_todo = Atomic.make 0 |> Multicore_magic.copy_as_padded in
+  let n_ops_todo = Countdown.create ~n_domains () in
 
-  let init _ = Atomic.set n_ops_todo n_ops in
+  let init _ = Countdown.non_atomic_set n_ops_todo n_ops in
   let wrap _ () = Scheduler.run in
-  let work _ () =
+  let work domain_index () =
     let queue = Queue.create () in
     let exit = ref false in
 
@@ -59,7 +59,7 @@ let run_async ~budgetf ~n_domains () =
       [ Computation.capture computation awaiter ];
 
     let rec work () =
-      let n = Util.alloc n_ops_todo in
+      let n = Countdown.alloc n_ops_todo ~domain_index ~batch:10 in
       if n <> 0 then
         let rec loop n =
           if 0 < n then begin

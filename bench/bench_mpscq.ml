@@ -31,19 +31,19 @@ let run_one ~budgetf ~n_adders () =
 
   let t = Picos_mpscq.create ~padded:true () in
 
-  let n_msgs_to_add = Atomic.make 0 |> Multicore_magic.copy_as_padded in
+  let n_msgs_to_add = Countdown.create ~n_domains:n_adders () in
 
   let init _ =
     assert (
       match Picos_mpscq.pop_exn t with
       | _ -> false
       | exception Picos_mpscq.Empty -> true);
-    Atomic.set n_msgs_to_add n_msgs
+    Countdown.non_atomic_set n_msgs_to_add n_msgs
   in
   let work i () =
     if i < n_adders then
       let rec work () =
-        let n = Util.alloc n_msgs_to_add in
+        let n = Countdown.alloc n_msgs_to_add ~domain_index:i ~batch:1000 in
         if 0 < n then begin
           for i = 1 to n do
             Picos_mpscq.push t i
