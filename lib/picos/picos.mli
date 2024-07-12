@@ -193,6 +193,10 @@ module Trigger : sig
   val create : unit -> t
   (** [create ()] allocates a new trigger in the initial state. *)
 
+  val signaled : t
+  (** [signaled] is a constant signaled trigger.  This can, for example, be used
+      as a kind of null value. *)
+
   val is_signaled : t -> bool
   (** [is_signaled trigger] determines whether the trigger is in the signaled
       state.

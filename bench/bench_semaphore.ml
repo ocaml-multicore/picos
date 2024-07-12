@@ -3,16 +3,18 @@ open Picos
 open Picos_sync
 open Picos_structured
 
+let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
+
 (** This will keep a domain running. *)
 let yielder computation =
-  let main () =
+  let main _ =
     try
       while true do
         Fiber.yield ()
       done
     with Exit -> ()
   in
-  Fiber.spawn ~forbid:false computation [ main ]
+  Fiber.spawn (Fiber.create ~forbid:false computation) main
 
 let n_workers = 4
 
@@ -20,11 +22,13 @@ let run_one ~budgetf ~use_domains ~n_resources () =
   let semaphore = Semaphore.Counting.make ~padded:true n_resources in
 
   let n_domains = if use_domains then n_workers else 1 in
-  let n_ops = (if use_domains then 10 else 100) * Util.iter_factor in
+  let n_ops =
+    (if use_domains || is_ocaml4 then 10 else 100) * Util.iter_factor
+  in
 
   let run_worker () =
     let computation = Computation.create () in
-    yielder computation;
+    if not is_ocaml4 then yielder computation;
     for _ = 1 to n_ops do
       Semaphore.Counting.acquire semaphore;
       Fiber.yield ();

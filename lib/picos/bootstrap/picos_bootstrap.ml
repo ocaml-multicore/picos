@@ -11,6 +11,7 @@ module Trigger = struct
   and t = state Atomic.t
 
   let create () = Atomic.make Initial
+  let signaled = Atomic.make Signaled
   let is_signaled t = Atomic.get t == Signaled
 
   let is_initial t =
