@@ -8,16 +8,16 @@ let run_one ~budgetf ~n_domains ~op () =
     (match op with `Get -> 800 | `Set -> 400) * Util.iter_factor * n_domains
   in
 
-  let n_ops_todo = Atomic.make 0 |> Multicore_magic.copy_as_padded in
+  let n_ops_todo = Countdown.create ~n_domains () in
 
-  let init _ = Atomic.set n_ops_todo n_ops in
+  let init _ = Countdown.non_atomic_set n_ops_todo n_ops in
   let wrap _ () = Scheduler.run in
-  let work _ () =
+  let work domain_index () =
     let fiber = Fiber.current () in
     match op with
     | `Get ->
         let rec work () =
-          let n = Util.alloc n_ops_todo in
+          let n = Countdown.alloc n_ops_todo ~domain_index ~batch:1000 in
           if n <> 0 then
             let rec loop n =
               if 0 < n then begin
@@ -31,7 +31,7 @@ let run_one ~budgetf ~n_domains ~op () =
         work ()
     | `Set ->
         let rec work () =
-          let n = Util.alloc n_ops_todo in
+          let n = Countdown.alloc n_ops_todo ~domain_index ~batch:1000 in
           if n <> 0 then
             let rec loop n =
               if 0 < n then begin

@@ -18,19 +18,19 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
   let n_ops = (if use_domains then 10 else 100) * Util.iter_factor in
 
   let v = ref 0 in
-  let n_ops_todo = Atomic.make 0 |> Multicore_magic.copy_as_padded in
-  let mutex = Mutex.create () in
+  let n_ops_todo = Countdown.create ~n_domains () in
+  let mutex = Mutex.create ~padded:true () in
 
   let init _ =
     assert (!v = 0);
-    Atomic.set n_ops_todo n_ops
+    Countdown.non_atomic_set n_ops_todo n_ops
   in
   let wrap _ () = Scheduler.run in
-  let work _ () =
+  let work domain_index () =
     let n_live = Atomic.make (if use_domains then 1 else n_fibers) in
     let computation = Computation.create () in
     let rec work () =
-      let n = Util.alloc n_ops_todo in
+      let n = Countdown.alloc n_ops_todo ~domain_index ~batch:1000 in
       if n <> 0 then
         let rec loop n =
           if 0 < n then begin

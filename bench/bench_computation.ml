@@ -28,15 +28,18 @@ let run_one ~budgetf ~n_domains () =
 
   let computation = Computation.create () in
 
-  let n_ops_todo = Atomic.make 0 |> Multicore_magic.copy_as_padded in
+  let n_ops_todo = Countdown.create ~n_domains () in
 
   let init _ =
-    Atomic.set n_ops_todo n_ops;
+    Countdown.non_atomic_set n_ops_todo n_ops;
     (Stash.create ~capacity:1000, Random.State.make_self_init ())
   in
-  let work _ (triggers, state) =
+  let work domain_index (triggers, state) =
     let rec work () =
-      let n = Util.alloc ~batch:(Stash.capacity triggers) n_ops_todo in
+      let n =
+        Countdown.alloc n_ops_todo ~domain_index
+          ~batch:(Stash.capacity triggers)
+      in
       if 0 < n then
         let rec loop n =
           if 0 < n + Stash.length triggers then begin
