@@ -30,21 +30,20 @@ let rec unlock_as owner t backoff =
         match r.head with
         | { trigger; fiber } :: rest ->
             let after = Locked { r with fiber; head = rest } in
-            transfer_as owner t backoff before after trigger
+            if Atomic.compare_and_set t before after then Trigger.signal trigger
+            else unlock_as owner t (Backoff.once backoff)
         | [] -> begin
             match List.rev r.tail with
             | { trigger; fiber } :: rest ->
                 let after = Locked { fiber; head = rest; tail = [] } in
-                transfer_as owner t backoff before after trigger
+                if Atomic.compare_and_set t before after then
+                  Trigger.signal trigger
+                else unlock_as owner t (Backoff.once backoff)
             | [] ->
                 if not (Atomic.compare_and_set t before Unlocked) then
                   unlock_as owner t (Backoff.once backoff)
           end
       else not_owner ()
-
-and transfer_as owner t backoff before after trigger =
-  if Atomic.compare_and_set t before after then Trigger.signal trigger
-  else unlock_as owner t (Backoff.once backoff)
 
 let[@inline] unlock ?checked t =
   let owner = Fiber.Maybe.current_if checked in
@@ -54,30 +53,22 @@ let rec cleanup_as entry t backoff =
   (* We have been canceled.  If we are the owner, we must unlock the mutex.
      Otherwise we must remove our entry from the queue. *)
   match Atomic.get t with
-  | Locked r as before ->
-      (* At this point we must use strict physical equality [==] rather than
-         [Fiber.Maybe.equal]! *)
-      if r.fiber == entry.fiber then unlock_as entry.fiber t backoff
-      else if r.head != [] then
-        match List_ext.drop_first_or_not_found entry r.head with
-        | head ->
-            let after = Locked { r with head } in
-            cancel_as entry t backoff before after
-        | exception Not_found ->
-            let tail = List_ext.drop_first_or_not_found entry r.tail in
-            let after = Locked { r with tail } in
-            cancel_as entry t backoff before after
-      else
-        let tail =
-          List_ext.drop_first_or_not_found entry r.tail (* wont raise *)
-        in
-        let after = Locked { r with tail } in
-        cancel_as entry t backoff before after
+  | Locked r as before -> begin
+      match List_ext.drop_first_or_not_found entry r.head with
+      | head ->
+          let after = Locked { r with head } in
+          if not (Atomic.compare_and_set t before after) then
+            cleanup_as entry t (Backoff.once backoff)
+      | exception Not_found -> begin
+          match List_ext.drop_first_or_not_found entry r.tail with
+          | tail ->
+              let after = Locked { r with tail } in
+              if not (Atomic.compare_and_set t before after) then
+                cleanup_as entry t (Backoff.once backoff)
+          | exception Not_found -> unlock_as entry.fiber t Backoff.default
+        end
+    end
   | Unlocked -> unlocked () (* impossible *)
-
-and cancel_as fiber t backoff before after =
-  if not (Atomic.compare_and_set t before after) then
-    cleanup_as fiber t (Backoff.once backoff)
 
 let rec lock_as fiber t backoff =
   match Atomic.get t with
@@ -89,7 +80,6 @@ let rec lock_as fiber t backoff =
       if not (Atomic.compare_and_set t before after) then
         lock_as fiber t (Backoff.once backoff)
   | Locked r as before ->
-      let fiber = Fiber.Maybe.or_current fiber in
       if Fiber.Maybe.unequal r.fiber fiber then
         let trigger = Trigger.create () in
         let entry = { trigger; fiber } in
