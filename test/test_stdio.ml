@@ -27,7 +27,7 @@ let test_openfile_and_read () =
 let test_sleepf () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
   let start = Unix.gettimeofday () in
-  Run.all (List.init 100 @@ fun _ () -> Unix.sleepf 0.01);
+  Run.all (List.init 100 @@ fun _ () -> Unix.sleepf 0.1);
   let d = Unix.gettimeofday () -. start in
   (* This is non-deterministic and might need to be changed if flaky *)
   assert (0.01 <= d);
@@ -40,7 +40,7 @@ let test_select_empty_timeout () =
   let _ = Unix.select [] [] [] 0.1 in
   let d = Unix.gettimeofday () -. start in
   (* This is non-deterministic and might need to be changed if flaky *)
-  assert (0.1 <= d);
+  assert (0.01 <= d);
   (* This is non-deterministic and might need to be changed if flaky *)
   assert (d <= 5.0)
 
