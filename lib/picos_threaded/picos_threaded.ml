@@ -56,6 +56,9 @@ let default_fatal_exn_handler exn =
   flush stderr;
   exit 2
 
+let finalize fatal_exn_handler fiber =
+  try Fiber.finalize fiber with exn -> fatal_exn_handler exn
+
 let[@alert "-handler"] rec await t trigger =
   if Fiber.try_suspend t.fiber trigger t t resume then block trigger t;
   Fiber.canceled t.fiber
@@ -80,6 +83,7 @@ and cancel_after : type a. _ -> a Computation.t -> _ =
 
 and spawn t fiber main =
   Fiber.check t.fiber;
+  Fiber.initialize ~parent:t.fiber ~child:fiber;
   match Thread.create start (fiber, t.fatal_exn_handler, main) with
   | _ -> ( (* We assume that [main] is now guaranteed to be called. *) )
   | exception exn ->
@@ -87,6 +91,7 @@ and spawn t fiber main =
       (* [main] wasn't called, so we need to finalize. *)
       let (Packed computation) = Fiber.get_computation fiber in
       Computation.cancel computation exn_bt;
+      finalize t.fatal_exn_handler fiber;
       Exn_bt.raise exn_bt
 
 and handler = Handler.{ current; spawn; yield; cancel_after; await }
@@ -98,11 +103,12 @@ and start (fiber, fatal_exn_handler, main) =
 
 let run_fiber ?(fatal_exn_handler = default_fatal_exn_handler) fiber main =
   Select.check_configured ();
-  Handler.using handler (create ~fatal_exn_handler fiber) main
+  Handler.using handler (create ~fatal_exn_handler fiber) main;
+  finalize fatal_exn_handler fiber
 
 let run ?(forbid = false) ?fatal_exn_handler main =
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
-  let main _ = Computation.capture computation main () in
+  let main fiber = Fiber.capture_and_finalize fiber computation main () in
   run_fiber ?fatal_exn_handler fiber main;
   Computation.await computation

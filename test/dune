@@ -205,3 +205,10 @@
   cohttp-lwt-unix
   conduit-lwt-unix
   uri))
+
+;;
+
+(test
+ (name test_meow)
+ (modules test_meow)
+ (libraries test_scheduler meow alcotest))

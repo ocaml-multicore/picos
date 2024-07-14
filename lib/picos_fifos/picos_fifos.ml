@@ -159,6 +159,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
            whole operation or discontinue the fiber. *)
         if Fiber.is_canceled fiber then t.discontinue
         else begin
+          Fiber.initialize ~parent:fiber ~child:r.fiber;
           Atomic.incr t.num_alive_fibers;
           Picos_mpscq.push t.ready (Spawn (r.fiber, r.main));
           t.return
@@ -232,6 +233,6 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
 let run ?quota ?fatal_exn_handler ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
-  let main _ = Computation.capture computation main () in
+  let main fiber = Fiber.capture_and_finalize fiber computation main () in
   run_fiber ?quota ?fatal_exn_handler fiber main;
   Computation.await computation
