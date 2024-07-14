@@ -78,7 +78,7 @@ let run_fiber fiber main =
 let run ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
-  let main _ = Computation.capture computation main () in
+  let main fiber = Fiber.capture_and_finalize fiber computation main () in
   run_fiber fiber main |> Lwt.map @@ fun () -> Computation.await computation
 
 let () = Lwt_main.run (Lwt_unix.sleep 0.0)

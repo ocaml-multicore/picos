@@ -465,13 +465,60 @@ module Fiber = struct
 
     type 'a initial = Constant of 'a | Computed of (unit -> 'a)
 
-    let new_key initial =
+    type finalizers =
+      | Nil
+      | Finalizer : {
+          index : int;
+          finalize : 'a -> unit;
+          next : finalizers;
+        }
+          -> finalizers
+
+    let finalizers = Atomic.make Nil
+
+    let rec add_finalizer index finalize =
+      let before = Atomic.get finalizers in
+      let after = Finalizer { index; finalize; next = before } in
+      if not (Atomic.compare_and_set finalizers before after) then
+        add_finalizer index finalize
+
+    type initializers =
+      | Nil
+      | Initializer : {
+          key : 'a key;
+          initialize : t -> 'a;
+          next : initializers;
+        }
+          -> initializers
+
+    let initializers = Atomic.make Nil
+
+    let rec add_initializer key initialize =
+      let before = Atomic.get initializers in
+      let after = Initializer { key; initialize; next = before } in
+      if not (Atomic.compare_and_set initializers before after) then
+        add_initializer key initialize
+
+    let new_key ?finalize ?initialize initial =
       let index = Atomic.fetch_and_add counter 1 in
-      match initial with
-      | Constant default ->
-          let default = Sys.opaque_identity (Obj.magic default : non_float) in
-          { index; default; compute }
-      | Computed compute -> { index; default = unique; compute }
+      begin
+        match finalize with
+        | None -> ()
+        | Some finalize -> add_finalizer index finalize
+      end;
+      let key =
+        match initial with
+        | Constant default ->
+            let default = Sys.opaque_identity (Obj.magic default : non_float) in
+            { index; default; compute }
+        | Computed compute -> { index; default = unique; compute }
+      in
+      begin
+        match initialize with
+        | None -> ()
+        | Some initialize -> add_initializer key initialize
+      end;
+      key
 
     let get (type a) (Fiber r : t) (key : a key) =
       let fls = r.fls in
@@ -503,6 +550,13 @@ module Fiber = struct
             (Sys.opaque_identity (Obj.magic value : non_float));
           value
 
+    let[@inline] has (Fiber r : t) key =
+      let fls = r.fls in
+      key.index < Array.length fls
+      &&
+      let value = Array.unsafe_get fls key.index in
+      value != unique
+
     let set (type a) (Fiber r : t) (key : a key) (value : a) =
       let fls = r.fls in
       if key.index < Array.length fls then
@@ -513,7 +567,43 @@ module Fiber = struct
         r.fls <- fls;
         Array.unsafe_set fls key.index
           (Sys.opaque_identity (Obj.magic value : non_float))
+
+    let update fiber key fn =
+      let before = get fiber key in
+      set fiber key (fn before);
+      before
+
+    let rec finalize fls = function
+      | Finalizer r ->
+          if r.index < Array.length fls then begin
+            let value = Array.unsafe_get fls r.index in
+            if value != unique then r.finalize (Obj.magic value)
+          end;
+          finalize fls r.next
+      | Nil -> ()
+
+    let rec initialize ~parent ~child = function
+      | Initializer r ->
+          if not (has child r.key) then set child r.key (r.initialize parent);
+          initialize ~parent ~child r.next
+      | Nil -> ()
   end
+
+  let[@inline] finalize (Fiber t : t) =
+    let fls = t.fls in
+    if 0 < Array.length fls then FLS.finalize fls (Atomic.get FLS.finalizers)
+
+  let[@inline] capture_and_finalize fiber computation main x =
+    Computation.capture computation main x;
+    finalize fiber
+
+  let[@inline] initialize ~parent ~child =
+    match Atomic.get FLS.initializers with
+    | Initializer r ->
+        if not (FLS.has child r.key) then
+          FLS.set child r.key (r.initialize parent);
+        FLS.initialize ~parent ~child r.next
+    | Nil -> ()
 end
 
 module Handler = struct

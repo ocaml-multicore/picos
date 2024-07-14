@@ -16,10 +16,11 @@ let run_one ~budgetf () =
     let counter = ref n_spawns in
     let computation = Computation.create ~mode:`LIFO () in
     let computation_packed = Computation.Packed computation in
-    let main _ =
+    let main fiber =
       let n = !counter - 1 in
       counter := n;
-      if n = 0 then Computation.finish computation
+      if n = 0 then Computation.finish computation;
+      Fiber.finalize fiber
     in
     for _ = 1 to n_spawns do
       let fiber = Fiber.create_packed ~forbid:false computation_packed in

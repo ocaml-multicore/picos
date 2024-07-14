@@ -153,9 +153,10 @@ let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
             let (Bundle r as t : t) = get_flock fiber in
             let (Packed bundle) = r.bundle in
             Computation.detach bundle canceler;
+            Fiber.finalize fiber;
             decr t
       | Arg ->
-          fun _ ->
+          fun fiber ->
             begin
               match thunk () with
               | value -> Computation.return child value
@@ -166,6 +167,7 @@ let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
             end;
             let (Packed bundle) = r.bundle in
             Computation.detach bundle canceler;
+            Fiber.finalize fiber;
             decr t
     in
     Fiber.spawn fiber main;
@@ -191,12 +193,14 @@ let fork_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
               try thunk ()
               with exn -> error (get_flock fiber) (Exn_bt.get exn)
             end;
+            Fiber.finalize fiber;
             decr (get_flock fiber)
       | Arg ->
-          fun _ ->
+          fun fiber ->
             begin
               try thunk () with exn -> error t (Exn_bt.get exn)
             end;
+            Fiber.finalize fiber;
             decr t
     in
     Fiber.spawn fiber main

@@ -4,7 +4,7 @@ open Picos_finally
 let run_in_fiber main =
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid:false computation in
-  let main _ = Computation.capture computation main () in
+  let main fiber = Fiber.capture_and_finalize fiber computation main () in
   Fiber.spawn fiber main;
   Computation.await computation
 
@@ -162,13 +162,14 @@ let test_cancel () =
   let@ _ =
     finally Computation.await @@ fun () ->
     let result = Computation.create () in
-    let main _ =
+    let main fiber =
       Computation.capture result
         (fun () ->
           while true do
             Fiber.yield ()
           done)
-        ()
+        ();
+      Fiber.finalize fiber
     in
     Fiber.spawn (Fiber.create ~forbid:false computation) main;
     result
@@ -179,13 +180,14 @@ let test_cancel_after () =
   Alcotest.check_raises "should be canceled" Not_found @@ fun () ->
   Test_scheduler.run ~max_domains:2 @@ fun () ->
   let computation = Computation.create () in
-  let main _ =
+  let main fiber =
     Computation.capture computation
       (fun () ->
         while true do
           Fiber.yield ()
         done)
-      ()
+      ();
+    Fiber.finalize fiber
   in
   Fiber.spawn (Fiber.create ~forbid:false computation) main;
   Computation.cancel_after computation ~seconds:0.01

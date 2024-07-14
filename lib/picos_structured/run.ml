@@ -1,17 +1,19 @@
 open Picos
 
-let wrap_all t main _ =
+let wrap_all t main fiber =
   if Bundle.is_running t then begin
     try main () with exn -> Bundle.error t (Exn_bt.get exn)
   end;
+  Fiber.finalize fiber;
   Bundle.decr t
 
-let wrap_any t main _ =
+let wrap_any t main fiber =
   if Bundle.is_running t then begin
     match main () with
     | () -> Bundle.terminate t
     | exception exn -> Bundle.error t (Exn_bt.get exn)
   end;
+  Fiber.finalize fiber;
   Bundle.decr t
 
 let rec spawn (Bundle r as t : Bundle.t) wrap = function

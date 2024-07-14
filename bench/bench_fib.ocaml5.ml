@@ -9,7 +9,9 @@ let rec exp_fib i =
   else
     let computation = Computation.create ~mode:`LIFO () in
     let fiber = Fiber.create ~forbid:false computation in
-    let main _ = Computation.capture computation exp_fib (i - 2) in
+    let main fiber =
+      Fiber.capture_and_finalize fiber computation exp_fib (i - 2)
+    in
     Fiber.spawn fiber main;
     let f1 = exp_fib (i - 1) in
     let f2 = Computation.await computation in

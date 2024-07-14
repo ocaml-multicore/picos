@@ -972,7 +972,8 @@ module Fiber : sig
     (** Type to specify initial values for fibers. *)
     type 'a initial = Constant of 'a | Computed of (unit -> 'a)
 
-    val new_key : 'a initial -> 'a key
+    val new_key :
+      ?finalize:('a -> unit) -> ?initialize:(t -> 'a) -> 'a initial -> 'a key
     (** [new_key initial] allocates a new key for associating values in storage
         associated with fibers.  The [initial] value for every fiber is either
         the given {!Constant} or is {!Computed} with the given function.  If the
@@ -992,6 +993,10 @@ module Fiber : sig
         given value in the storage associated with the [fiber].
 
         ⚠️ It is only safe to call [set] from the fiber itself. *)
+
+    val update : t -> 'a key -> ('a -> 'a) -> 'a
+    (** [update fiber key fn] is equivalent to
+        [let v = get fiber key in set fiber key (fn v); v]. *)
   end
 
   (** {2 Interface for spawning} *)
@@ -1002,6 +1007,12 @@ module Fiber : sig
   val create : forbid:bool -> 'a Computation.t -> t
   (** [create ~forbid computation] is equivalent to
       {{!create_packed} [create_packed ~forbid (Computation.Packed computation)]}. *)
+
+  val finalize : t -> unit
+  (** *)
+
+  val capture_and_finalize : t -> 'a Computation.t -> ('b -> 'a) -> 'b -> unit
+  (** *)
 
   val spawn : t -> (t -> unit) -> unit
   (** [spawn fiber main] starts a new fiber by performing the {!Spawn} effect.
@@ -1117,6 +1128,9 @@ module Fiber : sig
   end
 
   (** {2 Interface for schedulers} *)
+
+  val initialize : parent:t -> child:t -> unit
+  (** *)
 
   val try_suspend :
     t -> Trigger.t -> 'x -> 'y -> (Trigger.t -> 'x -> 'y -> unit) -> bool

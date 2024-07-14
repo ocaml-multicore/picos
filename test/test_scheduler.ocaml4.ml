@@ -23,6 +23,6 @@ let run_fiber ?max_domains:_ ?allow_lwt:_ ?fatal_exn_handler fiber main =
 let run ?max_domains ?allow_lwt ?fatal_exn_handler ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
-  let main _ = Computation.capture computation main () in
+  let main fiber = Fiber.capture_and_finalize fiber computation main () in
   run_fiber ?max_domains ?allow_lwt ?fatal_exn_handler fiber main;
   Computation.await computation
