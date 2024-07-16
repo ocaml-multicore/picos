@@ -1,5 +1,5 @@
 open Multicore_bench
-open Picos
+open Picos_structured
 
 let factor =
   Util.iter_factor
@@ -12,18 +12,16 @@ let run_one ~budgetf ~n_fibers () =
   let init _ = () in
   let wrap _ () = Scheduler.run in
   let work _ () =
-    let n_live = Atomic.make n_fibers in
-    let computation = Computation.create () in
-    List.init n_fibers (fun _ () ->
-        for _ = 1 to n_yields_per_fiber do
-          Fiber.yield ()
-        done;
-        if 1 = Atomic.fetch_and_add n_live (-1) then
-          Computation.finish computation)
-    |> Fiber.spawn ~forbid:false computation;
-    Computation.wait computation
+    Bundle.join_after @@ fun bundle ->
+    let main () =
+      for _ = 1 to n_yields_per_fiber do
+        Control.yield ()
+      done
+    in
+    for _ = 1 to n_fibers do
+      Bundle.fork bundle main
+    done
   in
-
   let config =
     Printf.sprintf "%d fiber%s" n_fibers (if n_fibers = 1 then "" else "s")
   in
