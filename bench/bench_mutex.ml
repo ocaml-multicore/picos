@@ -1,19 +1,14 @@
 open Multicore_bench
-open Picos
+open Picos_structured
 open Picos_sync
 
 let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
 
 (** This will keep a domain running. *)
-let yielder computation =
-  let main () =
-    try
-      while true do
-        Fiber.yield ()
-      done
-    with Exit -> ()
-  in
-  Fiber.spawn ~forbid:false computation [ main ]
+let yielder () =
+  while true do
+    Control.yield ()
+  done
 
 let run_one ~budgetf ~n_fibers ~use_domains () =
   let n_domains = if use_domains then n_fibers else 1 in
@@ -31,8 +26,7 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
   in
   let wrap _ () = Scheduler.run in
   let work domain_index () =
-    let n_live = Atomic.make (if use_domains then 1 else n_fibers) in
-    let computation = Computation.create () in
+    Bundle.join_after @@ fun bundle ->
     let rec work () =
       let n = Countdown.alloc n_ops_todo ~domain_index ~batch in
       if n <> 0 then
@@ -41,7 +35,7 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
             Mutex.lock mutex;
             let x = !v in
             v := x + 1;
-            Fiber.yield ();
+            Control.yield ();
             assert (!v = x + 1);
             v := x;
             Mutex.unlock mutex;
@@ -50,18 +44,16 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
           else work ()
         in
         loop n
-      else if 1 = Atomic.fetch_and_add n_live (-1) then
-        Computation.cancel computation (Exn_bt.get_callstack 0 Exit)
     in
     if use_domains then begin
-      yielder computation;
-      work ()
+      Bundle.fork bundle yielder;
+      work ();
+      Bundle.terminate bundle
     end
-    else begin
-      List.init n_fibers (fun _ -> work)
-      |> Fiber.spawn ~forbid:false computation;
-      Computation.wait computation
-    end
+    else
+      for _ = 1 to n_fibers do
+        Bundle.fork bundle work
+      done
   in
 
   let config =

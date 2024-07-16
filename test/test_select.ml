@@ -1,5 +1,5 @@
+open Picos_structured
 open Picos_structured.Finally
-open Picos
 
 let () = Picos_select.configure ()
 
@@ -12,25 +12,16 @@ let test_intr () =
   in
   let main () =
     Picos_threaded.run @@ fun () ->
-    let computation = Computation.create () in
-    let n_threads = 10 in
-    let n = Atomic.make n_threads in
-    for _ = 1 to n_threads do
-      let main () =
-        try
-          for _ = 1 to 1_000 do
-            let req = Picos_select.Intr.req ~seconds:0.000_001 in
-            match Unix.read inn (Bytes.create 1) 0 1 with
-            | _ -> assert false
-            | exception Unix.Unix_error (EINTR, _, _) ->
-                Picos_select.Intr.clr req
-          done;
-          if 1 = Atomic.fetch_and_add n (-1) then Computation.finish computation
-        with exn -> Computation.cancel computation (Exn_bt.get exn)
-      in
-      Fiber.spawn ~forbid:false computation [ main ]
-    done;
-    Computation.await computation
+    Bundle.join_after @@ fun bundle ->
+    for _ = 1 to 10 do
+      Bundle.fork bundle @@ fun () ->
+      for _ = 1 to 1_000 do
+        let req = Picos_select.Intr.req ~seconds:0.000_001 in
+        match Unix.read inn (Bytes.create 1) 0 1 with
+        | _ -> assert false
+        | exception Unix.Unix_error (EINTR, _, _) -> Picos_select.Intr.clr req
+      done
+    done
   in
   let@ _domains =
     finally (Array.iter Domain.join) @@ fun () ->
