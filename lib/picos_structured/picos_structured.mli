@@ -185,11 +185,24 @@ module Promise : sig
   (** [try_terminate promise] tries to terminate the promise by canceling it
       with the {{!Control.Terminate} [Terminate]} exception and returns [true]
       in case of success and [false] in case the promise had already completed,
-      i.e. either returned, raised, or canceled. *)
+      i.e. either returned, raised, or canceled.
+
+      The optional [callstack] argument specifies the number of callstack
+      entries to capture with the {{!Control.Terminate} [Terminate]} exception.
+      The default is [0]. *)
 
   val terminate : ?callstack:int -> 'a t -> unit
   (** [terminate promise] is equivalent to
       {{!try_terminate} [try_terminate promise |> ignore]}. *)
+
+  val terminate_after : ?callstack:int -> 'a t -> seconds:float -> unit
+  (** [terminate_after ~seconds promise] arranges to terminate the [promise] by
+      canceling it with the {{!Control.Terminate} [Terminate]} exception after
+      the specified number of [seconds].
+
+      The optional [callstack] argument specifies the number of callstack
+      entries to capture with the {{!Control.Terminate} [Terminate]} exception.
+      The default is [0]. *)
 end
 
 module Bundle : sig
