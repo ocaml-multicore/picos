@@ -13,3 +13,7 @@ let try_terminate ?callstack t =
   Computation.try_cancel t terminate_bt
 
 let terminate ?callstack t = try_terminate ?callstack t |> ignore
+
+let terminate_after ?callstack t ~seconds =
+  let terminate_bt = Control.terminate_bt ?callstack () in
+  Computation.cancel_after t ~seconds terminate_bt

@@ -47,7 +47,7 @@
  (modules test_lwt_unix)
  (build_if
   (>= %{ocaml_version} 5.0.0))
- (libraries picos.lwt_unix alcotest))
+ (libraries picos.lwt_unix picos.structured alcotest))
 
 ;;
 

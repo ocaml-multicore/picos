@@ -1,21 +1,16 @@
-open Picos
+open Picos_structured
 
 let basics () =
   Lwt_main.run @@ Picos_lwt_unix.run
   @@ fun () ->
-  let computation = Computation.create () in
+  Bundle.join_after @@ fun bundle ->
   let child =
-    Computation.capture computation @@ fun () ->
+    Bundle.fork_as_promise bundle @@ fun () ->
     while true do
       Picos_lwt.await (Lwt_unix.sleep 0.01)
     done
   in
-  Fiber.spawn ~forbid:false computation [ child ];
-  Computation.cancel_after computation ~seconds:0.05
-    (Exn_bt.get_callstack 0 Exit);
-  match Computation.await computation with
-  | () -> assert false
-  | exception Exit -> ()
+  Promise.terminate_after ~seconds:0.05 child
 
 let () =
   [ ("Basics", [ Alcotest.test_case "" `Quick basics ]) ]
