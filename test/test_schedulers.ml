@@ -1,4 +1,5 @@
 open Picos
+open Picos_structured
 
 let exit_exn_bt = Exn_bt.get_callstack 0 Exit
 
@@ -10,15 +11,10 @@ let test_current () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
   let fiber_parent = Fiber.current () in
   let fiber_child = ref fiber_parent in
-  let computation = Computation.create () in
-  Fiber.spawn ~forbid:false computation
-    [
-      (fun () ->
-        Computation.cancel computation exit_exn_bt;
-        fiber_child := Fiber.current ());
-    ];
+  Bundle.join_after @@ fun bundle ->
+  Bundle.fork bundle (fun () -> fiber_child := Fiber.current ());
   while fiber_parent == !fiber_child do
-    Fiber.yield ()
+    Control.yield ()
   done
 
 let test_cancel_after_basic () =
