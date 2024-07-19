@@ -109,4 +109,8 @@ let run ?(forbid = false) system main =
   if not (Picos_thread.is_main_thread ()) then not_main_thread ();
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
+  let main () =
+    Computation.capture computation main ();
+    Computation.await computation
+  in
   go fiber system (Effect.Shallow.fiber main) (Ok ())
