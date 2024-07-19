@@ -7,6 +7,31 @@ let test_returns () =
   let actual = Test_scheduler.run @@ fun () -> 42 in
   assert (actual = 42)
 
+let test_completes () =
+  let packed = ref (Computation.Packed (Computation.create ())) in
+  let result =
+    Test_scheduler.run (fun () ->
+        packed := Fiber.get_computation (Fiber.current ());
+        101)
+  in
+  assert (result = 101);
+  let (Packed computation) = !packed in
+  assert (not (Computation.is_running computation));
+  assert (not (Computation.is_canceled computation));
+  begin
+    match
+      Test_scheduler.run (fun () ->
+          packed := Fiber.get_computation (Fiber.current ());
+          (failwith "42" : unit))
+    with
+    | () -> assert false
+    | exception Failure msg -> assert (msg = "42")
+    | exception _ -> assert false
+  end;
+  let (Packed computation) = !packed in
+  assert (not (Computation.is_running computation));
+  assert (Computation.is_canceled computation)
+
 let test_current () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
   let fiber_parent = Fiber.current () in
@@ -33,6 +58,7 @@ let test_cancel_after_long_timeout () =
 let () =
   [
     ("Returns", [ Alcotest.test_case "" `Quick test_returns ]);
+    ("Completes", [ Alcotest.test_case "" `Quick test_completes ]);
     ("Current", [ Alcotest.test_case "" `Quick test_current ]);
     ( "Cancel_after",
       [

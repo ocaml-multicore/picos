@@ -136,5 +136,10 @@ and handler = Handler.{ current; spawn; yield; cancel_after; await }
 
 let run ?(forbid = false) main =
   Select.check_configured ();
-  let packed = Computation.Packed (Computation.create ~mode:`LIFO ()) in
-  Handler.using handler (create_packed ~forbid packed) main
+  let computation = Computation.create ~mode:`LIFO () in
+  let context = create_packed ~forbid (Packed computation) in
+  let main () =
+    Computation.capture computation main ();
+    Computation.await computation
+  in
+  Handler.using handler context main
