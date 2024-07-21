@@ -93,4 +93,6 @@ let run_trivial ~budgetf () =
 let run_suite ~budgetf =
   run_trivial ~budgetf ()
   @ ([ 1; 2; 4 ]
-    |> List.concat_map @@ fun n_domains -> run_one ~budgetf ~n_domains ())
+    |> List.concat_map @@ fun n_domains ->
+       if Picos_domain.recommended_domain_count () < n_domains then []
+       else run_one ~budgetf ~n_domains ())
