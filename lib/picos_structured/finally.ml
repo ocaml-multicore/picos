@@ -9,7 +9,7 @@ let[@inline] finally release acquire = (release, acquire)
     [release].  Allocations here would mean that e.g. pressing Ctrl-C, i.e.
     [SIGINT], at the right moment could mean that [release] would not be called
     after [acquire]. *)
-let[@inline never] ( let@ ) (release, acquire) body =
+let[@inline never] let_at acquire body release =
   let x = acquire () in
   match body x with
   | y ->
@@ -18,6 +18,8 @@ let[@inline never] ( let@ ) (release, acquire) body =
   | exception exn ->
       release x;
       raise exn
+
+let[@inline] ( let@ ) (release, acquire) body = let_at acquire body release
 
 type ('a, _) tdt =
   | Nothing : ('a, [> `Nothing ]) tdt
@@ -55,7 +57,7 @@ let ( let^ ) (release, acquire) body =
           end
       end
   in
-  ( let@ ) (release, acquire) body
+  let_at acquire body release
 
 let[@inline never] check_no_resource () =
   (* In case of cancelation this is not considered an error as the resource was
