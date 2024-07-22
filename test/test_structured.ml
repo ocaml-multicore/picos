@@ -102,6 +102,24 @@ let test_block_raises () =
   | () -> assert false
   | exception Invalid_argument _ -> ()
 
+let test_block_raises_sys_error () =
+  Test_scheduler.run @@ fun () ->
+  let open Picos in
+  let success = ref false in
+  let finished = Trigger.create () in
+  let computation = Computation.create () in
+  let main () =
+    begin
+      try Control.block () with Sys_error _ -> success := true
+    end;
+    Trigger.signal finished
+  in
+  Fiber.spawn ~forbid:false computation [ main ];
+  Control.sleep ~seconds:0.1;
+  Computation.finish computation;
+  Trigger.await finished |> ignore;
+  assert !success
+
 let test_termination_nests () =
   Test_scheduler.run ~max_domains:3 @@ fun () ->
   let mutex = Mutex.create () in
@@ -270,6 +288,8 @@ let () =
           test_cancelation_awaits_children;
         Alcotest.test_case "block raises when forbidden" `Quick
           test_block_raises;
+        Alcotest.test_case "block raises Sys_error when fiber finishes" `Quick
+          test_block_raises_sys_error;
         Alcotest.test_case "termination nests" `Quick test_termination_nests;
         Alcotest.test_case "promise cancelation does not terminate" `Quick
           test_promise_cancelation_does_not_terminate;

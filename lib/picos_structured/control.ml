@@ -1,6 +1,6 @@
 open Picos
 
-let[@inline never] impossible () = failwith "impossible"
+let[@inline never] finished () = raise (Sys_error "computation finished")
 let[@inline never] forbidden () = invalid_arg "cancelation forbidden"
 
 exception Terminate
@@ -59,7 +59,7 @@ let block () =
   let fiber = Fiber.current () in
   if Fiber.has_forbidden fiber then forbidden ();
   match Trigger.await (Trigger.create ()) with
-  | None -> impossible ()
+  | None -> finished ()
   | Some exn_bt -> Exn_bt.raise exn_bt
 
 let protect thunk = Fiber.forbid (Fiber.current ()) thunk
