@@ -9,11 +9,9 @@ let completed = Event.from_computation
 let is_running = Computation.is_running
 
 let try_terminate ?callstack t =
-  let terminate_bt = Control.terminate_bt ?callstack () in
-  Computation.try_cancel t terminate_bt
+  Computation.try_cancel t (Control.terminate_bt ?callstack ())
 
 let terminate ?callstack t = try_terminate ?callstack t |> ignore
 
 let terminate_after ?callstack t ~seconds =
-  let terminate_bt = Control.terminate_bt ?callstack () in
-  Computation.cancel_after t ~seconds terminate_bt
+  Computation.cancel_after t ~seconds (Control.terminate_bt ?callstack ())

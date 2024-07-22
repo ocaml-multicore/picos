@@ -63,3 +63,27 @@ let block () =
   | Some exn_bt -> Exn_bt.raise exn_bt
 
 let protect thunk = Fiber.forbid (Fiber.current ()) thunk
+
+let terminate_after ?callstack ~seconds thunk =
+  let into = Computation.create ~mode:`LIFO () in
+  let fiber = Fiber.current () in
+  let (Packed from as packed) = Fiber.get_computation fiber in
+  let canceler = Computation.attach_canceler ~from ~into in
+  Fiber.set_computation fiber (Packed into);
+  match
+    Computation.cancel_after into ~seconds (terminate_bt ?callstack ());
+    thunk ()
+  with
+  | result ->
+      Computation.finish into;
+      let (Packed from) = packed in
+      Computation.detach from canceler;
+      Fiber.set_computation fiber packed;
+      result
+  | exception exn ->
+      let exn_bt = Exn_bt.get exn in
+      Computation.cancel into exn_bt;
+      let (Packed from) = packed in
+      Computation.detach from canceler;
+      Fiber.set_computation fiber packed;
+      Exn_bt.raise exn_bt

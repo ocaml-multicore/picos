@@ -147,6 +147,23 @@ module Control : sig
 
       @raise Invalid_argument in case propagation of cancelation has been
         {{!protect} forbidden}. *)
+
+  val terminate_after : ?callstack:int -> seconds:float -> (unit -> 'a) -> 'a
+  (** [terminate_after ~seconds thunk] arranges to terminate the execution of
+      [thunk] on the current fiber after the specified timeout in [seconds].
+
+      The optional [callstack] argument specifies the number of callstack
+      entries to capture with the {{!Control.Terminate} [Terminate]} exception.
+      The default is [0].
+
+      As an example, [terminate_after] could be implemented using {!Bundle} as
+      follows:
+      {[
+        let terminate_after ?callstack ~seconds thunk =
+          Bundle.join_after @@ fun bundle ->
+          Bundle.terminate_after ?callstack ~seconds bundle;
+          thunk ()
+      ]} *)
 end
 
 module Promise : sig
@@ -198,7 +215,7 @@ module Promise : sig
   val terminate_after : ?callstack:int -> 'a t -> seconds:float -> unit
   (** [terminate_after ~seconds promise] arranges to terminate the [promise] by
       canceling it with the {{!Control.Terminate} [Terminate]} exception after
-      the specified number of [seconds].
+      the specified timeout in [seconds].
 
       The optional [callstack] argument specifies the number of callstack
       entries to capture with the {{!Control.Terminate} [Terminate]} exception.
@@ -245,6 +262,10 @@ module Bundle : sig
       [Terminate]} exception, but blocking operations after [terminate] will
       raise the exception to propagate cancelation unless {{!Control.protect}
       propagation of cancelation is forbidden}. *)
+
+  val terminate_after : ?callstack:int -> t -> seconds:float -> unit
+  (** [terminate_after ~seconds bundle] arranges to {!terminate} the bundle
+      after the specified timeout in [seconds]. *)
 
   val error : ?callstack:int -> t -> Exn_bt.t -> unit
   (** [error bundle exn_bt] first calls {!terminate} and then adds the exception
