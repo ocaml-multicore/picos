@@ -40,7 +40,7 @@ end = struct
       Queue.length t.queue = 1
     in
     if was_empty then
-      Condition.signal t.not_empty
+      Condition.broadcast t.not_empty
 
   let pop t =
     let elem, was_full =
@@ -53,7 +53,7 @@ end = struct
       Queue.pop t.queue, was_full
     in
     if was_full then
-      Condition.signal t.not_full;
+      Condition.broadcast t.not_full;
     elem
 end</code></pre><p>The above is definitely not the fastest nor the most scalable bounded queue, but we can now demonstrate it with the cooperative <a href="../Picos_fifos/index.html"><code>Picos_fifos</code></a> scheduler:</p><pre class="language-ocaml"><code># Picos_fifos.run @@ fun () -&gt;
 
