@@ -241,10 +241,10 @@ let test_race_any () =
     Test_util.shuffle
       [
         (fun () ->
-          Control.sleep ~seconds:0.9;
+          Control.sleep ~seconds:2.9;
           winner := 3);
         (fun () ->
-          Control.sleep ~seconds:0.5;
+          Control.sleep ~seconds:1.5;
           winner := 2);
         (fun () ->
           Control.sleep ~seconds:0.1;
