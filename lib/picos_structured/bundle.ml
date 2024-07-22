@@ -41,6 +41,7 @@ let await t fiber packed canceler =
   Fiber.check fiber
 
 let join_after fn =
+  (* The sequence of operations below ensures that nothing is leaked. *)
   let t =
     let num_fibers = Atomic.make 1 in
     let bundle = Computation.create ~mode:`LIFO () in
@@ -52,8 +53,8 @@ let join_after fn =
   let (Packed parent as packed) = Fiber.get_computation fiber in
   let bundle = Computation.Packed t.bundle in
   let canceler = Computation.attach_canceler ~from:parent ~into:t.bundle in
-  (* TODO: Ideally there should be no poll point betweem [attach_canceler] and
-     the [match ... with] below. *)
+  (* Ideally there should be no poll point betweem [attach_canceler] and the
+     [match ... with] below. *)
   Fiber.set_computation fiber bundle;
   match fn t with
   | value ->
@@ -72,6 +73,7 @@ let rec incr t backoff =
     incr t (Backoff.once backoff)
 
 let fork_as_promise t thunk =
+  (* The sequence of operations below ensures that nothing is leaked. *)
   incr t Backoff.default;
   let child = Computation.create ~mode:`LIFO () in
   try
@@ -91,7 +93,7 @@ let fork_as_promise t thunk =
     Fiber.spawn ~forbid:false child [ main ];
     child
   with canceled_exn ->
-    (* We don't need to worry about deatching the [canceler], because at this
+    (* We don't need to worry about detaching the [canceler], because at this
        point we know the bundle computation has completed. *)
     decr t;
     raise canceled_exn

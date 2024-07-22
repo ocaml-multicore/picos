@@ -65,11 +65,15 @@ let block () =
 let protect thunk = Fiber.forbid (Fiber.current ()) thunk
 
 let terminate_after ?callstack ~seconds thunk =
+  (* The sequence of operations below ensures that nothing is leaked. *)
   let into = Computation.create ~mode:`LIFO () in
+  let into_packed = Computation.Packed into in
   let fiber = Fiber.current () in
   let (Packed from as packed) = Fiber.get_computation fiber in
   let canceler = Computation.attach_canceler ~from ~into in
-  Fiber.set_computation fiber (Packed into);
+  (* Ideally there should be no poll point betweem [attach_canceler] and the
+     [match ... with] below. *)
+  Fiber.set_computation fiber into_packed;
   match
     Computation.cancel_after into ~seconds (terminate_bt ?callstack ());
     thunk ()
