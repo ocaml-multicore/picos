@@ -369,7 +369,7 @@ end
             Queue.length t.queue = 1
           in
           if was_empty then
-            Condition.signal t.not_empty
+            Condition.broadcast t.not_empty
 
         let pop t =
           let elem, was_full =
@@ -382,7 +382,7 @@ end
             Queue.pop t.queue, was_full
           in
           if was_full then
-            Condition.signal t.not_full;
+            Condition.broadcast t.not_full;
           elem
       end
     ]}
