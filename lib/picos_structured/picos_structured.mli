@@ -166,7 +166,11 @@ module Control : sig
       the cancelation exception will be raised.
 
       @raise Invalid_argument in case propagation of cancelation has been
-        {{!protect} forbidden}. *)
+        {{!protect} forbidden}.
+
+      @raise Sys_error in case the underlying computation of the fiber is forced
+        to return during [block].  This is only possible when the fiber has been
+        spawned through another library. *)
 
   val terminate_after : ?callstack:int -> seconds:float -> (unit -> 'a) -> 'a
   (** [terminate_after ~seconds thunk] arranges to terminate the execution of
