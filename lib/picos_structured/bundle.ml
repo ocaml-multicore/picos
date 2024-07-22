@@ -1,5 +1,7 @@
 open Picos
 
+let[@inline never] completed () = invalid_arg "already completed"
+
 type t = {
   num_fibers : int Atomic.t;
   bundle : unit Computation.t;
@@ -62,8 +64,6 @@ let join_after fn =
       error t exn_bt;
       await t fiber packed canceler;
       Exn_bt.raise exn_bt
-
-let[@inline never] completed () = invalid_arg "already completed"
 
 let rec incr t backoff =
   let before = Atomic.get t.num_fibers in
