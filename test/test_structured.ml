@@ -236,24 +236,26 @@ let test_any_and_all_returns () =
 
 let test_race_any () =
   Test_scheduler.run ~max_domains:4 @@ fun () ->
-  let winner = ref 0 in
+  let winner = Atomic.make 0 in
   let ops =
     Test_util.shuffle
       [
         (fun () ->
-          Control.sleep ~seconds:2.9;
-          winner := 3);
+          try Control.terminate_after ~seconds:2.9 Control.block
+          with Control.Terminate ->
+            Atomic.compare_and_set winner 0 3 |> ignore);
         (fun () ->
           Control.sleep ~seconds:1.5;
-          winner := 2);
+          Atomic.compare_and_set winner 0 2 |> ignore);
         (fun () ->
-          Control.sleep ~seconds:0.1;
-          winner := 1);
+          try Control.terminate_after ~seconds:0.1 Control.block
+          with Control.Terminate ->
+            Atomic.compare_and_set winner 0 1 |> ignore);
       ]
   in
   Run.any ops;
   (* This is non-deterministic and may need to changed if flaky *)
-  assert (!winner = 1)
+  assert (Atomic.get winner = 1)
 
 let () =
   [

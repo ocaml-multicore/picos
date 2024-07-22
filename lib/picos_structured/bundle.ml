@@ -8,8 +8,11 @@ type t = {
 }
 
 let terminate ?callstack t =
-  let terminate_bt = Control.terminate_bt ?callstack () in
-  Computation.cancel t.bundle terminate_bt
+  Computation.cancel t.bundle (Control.terminate_bt ?callstack ())
+
+let terminate_after ?callstack t ~seconds =
+  Computation.cancel_after t.bundle ~seconds
+    (Control.terminate_bt ?callstack ())
 
 let error ?callstack t (exn_bt : Exn_bt.t) =
   if exn_bt.Exn_bt.exn != Control.Terminate then begin
