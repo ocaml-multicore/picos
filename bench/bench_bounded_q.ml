@@ -80,7 +80,7 @@ end = struct
     elem_opt
 end
 
-let run_one_domain ~budgetf ?(n_msgs = 50 * Util.iter_factor) () =
+let run_one_domain ~budgetf ?(n_msgs = 25 * Util.iter_factor) () =
   let t = Bounded_q.create () in
 
   let op push =
@@ -103,7 +103,7 @@ let yielder () =
     Control.yield ()
   done
 
-let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 50 * Util.iter_factor) () =
+let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 10 * Util.iter_factor) () =
   let n_domains = n_adders + n_takers in
 
   let t = Bounded_q.create () in
