@@ -87,7 +87,7 @@ let rec wait t mutex trigger fiber backoff =
     Mutex.unlock_as (Fiber.Maybe.of_fiber fiber) mutex Backoff.default;
     let result = Trigger.await trigger in
     let forbid = Fiber.exchange fiber ~forbid:true in
-    Mutex.lock_as (Fiber.Maybe.of_fiber fiber) mutex Backoff.default;
+    Mutex.lock_as (Fiber.Maybe.of_fiber fiber) mutex Nothing Backoff.default;
     Fiber.set fiber ~forbid;
     match result with
     | None -> ()

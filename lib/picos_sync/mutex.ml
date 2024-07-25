@@ -4,11 +4,17 @@ let[@inline never] owner () = raise (Sys_error "Mutex: owner")
 let[@inline never] unlocked () = raise (Sys_error "Mutex: unlocked")
 let[@inline never] not_owner () = raise (Sys_error "Mutex: not owner")
 
-type entry = { trigger : Trigger.t; fiber : Fiber.Maybe.t }
+type _ tdt =
+  | Entry : { trigger : Trigger.t; fiber : Fiber.Maybe.t } -> [> `Entry ] tdt
+  | Nothing : [> `Nothing ] tdt
 
 type state =
   | Unlocked
-  | Locked of { fiber : Fiber.Maybe.t; head : entry list; tail : entry list }
+  | Locked of {
+      fiber : Fiber.Maybe.t;
+      head : [ `Entry ] tdt list;
+      tail : [ `Entry ] tdt list;
+    }
 
 type t = state Atomic.t
 
@@ -28,13 +34,13 @@ let rec unlock_as owner t backoff =
   | Locked r as before ->
       if Fiber.Maybe.equal r.fiber owner then
         match r.head with
-        | { trigger; fiber } :: rest ->
+        | Entry { trigger; fiber } :: rest ->
             let after = Locked { r with fiber; head = rest } in
             if Atomic.compare_and_set t before after then Trigger.signal trigger
             else unlock_as owner t (Backoff.once backoff)
         | [] -> begin
             match List.rev r.tail with
-            | { trigger; fiber } :: rest ->
+            | Entry { trigger; fiber } :: rest ->
                 let after = Locked { fiber; head = rest; tail = [] } in
                 if Atomic.compare_and_set t before after then
                   Trigger.signal trigger
@@ -49,7 +55,7 @@ let[@inline] unlock ?checked t =
   let owner = Fiber.Maybe.current_if checked in
   unlock_as owner t Backoff.default
 
-let rec cleanup_as entry t backoff =
+let rec cleanup_as (Entry entry_r as entry : [ `Entry ] tdt) t backoff =
   (* We have been canceled.  If we are the owner, we must unlock the mutex.
      Otherwise we must remove our entry from the queue. *)
   match Atomic.get t with
@@ -65,12 +71,12 @@ let rec cleanup_as entry t backoff =
               let after = Locked { r with tail } in
               if not (Atomic.compare_and_set t before after) then
                 cleanup_as entry t (Backoff.once backoff)
-          | exception Not_found -> unlock_as entry.fiber t Backoff.default
+          | exception Not_found -> unlock_as entry_r.fiber t Backoff.default
         end
     end
   | Unlocked -> unlocked () (* impossible *)
 
-let rec lock_as fiber t backoff =
+let rec lock_as fiber t entry backoff =
   match Atomic.get t with
   | Unlocked as before ->
       let after =
@@ -78,29 +84,34 @@ let rec lock_as fiber t backoff =
         else Locked { fiber; head = []; tail = [] }
       in
       if not (Atomic.compare_and_set t before after) then
-        lock_as fiber t (Backoff.once backoff)
+        lock_as fiber t entry (Backoff.once backoff)
   | Locked r as before ->
       if Fiber.Maybe.unequal r.fiber fiber then
-        let trigger = Trigger.create () in
-        let entry = { trigger; fiber } in
+        let (Entry entry_r as entry : [ `Entry ] tdt) =
+          match entry with
+          | Nothing ->
+              let trigger = Trigger.create () in
+              Entry { trigger; fiber }
+          | Entry _ as entry -> entry
+        in
         let after =
           if r.head == [] then
             Locked { r with head = List.rev_append r.tail [ entry ]; tail = [] }
           else Locked { r with tail = entry :: r.tail }
         in
         if Atomic.compare_and_set t before after then begin
-          match Trigger.await trigger with
+          match Trigger.await entry_r.trigger with
           | None -> ()
           | Some exn_bt ->
               cleanup_as entry t Backoff.default;
               Exn_bt.raise exn_bt
         end
-        else lock_as fiber t (Backoff.once backoff)
+        else lock_as fiber t entry (Backoff.once backoff)
       else owner ()
 
 let[@inline] lock ?checked t =
   let fiber = Fiber.Maybe.current_and_check_if checked in
-  lock_as fiber t Backoff.default
+  lock_as fiber t Nothing Backoff.default
 
 let try_lock ?checked t =
   let fiber = Fiber.Maybe.current_and_check_if checked in
@@ -111,7 +122,7 @@ let try_lock ?checked t =
 
 let protect ?checked t body =
   let fiber = Fiber.Maybe.current_and_check_if checked in
-  lock_as fiber t Backoff.default;
+  lock_as fiber t Nothing Backoff.default;
   match body () with
   | value ->
       unlock_as fiber t Backoff.default;
