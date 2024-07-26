@@ -6,7 +6,7 @@ module Fiber = struct
   include Fiber
 
   let start thunk =
-    let computation = Computation.create () in
+    let computation = Computation.create ~mode:`LIFO () in
     Fiber.spawn ~forbid:false computation
       [ Computation.capture computation thunk ];
     computation
