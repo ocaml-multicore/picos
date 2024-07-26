@@ -7,7 +7,7 @@ let lin_fib i = lin_fib i 0 1
 let rec exp_fib i =
   if i < 2 then i
   else
-    let computation = Computation.create () in
+    let computation = Computation.create ~mode:`LIFO () in
     let main () = Computation.return computation (exp_fib (i - 2)) in
     Fiber.spawn ~forbid:false computation [ main ];
     let f1 = exp_fib (i - 1) in

@@ -18,7 +18,7 @@ let run_round_trip ~budgetf ~n_domains () =
       if n <> 0 then
         let rec loop n =
           if 0 < n then begin
-            let computation = Computation.create () in
+            let computation = Computation.create ~mode:`LIFO () in
             Computation.cancel_after computation ~seconds exit_exn_bt;
             Computation.wait computation;
             loop (n - 1)
@@ -63,7 +63,7 @@ let run_async ~budgetf ~n_domains () =
       if n <> 0 then
         let rec loop n =
           if 0 < n then begin
-            let computation = Computation.create () in
+            let computation = Computation.create ~mode:`LIFO () in
             Queue.push computation queue;
             Computation.cancel_after computation ~seconds exit_exn_bt;
             loop (n - 1)

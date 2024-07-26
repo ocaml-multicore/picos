@@ -2,7 +2,7 @@ open Picos
 open Picos_structured.Finally
 
 let run_in_fiber main =
-  let computation = Computation.create () in
+  let computation = Computation.create ~mode:`LIFO () in
   Fiber.spawn ~forbid:false computation [ Computation.capture computation main ];
   Computation.await computation
 
