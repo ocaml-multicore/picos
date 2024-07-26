@@ -57,8 +57,9 @@ let test_cancel_after_long_timeout () =
 
 let () =
   [
-    ("Returns", [ Alcotest.test_case "" `Quick test_returns ]);
-    ("Completes", [ Alcotest.test_case "" `Quick test_completes ]);
+    ("Trivial main returns", [ Alcotest.test_case "" `Quick test_returns ]);
+    ( "Scheduler completes main computation",
+      [ Alcotest.test_case "" `Quick test_completes ] );
     ("Current", [ Alcotest.test_case "" `Quick test_current ]);
     ( "Cancel_after",
       [
