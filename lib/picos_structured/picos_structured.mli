@@ -89,6 +89,26 @@ module Finally : sig
       Another alternative to avoiding leaks is to {{!let@} recursively fork
       fibers to accept and handle a client}.
 
+      You can [move] a resource between any two fibers.  For example, you can
+      move a resource from a child fiber to the parent fiber:
+
+      {@ocaml skip[
+        let moveable_ivar = Ivar.create () in
+
+        Bundle.fork bundle begin fun () ->
+          let^ moveable =
+            finally (* dispose *) (* allocate *)
+          in
+          Ivar.fill moveable_ivar moveable
+        end;
+
+        let@ res = move (Ivar.read moveable_ivar) in
+        (* ... *)
+      ]}
+
+      The above uses an {{!Picos_sync.Ivar} [Ivar]} to communicate the moveable
+      resource from the child fiber to the parent fiber.
+
       @raise Invalid_argument if the resource has already been moved (or
         released) unless the fiber has been canceled. *)
 end
