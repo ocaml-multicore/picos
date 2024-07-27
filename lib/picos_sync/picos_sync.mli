@@ -11,6 +11,8 @@
       open Picos_sync
     ]} *)
 
+open Picos
+
 (** {1 Modules} *)
 
 module Mutex : sig
@@ -321,6 +323,54 @@ module Latch : sig
   val await_evt : t -> unit Event.t
   (** [await_evt latch] returns an event that can be committed to once the count
       of the latch has reached zero. *)
+end
+
+module Ivar : sig
+  (** An incremental or single-assignment poisonable variable. *)
+
+  type !'a t
+  (** Represents an incremental variable. *)
+
+  val create : unit -> 'a t
+  (** [create ()] returns a new empty incremental variable. *)
+
+  val of_value : 'a -> 'a t
+  (** [of_value value] returns an incremental variable prefilled with the given
+      [value]. *)
+
+  val try_fill : 'a t -> 'a -> bool
+  (** [try_fill ivar value] attempts to assign the given [value] to the
+      incremental variable.  Returns [true] on success and [false] in case the
+      variable had already been poisoned or assigned a value. *)
+
+  val fill : 'a t -> 'a -> unit
+  (** [fill ivar value] is equivalent to
+      {{!try_fill} [try_fill ivar value |> ignore]}. *)
+
+  val try_poison : 'a t -> Exn_bt.t -> bool
+  (** [try_poison ivar exn_bt] attempts to poison the incremental variable with
+      the specified exception and backtrace.  Returns [true] on success and
+      [false] in case the variable had already been poisoned or assigned a
+      value. *)
+
+  val poison : 'a t -> Exn_bt.t -> unit
+  (** [poison ivar exn_bt] is equivalent to
+      {{!try_poison} [try_poison ivar exn_bt |> ignore]}. *)
+
+  val peek : 'a t -> 'a option
+  (** [peek ivar] either returns [Some value] in case the variable has been
+      assigned the [value], raises an exception in case the variable has been
+      poisoned, or otherwise returns [None], which means that the variable has
+      not yet been poisoned or assigned a value. *)
+
+  val read : 'a t -> 'a
+  (** [read ivar] waits until the variable is either assigned a value or the
+      variable is poisoned and then returns the value or raises the
+      exception. *)
+
+  val read_evt : 'a t -> 'a Event.t
+  (** [read_evt ivar] returns an event that can be committed to once the
+      variable has either been assigned a value or has been poisoned. *)
 end
 
 (** {1 Examples}
