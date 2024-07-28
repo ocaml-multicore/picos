@@ -24,4 +24,14 @@ while true do
   Bundle.fork bundle @@ fun () -&gt;
     let@ client_fd = move client_fd in
     (* handle client... omitted *)
-done</code></pre><p>Another alternative to avoiding leaks is to <a href="#val-let@" title="let@">recursively fork fibers to accept and handle a client</a>.</p><ul class="at-tags"><li class="raises"><span class="at-tag">raises</span> <code>Invalid_argument</code> <p>if the resource has already been moved (or released) unless the fiber has been canceled.</p></li></ul></div></div></div></body></html>
+done</code></pre><p>Another alternative to avoiding leaks is to <a href="#val-let@" title="let@">recursively fork fibers to accept and handle a client</a>.</p><p>You can <code>move</code> a resource between any two fibers. For example, you can move a resource from a child fiber to the parent fiber:</p><pre class="language-ocaml"><code>let moveable_ivar = Ivar.create () in
+
+Bundle.fork bundle begin fun () -&gt;
+  let^ moveable =
+    finally (* dispose *) (* allocate *)
+  in
+  Ivar.fill moveable_ivar moveable
+end;
+
+let@ res = move (Ivar.read moveable_ivar) in
+(* ... *)</code></pre><p>The above uses an <a href="../../Picos_sync/Ivar/index.html" title="Picos_sync.Ivar"><code>Ivar</code></a> to communicate the moveable resource from the child fiber to the parent fiber.</p><ul class="at-tags"><li class="raises"><span class="at-tag">raises</span> <code>Invalid_argument</code> <p>if the resource has already been moved (or released) unless the fiber has been canceled.</p></li></ul></div></div></div></body></html>
