@@ -172,9 +172,10 @@ module Control : sig
   (** [terminate_after ~seconds thunk] arranges to terminate the execution of
       [thunk] on the current fiber after the specified timeout in [seconds].
 
-      Using [terminate_after] one can conveniently attempt any blocking
-      operation that supports cancelation with a timeout.  For example, one can
-      perform a timed {{!Picos_sync.Ivar.read} [Ivar.read]}
+      Using [terminate_after] one can attempt any blocking operation that
+      supports cancelation with a timeout.  For example, one could try to
+      {{!Picos_sync.Ivar.read} [read]} an {{!Picos_sync.Ivar} [Ivar]} with a
+      timeout
 
       {[
         let peek_in ~seconds ivar =
@@ -186,8 +187,8 @@ module Control : sig
           | exception Control.Terminate -> None
       ]}
 
-      or one could try to {{!Picos_stdio.Unix.connect} [connect]} to a socket
-      with a timeout
+      or one could try to {{!Picos_stdio.Unix.connect} [connect]} a socket with
+      a timeout
 
       {[
         let try_connect_in ~seconds socket sockaddr =
