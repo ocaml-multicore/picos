@@ -9,7 +9,7 @@ let fill = Computation.return
 let try_poison = Computation.try_cancel
 let poison = Computation.cancel
 
-let peek ivar =
+let peek_opt ivar =
   if Computation.is_running ivar then None else Some (Computation.await ivar)
 
 let read = Computation.await

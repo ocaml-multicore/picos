@@ -357,8 +357,8 @@ module Ivar : sig
   (** [poison ivar exn_bt] is equivalent to
       {{!try_poison} [try_poison ivar exn_bt |> ignore]}. *)
 
-  val peek : 'a t -> 'a option
-  (** [peek ivar] either returns [Some value] in case the variable has been
+  val peek_opt : 'a t -> 'a option
+  (** [peek_opt ivar] either returns [Some value] in case the variable has been
       assigned the [value], raises an exception in case the variable has been
       poisoned, or otherwise returns [None], which means that the variable has
       not yet been poisoned or assigned a value. *)
