@@ -117,7 +117,8 @@ let test_select () =
   let actual =
     (* Ignore additional timeouts *)
     Array.sub
-      (Array.of_seq (Picos_mpscq.pop_all events))
+      (Array.of_seq
+         (Picos_mpscq.pop_all events |> Seq.drop_while (( = ) "Timeout")))
       0 (Array.length expected)
   in
 
