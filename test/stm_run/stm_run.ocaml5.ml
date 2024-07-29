@@ -6,8 +6,8 @@ let count =
   * factor (Sys.backend_type = Native)
   * factor (1 < Domain.recommended_domain_count ())
 
-let run (type cmd state sut) ?(verbose = true) ?(count = count) ~name
-    ?make_domain
+let run (type cmd state sut) ?(verbose = true) ?(count = count)
+    ?(budgetf = 60.0) ~name ?make_domain
     (module Spec : STM.Spec
       with type cmd = cmd
        and type state = state
@@ -17,6 +17,7 @@ let run (type cmd state sut) ?(verbose = true) ?(count = count) ~name
     module Spec = Spec
     include STM_domain.Make (Spec)
   end in
+  Util.run_with_budget ~budgetf ~count @@ fun count ->
   [
     [ Seq.agree_test ~count ~name:(name ^ " sequential") ];
     (match make_domain with
