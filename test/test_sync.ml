@@ -209,7 +209,7 @@ let test_event_basics () =
     Event.select
       [
         Event.from_computation (Computation.create ());
-        Event.from_computation (Computation.returned 51) |> Event.map (( + ) 50);
+        Event.always 51 |> Event.map (( + ) 50);
       ]
     = 101);
   begin
@@ -221,10 +221,7 @@ let test_event_basics () =
   end;
   begin
     match
-      [
-        Event.guard (fun () -> raise Exit);
-        Event.from_computation (Computation.returned 42);
-      ]
+      [ Event.guard (fun () -> raise Exit); Event.always 42 ]
       |> Event.choose |> Event.sync
     with
     | _ -> assert false

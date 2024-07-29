@@ -84,6 +84,12 @@ let[@alert "-handler"] from_computation source =
   in
   Request { request }
 
+let always value =
+  let request computation to_result =
+    Computation.return computation @@ fun () -> to_result value
+  in
+  Request { request }
+
 type 'a event = 'a t
 
 let[@inline] from_request p = Request p
