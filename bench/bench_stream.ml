@@ -74,4 +74,6 @@ let run_one ~budgetf ~n_pusher () =
 let run_suite ~budgetf =
   run_one_domain ~budgetf ()
   @ ([ 1; 2; 4 ]
-    |> List.concat_map @@ fun n_pusher -> run_one ~budgetf ~n_pusher ())
+    |> List.concat_map @@ fun n_pusher ->
+       if Picos_domain.recommended_domain_count () < n_pusher + 1 then []
+       else run_one ~budgetf ~n_pusher ())
