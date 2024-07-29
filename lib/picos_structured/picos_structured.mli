@@ -413,8 +413,23 @@ end
           end;
 
           Bundle.fork bundle begin fun () ->
+            Event.sync (Event.choose [])
+          end;
+
+          Bundle.fork bundle begin fun () ->
             let latch = Latch.create 1 in
             Latch.await latch
+          end;
+
+          Bundle.fork bundle begin fun () ->
+            let ivar = Ivar.create () in
+            Ivar.read ivar
+          end;
+
+          Bundle.fork bundle begin fun () ->
+            let stream = Stream.create () in
+            Stream.read (Stream.tap stream)
+            |> ignore
           end;
 
           Bundle.fork bundle begin fun () ->
@@ -455,11 +470,17 @@ end
     detail,
 
     - {!Control.block} never returns,
-    - {!Promise.await} never returns as the [promise] won't be completed,
+    - {!Promise.await} never returns as the promise won't be completed,
     - {{!Picos_sync.Condition.wait} [Condition.wait]} never returns, because the
       condition is never signaled,
+    - {{!Picos_sync.Event.sync} [Event.sync]} never returns, because the event
+      can never be committed to,
     - {{!Picos_sync.Latch.await} [Latch.await]} never returns, because the count
       of the latch never reaches [0],
+    - {{!Picos_sync.Ivar.read} [Ivar.read]} never returns, because the
+      incremental variable is never filled,
+    - {{!Picos_sync.Stream.read} [Stream.read]} never returns, because the
+      stream is never pushed to,
     - {{!Picos_stdio.Unix.read} [Unix.read]} never returns, because the socket
       is never written to, and the
     - {!Control.sleep} call would return only after about a month.
