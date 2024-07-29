@@ -184,6 +184,10 @@ module Event : sig
       {{:https://ocaml.org/manual/5.2/api/Event.html} [Event]} module
       signature. *)
 
+  val always : 'a -> 'a t
+  (** [always value] returns an event that can always be committed to resulting
+      in the given [value]. *)
+
   (** {2 Composing events} *)
 
   val choose : 'a t list -> 'a t
