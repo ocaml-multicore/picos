@@ -65,9 +65,11 @@ let[@inline never] check_no_resource () =
   Fiber.check (Fiber.current ());
   invalid_arg "no resource to move"
 
+let nothing = (ignore, check_no_resource)
+
 let move moveable =
   match Atomic.get moveable with
-  | Nothing -> check_no_resource ()
+  | Nothing -> nothing
   | Resource r ->
       let acquire () =
         match Atomic.exchange moveable Nothing with
