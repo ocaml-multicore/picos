@@ -32,32 +32,36 @@ type ('a, _) tdt =
 
 type 'a moveable = ('a, [ `Nothing | `Resource ]) tdt Atomic.t
 
+let await_moved moveable =
+  match Atomic.get moveable with
+  | Nothing -> ()
+  | Resource r -> begin
+      match Trigger.await r.moved with
+      | None -> ()
+      | Some exn_bt -> begin
+          match Atomic.exchange moveable Nothing with
+          | Nothing -> ()
+          | Resource r ->
+              r.release r.resource;
+              Exn_bt.raise exn_bt
+        end
+    end
+
 let ( let^ ) (release, acquire) body =
-  let moveable = Atomic.make Nothing in
+  let state =
+    Resource { resource = Obj.magic (); release; moved = Trigger.create () }
+  in
+  let moveable = Atomic.make state in
+  (* [acquire] is called once by [let_at] before [moveable] is returned, which
+     means the [Obj.magic] use below is safe. *)
   let acquire () =
-    let (Resource r as state : (_, [ `Resource ]) tdt) =
-      Resource { resource = Obj.magic (); release; moved = Trigger.create () }
+    let (Resource r : (_, [ `Resource ]) tdt) =
+      Obj.magic (Atomic.get moveable)
     in
     r.resource <- acquire ();
-    Atomic.set moveable state;
     moveable
   in
-  let release moveable =
-    match Atomic.get moveable with
-    | Nothing -> ()
-    | Resource r -> begin
-        match Trigger.await r.moved with
-        | None -> ()
-        | Some exn_bt -> begin
-            match Atomic.exchange moveable Nothing with
-            | Nothing -> ()
-            | Resource r ->
-                r.release r.resource;
-                Exn_bt.raise exn_bt
-          end
-      end
-  in
-  let_at acquire body release
+  let_at acquire body await_moved
 
 let[@inline never] check_no_resource () =
   (* In case of cancelation this is not considered an error as the resource was
