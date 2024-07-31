@@ -38,7 +38,13 @@
 (test
  (name test_sync)
  (modules test_sync)
- (libraries picos.structured picos.sync test_scheduler alcotest domain_shims))
+ (libraries
+  picos.structured
+  picos.sync
+  test_scheduler
+  alcotest
+  domain_shims
+  unix))
 
 ;;
 

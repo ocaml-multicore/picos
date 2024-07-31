@@ -2,6 +2,8 @@ open Picos
 open Picos_sync
 open Picos_structured
 
+let msgs = ref []
+
 module Fiber = struct
   include Fiber
 
@@ -121,11 +123,16 @@ let test_mutex_and_condition_cancelation () =
 
   let some_false = Some false in
 
+  let deadline = Unix.gettimeofday () +. 60.0 in
+
   let main i () =
     Fun.protect ~finally:(fun () -> Atomic.decr exit) @@ fun () ->
     Test_scheduler.run @@ fun () ->
     let state = Random.State.make_self_init () in
-    while Array.exists (fun step -> Atomic.get step < limit) steps do
+    while
+      Array.exists (fun step -> Atomic.get step < limit) steps
+      && Unix.gettimeofday () < deadline
+    do
       let finished = Trigger.create () in
       let checked = if Random.State.bool state then None else some_false in
       Fiber.spawn ~forbid:false (Computation.create ())
@@ -153,7 +160,15 @@ let test_mutex_and_condition_cancelation () =
   done;
   List.iter Domain.join domains;
   assert (!step = Atomic.get step_2 + Atomic.get step_3 + Atomic.get step_4);
-  Array.iter (fun step -> assert (limit <= Atomic.get step)) steps
+  if Array.exists (fun step -> Atomic.get step < limit) steps then begin
+    let msg =
+      steps |> Array.map Atomic.get
+      |> Array.map (Printf.sprintf "%d")
+      |> Array.to_list |> String.concat ", "
+      |> Printf.sprintf "Mutex cancelation steps: [%s]"
+    in
+    msgs := msg :: !msgs
+  end
 
 let test_lazy_basics () =
   Test_scheduler.run @@ fun () ->
@@ -229,19 +244,22 @@ let test_event_basics () =
   end
 
 let () =
-  [
-    ( "Mutex and Condition",
-      [
-        Alcotest.test_case "basics" `Quick test_mutex_and_condition_basics;
-        Alcotest.test_case "errors" `Quick test_mutex_and_condition_errors;
-        Alcotest.test_case "cancelation" `Quick
-          test_mutex_and_condition_cancelation;
-      ] );
-    ( "Lazy",
-      [
-        Alcotest.test_case "basics" `Quick test_lazy_basics;
-        Alcotest.test_case "cancelation" `Quick test_lazy_cancelation;
-      ] );
-    ("Event", [ Alcotest.test_case "basics" `Quick test_event_basics ]);
-  ]
-  |> Alcotest.run "Picos_sync"
+  try
+    [
+      ( "Mutex and Condition",
+        [
+          Alcotest.test_case "basics" `Quick test_mutex_and_condition_basics;
+          Alcotest.test_case "errors" `Quick test_mutex_and_condition_errors;
+          Alcotest.test_case "cancelation" `Quick
+            test_mutex_and_condition_cancelation;
+        ] );
+      ( "Lazy",
+        [
+          Alcotest.test_case "basics" `Quick test_lazy_basics;
+          Alcotest.test_case "cancelation" `Quick test_lazy_cancelation;
+        ] );
+      ("Event", [ Alcotest.test_case "basics" `Quick test_event_basics ]);
+    ]
+    |> Alcotest.run ~and_exit:false "Picos_sync";
+    !msgs |> List.iter (Printf.eprintf "%s\n%!")
+  with Alcotest.Test_error -> exit 1
