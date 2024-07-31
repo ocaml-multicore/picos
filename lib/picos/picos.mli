@@ -113,13 +113,14 @@
       open Picos
     ]}
 
-    as well as a simple helper for cleaning up resources
+    as well as the {!Picos_structured} library,
 
     {[
-      open Picos_structured.Finally
+      open Picos_structured
     ]}
 
-    and define a simple scheduler on OCaml 4
+    which we will be using for managing fibers in some of the examples, and
+    define a simple scheduler on OCaml 4
 
     {@ocaml version<5.0.0[
       let run main = Picos_threaded.run main
@@ -128,23 +129,18 @@
     using {{!Picos_threaded} the basic thread based scheduler} and on OCaml 5
 
     {@ocaml version>=5.0.0[
-      let run main = Picos_fifos.run main
+      let run main = Picos_randos.run_on ~n_domains:2 main
     ]}
 
-    using {{!Picos_fifos} the basic effects based scheduler} that come with
-    Picos as samples.
+    using {{!Picos_randos} the randomized effects based scheduler} that come
+    with Picos as samples.
 
     {2 Auxiliary modules} *)
 
 module Exn_bt = Picos_exn_bt
 (** Exceptions with backtraces. *)
 
-(** {2 Core modules}
-
-    Please note that the example code snippets in this documentation may
-    e.g. use the {!Domain} and {!Unix} modules in order to be able to describe
-    Picos concepts in isolation in the absence of a Picos compatible
-    scheduler. *)
+(** {2 Core modules} *)
 
 module Trigger : sig
   (** Ability to await for a signal.
@@ -157,13 +153,14 @@ module Trigger : sig
 
       {[
         run begin fun () ->
+          Bundle.join_after @@ fun bundle ->
+
           let trigger = Trigger.create () in
 
-          let@ signaler =
-            finally Domain.join @@ fun () ->
-            Domain.spawn @@ fun () ->
-              Trigger.signal trigger
-          in
+          Bundle.fork bundle begin fun () ->
+            Trigger.signal trigger
+          end;
+
           match Trigger.await trigger with
           | None ->
             (* We were resumed normally. *)
@@ -431,30 +428,34 @@ module Computation : sig
 
       {[
         run begin fun () ->
+          Bundle.join_after @@ fun bundle ->
+
           let computation =
             Computation.create ()
           in
-          let@ computer =
-            finally Domain.join @@ fun () ->
-            Domain.spawn @@ fun () ->
-              let rec fib i =
-                Computation.check
-                  computation;
-                if i <= 1 then
-                  i
-                else
-                  fib (i - 1) + fib (i - 2)
-              in
-              Computation.capture
-                computation fib 10
+
+          let canceler = Bundle.fork_as_promise bundle @@ fun () ->
+            Fiber.sleep ~seconds:1.0;
+
+            Computation.cancel computation
+              (Exn_bt.get_callstack 0 Exit)
           in
-          let@ canceler =
-            finally Domain.join @@ fun () ->
-            Domain.spawn @@ fun () ->
-              Unix.sleepf 0.1;
-              Computation.cancel computation
-              @@ Exn_bt.get_callstack 2 Exit
-          in
+
+          Bundle.fork bundle begin fun () ->
+            let rec fib i =
+              Computation.check
+                computation;
+              if i <= 1 then
+                i
+              else
+                fib (i - 1) + fib (i - 2)
+            in
+            Computation.capture computation
+              fib 10;
+
+            Promise.terminate canceler
+          end;
+
           Computation.await computation
         end
       ]}

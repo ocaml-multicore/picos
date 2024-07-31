@@ -10,7 +10,6 @@
    (picos.fifos
     picos.randos
     picos.lwt_unix
-    picos.structured
     picos.thread
     ->
     test_scheduler.ocaml5.ml)

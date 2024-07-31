@@ -36,3 +36,7 @@ val run : ?context:t -> ?forbid:bool -> (unit -> 'a) -> 'a
 
     The optional [forbid] argument defaults to [false] and determines whether
     propagation of cancelation is initially allowed. *)
+
+val run_on : n_domains:int -> ?forbid:bool -> (unit -> 'a) -> 'a
+(** [run_on ~n_domains main] spawns [n_domains - 1] additional domains and runs
+    the [main] on the current domain and those additional domains. *)
