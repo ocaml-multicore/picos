@@ -65,7 +65,8 @@ let ( let^ ) (release, acquire) body =
 
 let[@inline never] check_no_resource () =
   (* In case of cancelation this is not considered an error as the resource was
-     (likely) released by the parent. *)
+     released by (the |an)other party involved in the move.  Technically this
+     may hide a real bug where two fibers attempt to move the same resource. *)
   Fiber.check (Fiber.current ());
   invalid_arg "no resource to move"
 
