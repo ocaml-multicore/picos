@@ -225,3 +225,26 @@ let run ?context:t_opt ?(forbid = false) main =
     Mutex.lock t.mutex;
     await t computation
   end
+
+let rec run_on n ?forbid main context =
+  if n <= 1 then run ~context ?forbid main
+  else
+    let runner =
+      try Domain.spawn @@ fun () -> runner_on_this_thread context
+      with exn ->
+        let bt = Printexc.get_raw_backtrace () in
+        run ~context Fun.id;
+        Printexc.raise_with_backtrace exn bt
+    in
+    match run_on (n - 1) ?forbid main context with
+    | result ->
+        Domain.join runner;
+        result
+    | exception exn ->
+        let bt = Printexc.get_raw_backtrace () in
+        Domain.join runner;
+        Printexc.raise_with_backtrace exn bt
+
+let run_on ~n_domains ?forbid main =
+  if n_domains < 1 then invalid_arg "n_domains must be positive";
+  run_on n_domains ?forbid main (context ())

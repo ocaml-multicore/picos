@@ -1,8 +1,6 @@
 let () = Printexc.record_backtrace true
 let () = Random.self_init ()
 
-open Picos_structured.Finally
-
 let () =
   Picos_select.check_configured ();
 
@@ -27,20 +25,8 @@ let rec run ?(max_domains = 1) ?(allow_lwt = true) ?forbid main =
         Lwt_main.run (Picos_lwt_unix.run ?forbid main)
       else run ~max_domains ~allow_lwt ?forbid main
   | `Randos ->
-      let context = Picos_randos.context () in
-      let rec spawn n =
-        if n <= 1 then Picos_randos.run ~context ?forbid main
-        else
-          let@ _ =
-            finally Domain.join @@ fun () ->
-            try
-              Domain.spawn @@ fun () ->
-              Picos_randos.runner_on_this_thread context
-            with exn ->
-              Picos_randos.run ~context Fun.id;
-              raise exn
-          in
-          spawn (n - 1)
+      let n_domains =
+        Int.min max_domains (Domain.recommended_domain_count ())
       in
-      spawn (Int.min max_domains (Domain.recommended_domain_count ()))
+      Picos_randos.run_on ~n_domains ?forbid main
   | `Fifos -> Picos_fifos.run ?forbid main
