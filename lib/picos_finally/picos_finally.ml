@@ -1,6 +1,6 @@
 open Picos
 
-type 'a template = ('a -> unit) * (unit -> 'a)
+type 'a template = { release : 'a -> unit; acquire : unit -> 'a }
 
 type ('a, _) tdt =
   | Moved : ('a, [> `Moved ]) tdt
@@ -29,19 +29,19 @@ let[@inline never] check_released () =
   Fiber.check (Fiber.current ());
   error Released
 
-let rec release movable =
-  match Atomic.get movable with
+let rec release instance =
+  match Atomic.get instance with
   | Moved | Released -> ()
   | Borrowed as case -> error case
   | Resource r as before ->
-      if Atomic.compare_and_set movable before Released then begin
+      if Atomic.compare_and_set instance before Released then begin
         r.release r.resource;
         Trigger.signal r.moved_or_released
       end
-      else release movable
+      else release instance
 
-let await_moved_or_released movable =
-  match Atomic.get movable with
+let await_moved_or_released instance =
+  match Atomic.get instance with
   | Moved | Released -> ()
   | Borrowed as case ->
       (* This should be impossible as [let&] should have restored the state. *)
@@ -50,89 +50,78 @@ let await_moved_or_released movable =
       match Trigger.await r.moved_or_released with
       | None ->
           (* We release in case we could not wait. *)
-          release movable
+          release instance
       | Some exn_bt ->
           (* We have been canceled, so we release. *)
-          release movable;
+          release instance;
           Exn_bt.raise exn_bt
     end
 
 (** This function is marked [@inline never] to ensure that there are no
     allocations between the [acquire ()] and the [match ... with] nor before
     [release]. *)
-let[@inline never] let_caret acquire body =
+let[@inline never] let_at acquire body ~on_return ~on_raise =
   let x = acquire () in
   match body x with
   | y ->
-      await_moved_or_released x;
+      on_return x;
       y
   | exception exn ->
-      release x;
+      on_raise x;
       raise exn
 
-let ( let^ ) (release, acquire) body =
+let ( let^ ) t body =
   let moved_or_released = Trigger.create () in
   let state =
-    Resource { resource = Obj.magic (); release; moved_or_released }
+    Resource { resource = Obj.magic (); release = t.release; moved_or_released }
   in
-  let movable = Atomic.make state in
-  (* [acquire] is called once by [let_at] before [movable] is returned, which
+  let instance = Atomic.make state in
+  (* [acquire] is called once by [let_at] before [instance] is returned, which
      means the [Obj.magic] use below is safe. *)
   let acquire () =
     let (Resource r : (_, [ `Resource ]) tdt) =
-      Obj.magic (Atomic.get movable)
+      Obj.magic (Atomic.get instance)
     in
-    r.resource <- acquire ();
-    movable
+    r.resource <- t.acquire ();
+    instance
   in
-  let_caret acquire body
+  let_at acquire body ~on_return:await_moved_or_released ~on_raise:release
 
-let rec ( let& ) movable body =
-  match Atomic.get movable with
+let rec ( let& ) instance body =
+  match Atomic.get instance with
   | (Moved | Released | Borrowed) as case -> error case
   | Resource r as before ->
-      if Atomic.compare_and_set movable before Borrowed then begin
+      if Atomic.compare_and_set instance before Borrowed then begin
         match body r.resource with
         | result ->
-            Atomic.set movable before;
+            Atomic.set instance before;
             result
         | exception exn ->
-            Atomic.set movable before;
+            Atomic.set instance before;
             raise exn
       end
-      else ( let& ) movable body
+      else ( let& ) instance body
 
-let move movable =
-  match Atomic.get movable with
+let move instance =
+  match Atomic.get instance with
   | (Moved | Borrowed) as case -> error case
-  | Released -> (ignore, check_released)
+  | Released -> { release = ignore; acquire = check_released }
   | Resource r ->
       let rec acquire () =
-        match Atomic.get movable with
+        match Atomic.get instance with
         | (Moved | Borrowed) as case -> error case
         | Released -> check_released ()
         | Resource r as before ->
-            if Atomic.compare_and_set movable before Moved then begin
+            if Atomic.compare_and_set instance before Moved then begin
               (* [Trigger.signal] should never raise exceptions. *)
               Trigger.signal r.moved_or_released;
               r.resource
             end
             else acquire ()
       in
-      (r.release, acquire)
+      { release = r.release; acquire }
 
-(** This function is marked [@inline never] to ensure that there are no
-    allocations between the [acquire ()] and the [match ... with] nor before
-    [release]. *)
-let[@inline never] let_at acquire body release =
-  let x = acquire () in
-  match body x with
-  | y ->
-      release x;
-      y
-  | exception exn ->
-      release x;
-      raise exn
+let[@inline] ( let@ ) t body =
+  let_at t.acquire body ~on_return:t.release ~on_raise:t.release
 
-let[@inline] ( let@ ) (release, acquire) body = let_at acquire body release
-let[@inline] finally release acquire = (release, acquire)
+let[@inline] finally release acquire = { release; acquire }
