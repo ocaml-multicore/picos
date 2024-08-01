@@ -1,5 +1,5 @@
 open Picos
-open Picos_structured.Finally
+open Picos_finally
 
 let run_in_fiber main =
   let computation = Computation.create ~mode:`LIFO () in

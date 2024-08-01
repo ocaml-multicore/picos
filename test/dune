@@ -26,7 +26,7 @@
  (modules test_picos)
  (libraries
   test_scheduler
-  picos.structured
+  picos.finally
   alcotest
   unix
   threads.posix
@@ -73,14 +73,25 @@
 (test
  (name test_server_and_client)
  (modules test_server_and_client)
- (libraries test_scheduler picos.stdio picos.structured picos.sync))
+ (libraries
+  test_scheduler
+  picos.finally
+  picos.stdio
+  picos.structured
+  picos.sync))
 
 ;;
 
 (test
  (name test_stdio)
  (modules test_stdio)
- (libraries test_scheduler picos.mpscq picos.stdio picos.structured alcotest))
+ (libraries
+  test_scheduler
+  picos.finally
+  picos.mpscq
+  picos.stdio
+  picos.structured
+  alcotest))
 
 ;;
 
@@ -102,6 +113,7 @@
  (name test_select)
  (modules test_select)
  (libraries
+  picos.finally
   picos.structured
   picos.threaded
   picos.select
@@ -164,6 +176,13 @@
   test_scheduler
   test_util
   alcotest))
+
+;;
+
+(test
+ (name test_finally)
+ (modules test_finally)
+ (libraries picos picos.finally test_scheduler test_util alcotest))
 
 ;;
 

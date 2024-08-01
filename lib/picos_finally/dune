@@ -1,0 +1,14 @@
+(library
+ (name picos_finally)
+ (public_name picos.finally)
+ (libraries picos))
+
+(mdx
+ (libraries
+  picos.exn_bt
+  picos.finally
+  picos.stdio
+  picos.structured
+  picos.sync
+  unix)
+ (files picos_finally.mli))

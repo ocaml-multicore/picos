@@ -4,14 +4,15 @@
   (run %{test} -brief))
  (libraries
   picos
-  picos.mpscq
-  picos.htbl
-  picos.sync
   picos.domain
-  picos.thread
-  picos.stdio
+  picos.finally
+  picos.htbl
+  picos.mpscq
   picos.select
+  picos.stdio
   picos.structured
+  picos.sync
+  picos.thread
   (select
    scheduler.ml
    from

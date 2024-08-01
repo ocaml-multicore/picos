@@ -1,4 +1,4 @@
-open Picos_structured.Finally
+open Picos_finally
 open Multicore_bench
 
 let lib_suffix = if Sys.os_type == "Win32" then "lib" else "a"
@@ -17,6 +17,7 @@ let paths =
     lib "picos_exn_bt";
     lib "picos_fd";
     lib "picos_fifos";
+    lib "picos_finally";
     lib "picos_htbl";
     lib "picos_lwt";
     lib "picos_lwt_unix";

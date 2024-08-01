@@ -40,6 +40,7 @@ either sample schedulers (e.g.
 and
 [`picos.threaded`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_threaded/index.html)),
 scheduler agnostic libraries (e.g.
+[`picos.finally`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_finally/index.html),
 [`picos.structured`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_structured/index.html),
 [`picos.sync`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_sync/index.html),
 [`picos.stdio`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_stdio/index.html),
