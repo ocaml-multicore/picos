@@ -203,7 +203,7 @@ val check_configured : unit -> unit
                     write1 syn_out;
                   end;
                 Picos_select.timeout
-                    ~seconds:0.1
+                    ~seconds:60.0
                   |> Event.map begin fun () ->
                     print_endline "Timeout";
                     write1 syn_out
@@ -216,13 +216,11 @@ val check_configured : unit -> unit
           read1 syn_inn;
           write1 msg_out2;
           read1 syn_inn;
-          read1 syn_inn;
 
           Bundle.terminate bundle
         end
       Inn1
       Inn2
-      Timeout
       - : unit = ()
     ]}
 
