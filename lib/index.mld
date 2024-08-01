@@ -163,6 +163,7 @@ These are minimalistic, but fully-functioning, schedulers provided as samples.
 These are examples of libraries implemented in Picos.
 
 {!modules:
+  Picos_finally
   Picos_structured
   Picos_sync
   Picos_stdio

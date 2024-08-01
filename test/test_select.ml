@@ -1,5 +1,5 @@
 open Picos_structured
-open Picos_structured.Finally
+open Picos_finally
 
 let () = Picos_select.configure ()
 

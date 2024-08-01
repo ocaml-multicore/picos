@@ -138,7 +138,7 @@ val check_configured : unit -> unit
 
     {[
       open Picos
-      open Picos_structured.Finally
+      open Picos_finally
       open Picos_structured
       open Picos_stdio
       open Picos_sync

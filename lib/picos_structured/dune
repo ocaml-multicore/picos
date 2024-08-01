@@ -15,6 +15,7 @@
  (libraries
   picos.exn_bt
   picos.fifos
+  picos.finally
   picos.stdio
   picos.structured
   picos.sync

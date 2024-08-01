@@ -1,6 +1,5 @@
 module Exn_bt = Picos.Exn_bt
 open Picos_structured
-open Picos_structured.Finally
 open Picos_sync
 
 (** Helper to check that computation is restored *)
@@ -17,22 +16,6 @@ let check join_after scope =
   let during = Fiber.get_computation fiber in
   assert (before != during);
   scope bundle
-
-let test_move_is_lazy () =
-  Test_scheduler.run @@ fun () ->
-  let^ moveable = finally Fun.id Fun.id in
-  let@ _ = move moveable in
-  begin
-    match move moveable with _ -> () | exception _ -> assert false
-  end;
-  begin
-    match
-      let@ _ = move moveable in
-      ()
-    with
-    | () -> assert false
-    | exception Invalid_argument _ -> ()
-  end
 
 let test_fork_after_terminate () =
   Test_scheduler.run @@ fun () ->
@@ -296,7 +279,6 @@ let () =
   [
     ( "Bundle",
       [
-        Alcotest.test_case "move is lazy" `Quick test_move_is_lazy;
         Alcotest.test_case "fork after terminate" `Quick
           test_fork_after_terminate;
         Alcotest.test_case "fork after escape" `Quick test_fork_after_escape;

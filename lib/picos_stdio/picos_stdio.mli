@@ -689,7 +689,7 @@ end
     First we open some modules for convenience:
 
     {[
-      open Picos_structured.Finally
+      open Picos_finally
       open Picos_structured
       open Picos_stdio
     ]}

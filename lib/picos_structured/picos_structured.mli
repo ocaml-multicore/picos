@@ -6,7 +6,7 @@
     For the {{!examples} examples} we open some modules:
 
     {[
-      open Picos_structured.Finally
+      open Picos_finally
       open Picos_structured
       open Picos_stdio
       open Picos_sync
@@ -16,102 +16,6 @@ open Picos
 open Picos_sync
 
 (** {1 Modules} *)
-
-module Finally : sig
-  (** Syntax for avoiding resource leaks. *)
-
-  type 'a finally = ('a -> unit) * (unit -> 'a)
-  (** A pair of release and acquire functions. *)
-
-  val finally : ('a -> unit) -> (unit -> 'a) -> 'a finally
-  (** [finally release acquire] is equivalent to [(release, acquire)]. *)
-
-  val ( let@ ) : 'a finally -> ('a -> 'b) -> 'b
-  (** [let@ resource = finally release acquire in scope] calls [acquire ()] to
-      obtain a [resource], evaluates [scope], and calls [release resource]
-      whether [scope] returns normally or raises an exception.
-
-      Here is a sketch of a server that recursively forks a fiber to accept and
-      handle a client:
-
-      {@ocaml skip[
-        Bundle.join_after @@ fun bundle ->
-        let rec accept () =
-          let@ client_fd =
-            finally Unix.close @@ fun () ->
-            Unix.accept ~cloexec:true server_fd
-            |> fst
-          in
-          (* fork to accept other clients *)
-          Bundle.fork bundle accept;
-          (* handle this client... omitted *)
-        in
-        Bundle.fork bundle accept
-      ]}
-
-      There is also a way to {!move} resources to allow forking fibers to handle
-      clients without leaks. *)
-
-  type 'a moveable
-  (** A [moveable] either contains a resource or is empty as the resource has
-      been moved. *)
-
-  val ( let^ ) : 'a finally -> ('a moveable -> 'b) -> 'b
-  (** [let^ moveable = finally release acquire in scope] calls [acquire ()] to
-      obtain a resource and stores it as a [moveable] resource.  Then, at the
-      end of [scope], awaits that the resource is {{!move} moved} out of the
-      [moveable] or [release]s the resource in case of cancelation. *)
-
-  val move : 'a moveable -> 'a finally
-  (** [move moveable] creates {{!type-finally} a pair of release and acquire
-      functions} where the acquire operation takes the resource from the
-      [moveable] and the release operation releases the resource.
-
-      Here is a sketch of a server that accepts in a loop and forks fibers to
-      handle clients:
-
-      {@ocaml skip[
-        Bundle.join_after @@ fun bundle ->
-        while true do
-          (* loop to accept clients *)
-          let^ client_fd =
-            finally Unix.close @@ fun () ->
-            Unix.accept ~closexec:true server_fd
-            |> fst
-          in
-          (* fork to handle this client *)
-          Bundle.fork bundle @@ fun () ->
-            let@ client_fd = move client_fd in
-            (* handle client... omitted *)
-        done
-      ]}
-
-      Another alternative to avoiding leaks is to {{!let@} recursively fork
-      fibers to accept and handle a client}.
-
-      You can [move] a resource between any two fibers.  For example, you can
-      move a resource from a child fiber to the parent fiber:
-
-      {@ocaml skip[
-        let moveable_ivar = Ivar.create () in
-
-        Bundle.fork bundle begin fun () ->
-          let^ moveable =
-            finally (* dispose *) (* allocate *)
-          in
-          Ivar.fill moveable_ivar moveable
-        end;
-
-        let@ res = move (Ivar.read moveable_ivar) in
-        (* ... *)
-      ]}
-
-      The above uses an {{!Picos_sync.Ivar} [Ivar]} to communicate the moveable
-      resource from the child fiber to the parent fiber.
-
-      @raise Invalid_argument if the resource has already been moved (or
-        released) unless the fiber has been canceled. *)
-end
 
 module Control : sig
   (** Basic control operations and exceptions for structured concurrency. *)
