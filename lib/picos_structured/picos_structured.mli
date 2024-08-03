@@ -476,8 +476,8 @@ end
 
         Bundle.join_after begin fun bundle ->
           while true do
-            let^ client_fd =
-              finally Unix.close @@ fun () ->
+            let@ client_fd =
+              instantiate Unix.close @@ fun () ->
               Unix.accept
                 ~cloexec:true server_fd |> fst
             in

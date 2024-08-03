@@ -39,8 +39,8 @@ let main () =
         Printf.printf "  Server listening\n%!";
         Bundle.join_after @@ fun bundle ->
         while true do
-          let^ client =
-            finally Unix.close @@ fun () ->
+          let@ client =
+            instantiate Unix.close @@ fun () ->
             Printf.printf "  Server accepting\n%!";
             Unix.accept ~cloexec:true socket |> fst
           in

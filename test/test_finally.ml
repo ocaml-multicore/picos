@@ -2,10 +2,10 @@ open Picos_finally
 
 let test_move_is_lazy () =
   Test_scheduler.run @@ fun () ->
-  let^ moveable = finally Fun.id Fun.id in
-  release moveable;
+  let@ moveable = instantiate Fun.id Fun.id in
+  drop moveable;
   begin
-    match move moveable with _ -> () | exception _ -> assert false
+    match (move moveable : _ -> _) with _ -> () | exception _ -> assert false
   end;
   begin
     match
@@ -18,9 +18,9 @@ let test_move_is_lazy () =
 
 let test_borrow_returns_resource () =
   Test_scheduler.run @@ fun () ->
-  let^ moveable = finally Fun.id Fun.id in
+  let@ moveable = instantiate Fun.id Fun.id in
   begin
-    let& _ = moveable in
+    let@ _ = borrow moveable in
     ()
   end;
   let@ _ = move moveable in
@@ -29,7 +29,7 @@ let test_borrow_returns_resource () =
 let () =
   [
     ("move", [ Alcotest.test_case "is lazy" `Quick test_move_is_lazy ]);
-    ( "let&",
+    ( "borrow",
       [
         Alcotest.test_case "returns resource" `Quick
           test_borrow_returns_resource;

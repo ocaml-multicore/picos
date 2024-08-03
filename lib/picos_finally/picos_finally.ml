@@ -1,98 +1,119 @@
 open Picos
 
-type 'a template = { release : 'a -> unit; acquire : unit -> 'a }
-
 type ('a, _) tdt =
-  | Moved : ('a, [> `Moved ]) tdt
+  | Transferred : ('a, [> `Transferred ]) tdt
   | Borrowed : ('a, [> `Borrowed ]) tdt
-  | Released : ('a, [> `Released ]) tdt
+  | Dropped : ('a, [> `Dropped ]) tdt
   | Resource : {
       mutable resource : 'a;
       release : 'a -> unit;
-      moved_or_released : Trigger.t;
+      transferred_or_dropped : Trigger.t;
     }
       -> ('a, [> `Resource ]) tdt
 
 type 'a instance =
-  ('a, [ `Moved | `Borrowed | `Released | `Resource ]) tdt Atomic.t
+  ('a, [ `Transferred | `Borrowed | `Dropped | `Resource ]) tdt Atomic.t
 
-let[@inline never] error (case : (_, [< `Moved | `Borrowed | `Released ]) tdt) =
+(* *)
+
+let[@inline never] error
+    (case : (_, [< `Transferred | `Borrowed | `Dropped ]) tdt) =
   invalid_arg
     (match case with
-    | Moved -> "moved"
-    | Released -> "released"
+    | Transferred -> "transferred"
+    | Dropped -> "dropped"
     | Borrowed -> "borrowed")
 
 let[@inline never] check_released () =
   (* In case of cancelation we do not consider being released an error as the
      resource was released by (the |an)other party involved in the [move]. *)
   Fiber.check (Fiber.current ());
-  error Released
+  error Dropped
 
-let rec release instance =
+(* *)
+
+let rec drop instance =
   match Atomic.get instance with
-  | Moved | Released -> ()
+  | Transferred | Dropped -> ()
   | Borrowed as case -> error case
   | Resource r as before ->
-      if Atomic.compare_and_set instance before Released then begin
-        r.release r.resource;
-        Trigger.signal r.moved_or_released
+      if Atomic.compare_and_set instance before Dropped then begin
+        Trigger.signal r.transferred_or_dropped;
+        r.release r.resource
       end
-      else release instance
+      else drop instance
 
-let await_moved_or_released instance =
+(* *)
+
+let await_transferred_or_dropped instance =
   match Atomic.get instance with
-  | Moved | Released -> ()
+  | Transferred | Dropped -> ()
   | Borrowed as case ->
-      (* This should be impossible as [let&] should have restored the state. *)
+      (* This should be impossible as [let@ _ = borrow _ in _] should have
+         restored the state. *)
       error case
   | Resource r -> begin
-      match Trigger.await r.moved_or_released with
+      match Trigger.await r.transferred_or_dropped with
       | None ->
           (* We release in case we could not wait. *)
-          release instance
+          drop instance
       | Some exn_bt ->
           (* We have been canceled, so we release. *)
-          release instance;
+          drop instance;
           Exn_bt.raise exn_bt
     end
 
-(** This function is marked [@inline never] to ensure that there are no
-    allocations between the [acquire ()] and the [match ... with] nor before
-    [release]. *)
-let[@inline never] let_at acquire body ~on_return ~on_raise =
-  let x = acquire () in
-  match body x with
-  | y ->
-      on_return x;
-      y
+let[@inline never] instantiate release acquire scope =
+  let instance =
+    Sys.opaque_identity
+      begin
+        let transferred_or_dropped = Trigger.create () in
+        let state =
+          Resource { resource = Obj.magic (); release; transferred_or_dropped }
+        in
+        Atomic.make state
+      end
+  in
+  (* After this point there must be no allocations before [acquire ()]. *)
+  let (Resource r : (_, [ `Resource ]) tdt) = Obj.magic (Atomic.get instance) in
+  r.resource <- acquire ();
+  match scope instance with
+  | result ->
+      await_transferred_or_dropped instance;
+      result
   | exception exn ->
-      on_raise x;
+      drop instance;
       raise exn
 
-let ( let^ ) t body =
-  let moved_or_released = Trigger.create () in
-  let state =
-    Resource { resource = Obj.magic (); release = t.release; moved_or_released }
-  in
-  let instance = Atomic.make state in
-  (* [acquire] is called once by [let_at] before [instance] is returned, which
-     means the [Obj.magic] use below is safe. *)
-  let acquire () =
-    let (Resource r : (_, [ `Resource ]) tdt) =
-      Obj.magic (Atomic.get instance)
-    in
-    r.resource <- t.acquire ();
-    instance
-  in
-  let_at acquire body ~on_return:await_moved_or_released ~on_raise:release
+(* *)
 
-let rec ( let& ) instance body =
+let[@inline never] rec transfer from scope =
+  match Atomic.get from with
+  | (Transferred | Borrowed) as case -> error case
+  | Dropped -> check_released ()
+  | Resource r as before ->
+      let into = Atomic.make Transferred in
+      if Atomic.compare_and_set from before Transferred then begin
+        Trigger.signal r.transferred_or_dropped;
+        Atomic.set into before;
+        match scope into with
+        | result ->
+            await_transferred_or_dropped into;
+            result
+        | exception exn ->
+            drop into;
+            raise exn
+      end
+      else transfer from scope
+
+(* *)
+
+let[@inline never] rec borrow instance scope =
   match Atomic.get instance with
-  | (Moved | Released | Borrowed) as case -> error case
+  | (Transferred | Dropped | Borrowed) as case -> error case
   | Resource r as before ->
       if Atomic.compare_and_set instance before Borrowed then begin
-        match body r.resource with
+        match scope r.resource with
         | result ->
             Atomic.set instance before;
             result
@@ -100,28 +121,37 @@ let rec ( let& ) instance body =
             Atomic.set instance before;
             raise exn
       end
-      else ( let& ) instance body
+      else borrow instance scope
 
-let move instance =
-  match Atomic.get instance with
-  | (Moved | Borrowed) as case -> error case
-  | Released -> { release = ignore; acquire = check_released }
-  | Resource r ->
-      let rec acquire () =
-        match Atomic.get instance with
-        | (Moved | Borrowed) as case -> error case
-        | Released -> check_released ()
-        | Resource r as before ->
-            if Atomic.compare_and_set instance before Moved then begin
-              (* [Trigger.signal] should never raise exceptions. *)
-              Trigger.signal r.moved_or_released;
-              r.resource
-            end
-            else acquire ()
-      in
-      { release = r.release; acquire }
+(* *)
 
-let[@inline] ( let@ ) t body =
-  let_at t.acquire body ~on_return:t.release ~on_raise:t.release
+let[@inline never] rec move from scope =
+  match Atomic.get from with
+  | (Transferred | Borrowed) as case -> error case
+  | Dropped -> check_released ()
+  | Resource r as before ->
+      if Atomic.compare_and_set from before Transferred then begin
+        Trigger.signal r.transferred_or_dropped;
+        match scope r.resource with
+        | result ->
+            r.release r.resource;
+            result
+        | exception exn ->
+            r.release r.resource;
+            raise exn
+      end
+      else move from scope
 
-let[@inline] finally release acquire = { release; acquire }
+(* *)
+
+let[@inline never] finally release acquire scope =
+  let x = acquire () in
+  match scope x with
+  | y ->
+      release x;
+      y
+  | exception exn ->
+      release x;
+      raise exn
+
+external ( let@ ) : ('a -> 'b) -> 'a -> 'b = "%apply"
