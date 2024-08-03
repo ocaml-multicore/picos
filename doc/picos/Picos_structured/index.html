@@ -95,8 +95,8 @@ Exception: Errors[Stdlib.Exit; Not_found]</code></pre><p>raises a collection of 
 
   Bundle.join_after begin fun bundle -&gt;
     while true do
-      let^ client_fd =
-        finally Unix.close @@ fun () -&gt;
+      let@ client_fd =
+        instantiate Unix.close @@ fun () -&gt;
         Unix.accept
           ~cloexec:true server_fd |&gt; fst
       in
