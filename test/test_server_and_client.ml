@@ -37,7 +37,7 @@ let main () =
         Condition.signal condition;
         Unix.listen socket 8;
         Printf.printf "  Server listening\n%!";
-        Bundle.join_after @@ fun bundle ->
+        Flock.join_after @@ fun () ->
         while true do
           let@ client =
             instantiate Unix.close @@ fun () ->
@@ -46,7 +46,7 @@ let main () =
           in
           Printf.printf "  Server accepted client\n%!";
 
-          Bundle.fork bundle @@ fun () ->
+          Flock.fork @@ fun () ->
           let@ client = move client in
           set_nonblock client;
           let bytes = Bytes.create n in
@@ -71,7 +71,7 @@ let main () =
         Condition.signal condition;
         Unix.listen socket 8;
         Printf.printf "  Server listening\n%!";
-        Bundle.join_after @@ fun bundle ->
+        Flock.join_after @@ fun () ->
         let rec accept () =
           let@ client =
             finally Unix.close @@ fun () ->
@@ -79,7 +79,7 @@ let main () =
             Unix.accept ~cloexec:true socket |> fst
           in
           Printf.printf "  Server accepted client\n%!";
-          Bundle.fork bundle accept;
+          Flock.fork accept;
           set_nonblock client;
           let bytes = Bytes.create n in
           let n = Unix.read client bytes 0 (Bytes.length bytes) in
@@ -87,7 +87,7 @@ let main () =
           let n = Unix.write client bytes 0 (n / 2) in
           Printf.printf "  Server wrote %d\n%!" n
         in
-        Bundle.fork bundle accept
+        Flock.fork accept
     | exception Unix.Unix_error (EPERM, _, _) when is_opam_ci -> raise Exit
   in
 
@@ -110,8 +110,8 @@ let main () =
   in
 
   begin
-    Bundle.join_after @@ fun bundle ->
-    Bundle.fork bundle server;
+    Flock.join_after @@ fun () ->
+    Flock.fork server;
     begin
       Mutex.protect mutex @@ fun () ->
       while !server_addr == loopback_0 do
@@ -119,7 +119,7 @@ let main () =
       done
     end;
     Run.all [ client "A"; client "B" ];
-    Bundle.terminate bundle
+    Flock.terminate ()
   end;
 
   Printf.printf "Server and Client test: OK\n%!"

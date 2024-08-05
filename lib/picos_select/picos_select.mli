@@ -186,8 +186,8 @@ val check_configured : unit -> unit
           assert (w = 1)
         in
 
-        Bundle.join_after begin fun bundle ->
-          Bundle.fork bundle begin fun () ->
+        Flock.join_after begin fun () ->
+          Flock.fork begin fun () ->
             while true do
               Event.select [
                 Picos_select.on msg_inn1 `R
@@ -217,7 +217,7 @@ val check_configured : unit -> unit
           write1 msg_out2;
           read1 syn_inn;
 
-          Bundle.terminate bundle
+          Flock.terminate ()
         end
       Inn1
       Inn2

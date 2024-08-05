@@ -7,12 +7,12 @@ open Cohttp_lwt_unix
 let await = Picos_lwt.await
 
 let main () =
-  Bundle.join_after @@ fun bundle ->
+  Flock.join_after @@ fun () ->
   (* We use the [Picos_structured] library for structured concurrency. *)
 
   (* First we start the server. *)
   let server =
-    Bundle.fork_as_promise bundle @@ fun () ->
+    Flock.fork_as_promise @@ fun () ->
     let callback _conn req body =
       let uri = req |> Request.uri |> Uri.to_string in
       let meth = req |> Request.meth |> Code.string_of_method in

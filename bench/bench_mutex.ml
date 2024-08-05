@@ -26,7 +26,7 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
   in
   let wrap _ () = Scheduler.run in
   let work domain_index () =
-    Bundle.join_after @@ fun bundle ->
+    Flock.join_after @@ fun () ->
     let rec work () =
       let n = Countdown.alloc n_ops_todo ~domain_index ~batch in
       if n <> 0 then
@@ -46,13 +46,13 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
         loop n
     in
     if use_domains then begin
-      Bundle.fork bundle yielder;
+      Flock.fork yielder;
       work ();
-      Bundle.terminate bundle
+      Flock.terminate ()
     end
     else
       for _ = 1 to n_fibers do
-        Bundle.fork bundle work
+        Flock.fork work
       done
   in
 

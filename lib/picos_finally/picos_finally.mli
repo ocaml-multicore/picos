@@ -85,7 +85,7 @@ val move : 'r instance -> ('r -> 'a) -> 'a
 
     {[
       let recursive_server server_fd =
-        Bundle.join_after @@ fun bundle ->
+        Flock.join_after @@ fun () ->
 
         (* recursive server *)
         let rec accept () =
@@ -96,12 +96,12 @@ val move : 'r instance -> ('r -> 'a) -> 'a
           in
 
           (* fork to accept other clients *)
-          Bundle.fork bundle accept;
+          Flock.fork accept;
 
           (* handle this client... omitted *)
           ()
         in
-        Bundle.fork bundle accept
+        Flock.fork accept
     ]}
 
     {2 Looping server}
@@ -114,7 +114,7 @@ val move : 'r instance -> ('r -> 'a) -> 'a
 
     {[
       let looping_server server_fd =
-        Bundle.join_after @@ fun bundle ->
+        Flock.join_after @@ fun () ->
 
         (* loop to accept clients *)
         while true do
@@ -125,7 +125,7 @@ val move : 'r instance -> ('r -> 'a) -> 'a
           in
 
           (* fork to handle this client *)
-          Bundle.fork bundle @@ fun () ->
+          Flock.fork @@ fun () ->
             let@ client_fd = move client_fd in
 
             (* handle client... omitted *)
@@ -142,13 +142,13 @@ val move : 'r instance -> ('r -> 'a) -> 'a
 
     {[
       let move_from_child_to_parent () =
-        Bundle.join_after @@ fun bundle ->
+        Flock.join_after @@ fun () ->
 
         (* for communicating a resource *)
         let shared_ivar = Ivar.create () in
 
         (* fork a child that creates a resource *)
-        Bundle.fork bundle begin fun () ->
+        Flock.fork begin fun () ->
           let pretend_release () = ()
           and pretend_acquire () = () in
 

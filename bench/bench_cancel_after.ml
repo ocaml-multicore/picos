@@ -45,7 +45,7 @@ let run_async ~budgetf ~n_domains () =
   let init _ = Countdown.non_atomic_set n_ops_todo n_ops in
   let wrap _ () = Scheduler.run in
   let work domain_index () =
-    Bundle.join_after @@ fun bundle ->
+    Flock.join_after @@ fun () ->
     let queue = Queue.create () in
     let exit = ref false in
 
@@ -56,7 +56,7 @@ let run_async ~budgetf ~n_domains () =
           Computation.wait computation;
           awaiter ()
     in
-    Bundle.fork bundle awaiter;
+    Flock.fork awaiter;
 
     let rec work () =
       let n = Countdown.alloc n_ops_todo ~domain_index ~batch:10 in

@@ -19,9 +19,9 @@ let check join_after scope =
 
 let test_fork_after_terminate () =
   Test_scheduler.run @@ fun () ->
-  check Bundle.join_after @@ fun bundle ->
-  Bundle.terminate bundle;
-  match Bundle.fork bundle (fun () -> Printf.printf "Hello!\n%!") with
+  check Flock.join_after @@ fun () ->
+  Flock.terminate ();
+  match Flock.fork (fun () -> Printf.printf "Hello!\n%!") with
   | () -> assert false
   | exception Control.Terminate -> ()
 
@@ -41,9 +41,9 @@ let test_exception_in_child_terminates () =
     let mutex = Mutex.create () in
     let condition = Condition.create () in
     let blocked = ref false in
-    check Bundle.join_after @@ fun bundle ->
+    check Flock.join_after @@ fun () ->
     begin
-      Bundle.fork bundle @@ fun () ->
+      Flock.fork @@ fun () ->
       begin
         Mutex.protect mutex @@ fun () ->
         while not !blocked do
@@ -69,13 +69,13 @@ let test_cancelation_awaits_children () =
   let blocked = ref false in
   let slept = ref false in
   begin
-    check Bundle.join_after @@ fun bundle ->
+    check Flock.join_after @@ fun () ->
     begin
-      Bundle.fork bundle @@ fun () ->
+      Flock.fork @@ fun () ->
       begin
-        check Bundle.join_after @@ fun bundle ->
+        check Flock.join_after @@ fun () ->
         begin
-          Bundle.fork bundle @@ fun () ->
+          Flock.fork @@ fun () ->
           try
             blocked := true;
             Control.block ()
@@ -92,7 +92,7 @@ let test_cancelation_awaits_children () =
     while not !blocked do
       Control.sleep ~seconds:0.01
     done;
-    Bundle.terminate bundle
+    Flock.terminate ()
   end;
   assert !slept
 
@@ -126,13 +126,13 @@ let test_termination_nests () =
   let condition = Condition.create () in
   let blocked = ref false in
   begin
-    check Bundle.join_after @@ fun bundle ->
+    check Flock.join_after @@ fun () ->
     begin
-      Bundle.fork bundle @@ fun () ->
+      Flock.fork @@ fun () ->
       begin
-        check Bundle.join_after @@ fun bundle ->
+        check Flock.join_after @@ fun () ->
         begin
-          Bundle.fork bundle @@ fun () ->
+          Flock.fork @@ fun () ->
           begin
             Mutex.protect mutex @@ fun () -> blocked := true
           end;
@@ -151,13 +151,13 @@ let test_termination_nests () =
       done
     end;
 
-    Bundle.terminate bundle
+    Flock.terminate ()
   end
 
 let test_promise_cancelation_does_not_terminate () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
-  Bundle.join_after @@ fun bundle ->
-  let promise = Bundle.fork_as_promise bundle @@ fun () -> Control.block () in
+  Flock.join_after @@ fun () ->
+  let promise = Flock.fork_as_promise @@ fun () -> Control.block () in
   Control.yield ();
   Promise.terminate promise;
   Control.yield ()
@@ -165,10 +165,8 @@ let test_promise_cancelation_does_not_terminate () =
 let test_error_in_promise_terminates () =
   match
     Test_scheduler.run ~max_domains:2 @@ fun () ->
-    Bundle.join_after @@ fun bundle ->
-    let promise =
-      Bundle.fork_as_promise bundle @@ fun () -> failwith "I failed"
-    in
+    Flock.join_after @@ fun () ->
+    let promise = Flock.fork_as_promise @@ fun () -> failwith "I failed" in
     Control.block () |> ignore;
     Promise.terminate promise
   with
@@ -177,9 +175,9 @@ let test_error_in_promise_terminates () =
 
 let test_can_wait_promises () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
-  Bundle.join_after @@ fun bundle ->
+  Flock.join_after @@ fun () ->
   let promise =
-    Bundle.fork_as_promise bundle @@ fun () ->
+    Flock.fork_as_promise @@ fun () ->
     Control.sleep ~seconds:0.1;
     42
   in
@@ -187,14 +185,14 @@ let test_can_wait_promises () =
 
 let test_can_select_promises () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
-  Bundle.join_after @@ fun bundle ->
+  Flock.join_after @@ fun () ->
   let a =
-    Bundle.fork_as_promise bundle @@ fun () ->
+    Flock.fork_as_promise @@ fun () ->
     Control.sleep ~seconds:0.1;
     42
-  and b = Bundle.fork_as_promise bundle @@ fun () -> Event.select [] in
+  and b = Flock.fork_as_promise @@ fun () -> Event.select [] in
   assert (Event.select [ Promise.completed a; Promise.completed b ] = 42);
-  Bundle.terminate bundle
+  Flock.terminate ()
 
 let test_any_and_all_errors () =
   [ Run.all; Run.any ]

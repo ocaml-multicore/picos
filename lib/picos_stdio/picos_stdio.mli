@@ -718,8 +718,8 @@ end
         Unix.set_nonblock syn_i;
         Unix.set_nonblock syn_o;
 
-        Bundle.join_after begin fun bundle ->
-          Bundle.fork bundle begin fun () ->
+        Flock.join_after begin fun () ->
+          Flock.fork begin fun () ->
             let bytes = Bytes.create 100 in
             while true do
               let n =
@@ -753,7 +753,7 @@ end
           send_string "Hello, world!";
           send_string "POSIX with OCaml";
 
-          Bundle.terminate bundle
+          Flock.terminate ()
         end
       Hello, world!
       POSIX with OCaml

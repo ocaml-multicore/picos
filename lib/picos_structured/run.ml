@@ -20,10 +20,10 @@ let wrap_any t main =
     Bundle.decr t
 
 let run actions wrap =
-  Bundle.join_after @@ fun t ->
+  Bundle.join_after @@ fun (Bundle r as t : Bundle.t) ->
   try
     let mains = List.map (wrap t) actions in
-    Fiber.spawn ~forbid:false t.bundle mains
+    Fiber.spawn ~forbid:false r.bundle mains
   with exn ->
     Bundle.unsafe_reset t;
     raise exn

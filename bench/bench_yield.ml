@@ -12,14 +12,14 @@ let run_one ~budgetf ~n_fibers () =
   let init _ = () in
   let wrap _ () = Scheduler.run in
   let work _ () =
-    Bundle.join_after @@ fun bundle ->
+    Flock.join_after @@ fun () ->
     let main () =
       for _ = 1 to n_yields_per_fiber do
         Control.yield ()
       done
     in
     for _ = 1 to n_fibers do
-      Bundle.fork bundle main
+      Flock.fork main
     done
   in
   let config =

@@ -118,8 +118,8 @@ let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 10 * Util.iter_factor) () =
   in
   let wrap _ () = Scheduler.run in
   let work domain_index () =
-    Bundle.join_after @@ fun bundle ->
-    Bundle.fork bundle yielder;
+    Flock.join_after @@ fun () ->
+    Flock.fork yielder;
     if domain_index < n_adders then
       let rec work () =
         let n = Countdown.alloc n_msgs_to_add ~domain_index ~batch:100 in
@@ -129,7 +129,7 @@ let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 10 * Util.iter_factor) () =
           done;
           work ()
         end
-        else Bundle.terminate bundle
+        else Flock.terminate ()
       in
       work ()
     else
@@ -141,7 +141,7 @@ let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 10 * Util.iter_factor) () =
           done;
           work ()
         end
-        else Bundle.terminate bundle
+        else Flock.terminate ()
       in
       work ()
   in
