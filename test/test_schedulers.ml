@@ -36,8 +36,8 @@ let test_current () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
   let fiber_parent = Fiber.current () in
   let fiber_child = ref fiber_parent in
-  Bundle.join_after @@ fun bundle ->
-  Bundle.fork bundle (fun () -> fiber_child := Fiber.current ());
+  Flock.join_after @@ fun () ->
+  Flock.fork (fun () -> fiber_child := Fiber.current ());
   while fiber_parent == !fiber_child do
     Control.yield ()
   done

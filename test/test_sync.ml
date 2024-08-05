@@ -48,15 +48,15 @@ let test_mutex_and_condition_errors () =
   let mutex = Mutex.create () in
   let condition = Condition.create () in
   Mutex.protect mutex @@ fun () ->
-  Bundle.join_after @@ fun bundle ->
+  Flock.join_after @@ fun () ->
   begin
-    Bundle.fork bundle @@ fun () ->
+    Flock.fork @@ fun () ->
     match Mutex.unlock mutex with
     | () -> assert false
     | exception Sys_error _ -> ()
   end;
   begin
-    Bundle.fork bundle @@ fun () ->
+    Flock.fork @@ fun () ->
     match Condition.wait condition mutex with
     | () -> assert false
     | exception Sys_error _ -> ()

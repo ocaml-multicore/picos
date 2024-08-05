@@ -153,11 +153,11 @@ module Trigger : sig
 
       {[
         run begin fun () ->
-          Bundle.join_after @@ fun bundle ->
+          Flock.join_after @@ fun () ->
 
           let trigger = Trigger.create () in
 
-          Bundle.fork bundle begin fun () ->
+          Flock.fork begin fun () ->
             Trigger.signal trigger
           end;
 
@@ -428,20 +428,20 @@ module Computation : sig
 
       {[
         run begin fun () ->
-          Bundle.join_after @@ fun bundle ->
+          Flock.join_after @@ fun () ->
 
           let computation =
             Computation.create ()
           in
 
-          let canceler = Bundle.fork_as_promise bundle @@ fun () ->
+          let canceler = Flock.fork_as_promise @@ fun () ->
             Fiber.sleep ~seconds:1.0;
 
             Computation.cancel computation
               (Exn_bt.get_callstack 0 Exit)
           in
 
-          Bundle.fork bundle begin fun () ->
+          Flock.fork begin fun () ->
             let rec fib i =
               Computation.check
                 computation;

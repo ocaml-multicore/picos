@@ -12,9 +12,9 @@ let test_intr () =
   in
   let main () =
     Picos_threaded.run @@ fun () ->
-    Bundle.join_after @@ fun bundle ->
+    Flock.join_after @@ fun () ->
     for _ = 1 to 10 do
-      Bundle.fork bundle @@ fun () ->
+      Flock.fork @@ fun () ->
       for _ = 1 to 1_000 do
         let req = Picos_select.Intr.req ~seconds:0.000_001 in
         match Unix.read inn (Bytes.create 1) 0 1 with

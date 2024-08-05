@@ -502,8 +502,8 @@ end
           Bounded_q.create ~capacity:3
         in
 
-        Bundle.join_after begin fun bundle ->
-          Bundle.fork bundle begin fun () ->
+        Flock.join_after begin fun () ->
+          Flock.fork begin fun () ->
             while true do
               Printf.printf "Popped %d\n%!"
                 (Bounded_q.pop bq)
@@ -519,7 +519,7 @@ end
 
           Control.yield ();
 
-          Bundle.terminate bundle
+          Flock.terminate ()
         end;
 
         Printf.printf "Pushing %d\n%!" 101;

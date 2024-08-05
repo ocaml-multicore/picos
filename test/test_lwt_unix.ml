@@ -3,9 +3,9 @@ open Picos_structured
 let basics () =
   Lwt_main.run @@ Picos_lwt_unix.run
   @@ fun () ->
-  Bundle.join_after @@ fun bundle ->
+  Flock.join_after @@ fun () ->
   let child =
-    Bundle.fork_as_promise bundle @@ fun () ->
+    Flock.fork_as_promise @@ fun () ->
     while true do
       Picos_lwt.await (Lwt_unix.sleep 0.01)
     done

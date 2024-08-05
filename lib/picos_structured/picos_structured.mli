@@ -138,8 +138,9 @@ module Promise : sig
   (** [of_value value] returns a constant completed promise that returns the
       given [value].
 
-      ℹ️ Promises can also be {{!Bundle.fork_as_promise} created} in the scope of
-      a {!Bundle}. *)
+      ℹ️ Promises can also be created in the scope of a
+      {{!Bundle.fork_as_promise} [Bundle]} or a {{!Flock.fork_as_promise}
+      [Flock]}. *)
 
   val await : 'a t -> 'a
   (** [await promise] awaits until the promise has completed and either returns
@@ -181,7 +182,7 @@ module Promise : sig
 end
 
 module Bundle : sig
-  (** A dynamic bundle of fibers guaranteed to be joined at the end.
+  (** An explicit dynamic bundle of fibers guaranteed to be joined at the end.
 
       Bundles allow you to conveniently structure or delimit concurrency into
       nested scopes.  After a bundle returns or raises an exception, no fibers
@@ -244,6 +245,64 @@ module Bundle : sig
       {{!fork_as_promise} [fork_as_promise bundle action |> ignore]}. *)
 end
 
+module Flock : sig
+  (** An implicit dynamic flock of fibers guaranteed to be joined at the end.
+
+      This is essentially a very thin convenience wrapper for an implicitly
+      propagated {!Bundle}. *)
+
+  val join_after : (unit -> 'a) -> 'a
+  (** [join_after scope] creates a new flock for fibers, calls [scope] after
+      setting current flock to the new flock, and restores the previous flock,
+      if any after [scope] exits.  The flock will be implicitly propagated to
+      all fibers {{!fork} forked} into the flock.  A call of [join_after]
+      returns or raises only after [scope] has returned or raised and all
+      {{!fork} forked} fibers have terminated.  If [scope] raises an exception,
+      {!error} will be called.
+
+      ℹ️ When [scope] returns normally, {!terminate} will not be called
+      implicitly. *)
+
+  val terminate : ?callstack:int -> unit -> unit
+  (** [terminate ()] cancels all of the {{!fork} forked} fibers using the
+      {{!Control.Terminate} [Terminate]} exception.  After [terminate] has been
+      called, no new fibers can be forked to the current flock.
+
+      The optional [callstack] argument specifies the number of callstack
+      entries to capture with the {{!Control.Terminate} [Terminate]} exception.
+      The default is [0].
+
+      ℹ️ Calling [terminate] at the end of a flock can be a convenient way to
+      cancel any background fibers started by the flock.
+
+      ℹ️ Calling [terminate] does not raise the {{!Control.Terminate}
+      [Terminate]} exception, but blocking operations after [terminate] will
+      raise the exception to propagate cancelation unless {{!Control.protect}
+      propagation of cancelation is forbidden}. *)
+
+  val terminate_after : ?callstack:int -> seconds:float -> unit -> unit
+  (** [terminate_after ~seconds ()] arranges to {!terminate} the current flock
+      after the specified timeout in [seconds]. *)
+
+  val error : ?callstack:int -> Exn_bt.t -> unit
+  (** [error exn_bt] first calls {!terminate} and then adds the exception with
+      backtrace to the list of exceptions to be raised, unless the exception is
+      the {{!Control.Terminate} [Terminate]} exception, which is not considered
+      to signal an error by itself.
+
+      The optional [callstack] argument is passed to {!terminate}. *)
+
+  val fork_as_promise : (unit -> 'a) -> 'a Promise.t
+  (** [fork_as_promise thunk] spawns a new fiber to the current flock that will
+      run the given [thunk].  The result of the [thunk] will be written to the
+      {{!Promise} promise}.  If the [thunk] raises an exception, {!error} will
+      be called with that exception. *)
+
+  val fork : (unit -> unit) -> unit
+  (** [fork action] is equivalent to
+      {{!fork_as_promise} [fork_as_promise action |> ignore]}. *)
+end
+
 module Run : sig
   (** Operations for running fibers in specific patterns. *)
 
@@ -300,17 +359,17 @@ end
 
     {[
       let main () =
-        Bundle.join_after begin fun bundle ->
+        Flock.join_after begin fun bundle ->
           let promise =
-            Bundle.fork_as_promise bundle
-            @@ fun () -> Control.block ()
+            Flock.fork_as_promise @@ fun () ->
+            Control.block ()
           in
 
-          Bundle.fork bundle begin fun () ->
+          Flock.fork begin fun () ->
             Promise.await promise
           end;
 
-          Bundle.fork bundle begin fun () ->
+          Flock.fork begin fun () ->
             let condition = Condition.create ()
             and mutex = Mutex.create () in
             Mutex.protect mutex begin fun () ->
@@ -320,27 +379,27 @@ end
             end
           end;
 
-          Bundle.fork bundle begin fun () ->
+          Flock.fork begin fun () ->
             Event.sync (Event.choose [])
           end;
 
-          Bundle.fork bundle begin fun () ->
+          Flock.fork begin fun () ->
             let latch = Latch.create 1 in
             Latch.await latch
           end;
 
-          Bundle.fork bundle begin fun () ->
+          Flock.fork begin fun () ->
             let ivar = Ivar.create () in
             Ivar.read ivar
           end;
 
-          Bundle.fork bundle begin fun () ->
+          Flock.fork begin fun () ->
             let stream = Stream.create () in
             Stream.read (Stream.tap stream)
             |> ignore
           end;
 
-          Bundle.fork bundle begin fun () ->
+          Flock.fork begin fun () ->
             let@ inn, out = finally
               Unix.close_pair @@ fun () ->
               Unix.socketpair ~cloexec:true
@@ -354,7 +413,7 @@ end
             assert (n = 1)
           end;
 
-          Bundle.fork bundle begin fun () ->
+          Flock.fork begin fun () ->
             let a_month =
               60.0 *. 60.0 *. 24.0 *. 30.0
             in
@@ -364,7 +423,7 @@ end
           (* Let the children get stuck *)
           Control.yield ();
 
-          Bundle.terminate bundle
+          Flock.terminate ()
         end
     ]}
 
@@ -373,8 +432,8 @@ end
     library and the {{!Picos_stdio.Unix} [Unix]} module comes from the
     {!Picos_stdio} library.  They do not come from the standard OCaml libraries.
 
-    The above program creates a {{!Bundle} bundle} of fibers and {{!Bundle.fork}
-    forks} several fibers to the bundle that all block in various ways.  In
+    The above program creates a {{!Flock} flock} of fibers and {{!Flock.fork}
+    forks} several fibers to the flock that all block in various ways.  In
     detail,
 
     - {!Control.block} never returns,
@@ -393,9 +452,9 @@ end
       is never written to, and the
     - {!Control.sleep} call would return only after about a month.
 
-    Fibers forked to a bundle can be canceled in various ways.  In the above
-    program we call {!Bundle.terminate} to cancel all of the fibers and
-    effectively close the bundle.  This allows the program to return normally
+    Fibers forked to a flock can be canceled in various ways.  In the above
+    program we call {!Flock.terminate} to cancel all of the fibers and
+    effectively close the flock.  This allows the program to return normally
     immediately and without leaking or leaving anything in an invalid state:
 
     {[
@@ -404,19 +463,19 @@ end
     ]}
 
     Now, the point of the above example isn't that you should just call
-    {{!Bundle.terminate} [terminate]} when your program gets stuck. 😅
+    {{!Flock.terminate} [terminate]} when your program gets stuck. 😅
 
     What the above example hopefully demonstrates is that concurrent
     abstractions like mutexes and condition variables, asynchronous IO
     libraries, and others can be designed to support cancelation.
 
     Cancelation is a control flow mechanism that allows structured concurrent
-    abstractions, like the {!Bundle} abstraction, to (hopefully) gracefully tear
+    abstractions, like the {!Flock} abstraction, to (hopefully) gracefully tear
     down concurrent fibers in case of errors.  Indeed, one of the basic ideas
-    behind the {!Bundle} abstraction is that in case any fiber forked to the
-    bundle raises an unhandled exception, the whole bundle will be terminated
-    and the error will raised from the bundle, which allows you to understand
-    what went wrong, instead of having to debug a program that mysteriously gets
+    behind the {!Flock} abstraction is that in case any fiber forked to the
+    flock raises an unhandled exception, the whole flock will be terminated and
+    the error will raised from the flock, which allows you to understand what
+    went wrong, instead of having to debug a program that mysteriously gets
     stuck, for example.
 
     Cancelation can also, with some care, be used as a mechanism to terminate
@@ -432,12 +491,12 @@ end
 
     {[
       let many_errors () =
-        Bundle.join_after @@ fun bundle ->
+        Flock.join_after @@ fun () ->
 
         let latch = Latch.create 1 in
 
         let fork_raising exn =
-          Bundle.fork bundle begin fun () ->
+          Flock.fork begin fun () ->
             Control.protect begin fun () ->
               Latch.await latch
             end;
@@ -474,7 +533,7 @@ end
       let run_server server_fd =
         Unix.listen server_fd 8;
 
-        Bundle.join_after begin fun bundle ->
+        Flock.join_after begin fun () ->
           while true do
             let@ client_fd =
               instantiate Unix.close @@ fun () ->
@@ -483,7 +542,7 @@ end
             in
 
             (* Fork a fiber for client *)
-            Bundle.fork bundle begin fun () ->
+            Flock.fork begin fun () ->
               let@ client_fd =
                 move client_fd
               in
@@ -558,17 +617,17 @@ end
           Unix.getsockname server_fd
         in
 
-        Bundle.join_after begin fun bundle ->
+        Flock.join_after begin fun () ->
           (* Start server *)
           let server =
-            Bundle.fork_as_promise bundle
-            @@ fun () -> run_server server_fd
+            Flock.fork_as_promise @@ fun () ->
+            run_server server_fd
           in
 
           (* Run clients concurrently *)
-          Bundle.join_after begin fun bundle ->
+          Flock.join_after begin fun () ->
             for _ = 1 to 5 do
-              Bundle.fork bundle @@ fun () ->
+              Flock.fork @@ fun () ->
                 run_client server_addr
             done
           end;
@@ -596,6 +655,6 @@ end
 
     As an exercise, you might want to refactor the server to avoid
     {{!Finally.move} moving} the file descriptors and use a {{!Finally.let@}
-    recursive} accept loop instead.  You could also {{!Bundle.terminate}
-    terminate the whole bundle} at the end instead of just terminating the
+    recursive} accept loop instead.  You could also {{!Flock.terminate}
+    terminate the whole flock} at the end instead of just terminating the
     server. *)
