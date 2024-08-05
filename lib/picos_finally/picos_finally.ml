@@ -38,8 +38,8 @@ let rec drop instance =
   | Borrowed as case -> error case
   | Resource r as before ->
       if Atomic.compare_and_set instance before Dropped then begin
-        Trigger.signal r.transferred_or_dropped;
-        r.release r.resource
+        r.release r.resource;
+        Trigger.signal r.transferred_or_dropped
       end
       else drop instance
 
@@ -82,8 +82,9 @@ let[@inline never] instantiate release acquire scope =
       await_transferred_or_dropped instance;
       result
   | exception exn ->
+      let bt = Printexc.get_raw_backtrace () in
       drop instance;
-      raise exn
+      Printexc.raise_with_backtrace exn bt
 
 (* *)
 
@@ -94,15 +95,18 @@ let[@inline never] rec transfer from scope =
   | Resource r as before ->
       let into = Atomic.make Transferred in
       if Atomic.compare_and_set from before Transferred then begin
-        Trigger.signal r.transferred_or_dropped;
         Atomic.set into before;
-        match scope into with
+        match
+          Trigger.signal r.transferred_or_dropped;
+          scope into
+        with
         | result ->
             await_transferred_or_dropped into;
             result
         | exception exn ->
+            let bt = Printexc.get_raw_backtrace () in
             drop into;
-            raise exn
+            Printexc.raise_with_backtrace exn bt
       end
       else transfer from scope
 
@@ -118,6 +122,7 @@ let[@inline never] rec borrow instance scope =
             Atomic.set instance before;
             result
         | exception exn ->
+            (* [Atomic.set] should not disturb the stack trace. *)
             Atomic.set instance before;
             raise exn
       end
@@ -131,14 +136,17 @@ let[@inline never] rec move from scope =
   | Dropped -> check_released ()
   | Resource r as before ->
       if Atomic.compare_and_set from before Transferred then begin
-        Trigger.signal r.transferred_or_dropped;
-        match scope r.resource with
+        match
+          Trigger.signal r.transferred_or_dropped;
+          scope r.resource
+        with
         | result ->
             r.release r.resource;
             result
         | exception exn ->
+            let bt = Printexc.get_raw_backtrace () in
             r.release r.resource;
-            raise exn
+            Printexc.raise_with_backtrace exn bt
       end
       else move from scope
 
@@ -151,7 +159,8 @@ let[@inline never] finally release acquire scope =
       release x;
       y
   | exception exn ->
+      let bt = Printexc.get_raw_backtrace () in
       release x;
-      raise exn
+      Printexc.raise_with_backtrace exn bt
 
 external ( let@ ) : ('a -> 'b) -> 'a -> 'b = "%apply"
