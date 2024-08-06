@@ -359,7 +359,7 @@ end
 
     {[
       let main () =
-        Flock.join_after begin fun bundle ->
+        Flock.join_after begin fun () ->
           let promise =
             Flock.fork_as_promise @@ fun () ->
             Control.block ()
