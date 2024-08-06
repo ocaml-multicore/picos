@@ -51,8 +51,8 @@ open Picos_sync</code></pre><h3 id="one-of-many"><a href="#one-of-many" class="a
     assert (w = 1)
   in
 
-  Bundle.join_after begin fun bundle -&gt;
-    Bundle.fork bundle begin fun () -&gt;
+  Flock.join_after begin fun () -&gt;
+    Flock.fork begin fun () -&gt;
       while true do
         Event.select [
           Picos_select.on msg_inn1 `R
@@ -82,7 +82,7 @@ open Picos_sync</code></pre><h3 id="one-of-many"><a href="#one-of-many" class="a
     write1 msg_out2;
     read1 syn_inn;
 
-    Bundle.terminate bundle
+    Flock.terminate ()
   end
 Inn1
 Inn2
