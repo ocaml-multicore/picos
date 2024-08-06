@@ -29,6 +29,8 @@ module Fiber = struct
   include Picos_ocaml.Fiber
 
   module Maybe = struct
+    let[@inline never] not_a_fiber () = invalid_arg "not a fiber"
+
     type t = T : [< `Nothing | `Fiber ] tdt -> t [@@unboxed]
 
     let[@inline] to_fiber_or_current = function
@@ -57,6 +59,10 @@ module Fiber = struct
     let[@inline] check = function
       | T Nothing -> ()
       | T (Fiber _ as t) -> check t
+
+    let[@inline] to_fiber = function
+      | T Nothing -> not_a_fiber ()
+      | T (Fiber _ as t) -> t
   end
 
   exception Done

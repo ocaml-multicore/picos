@@ -1000,6 +1000,11 @@ module Fiber : sig
 
         🏎️ This performs no allocations. *)
 
+    val to_fiber : t -> fiber
+    (** [to_fiber] casts the optional fiber to a fiber.
+
+        @raise Invalid_argument in case the optional fiber is {!nothing}. *)
+
     val current_if : bool option -> t
     (** [current_if checked] returns {!nothing} in case [checked] is
         [Some false] and otherwise [of_fiber (Fiber.current ())]. *)
