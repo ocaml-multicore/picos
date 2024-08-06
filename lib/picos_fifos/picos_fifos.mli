@@ -22,9 +22,13 @@
     This scheduler also gives priority to fibers woken up from
     {{!Picos.Trigger.await} [await]} due to being canceled. *)
 
-val run : ?forbid:bool -> (unit -> 'a) -> 'a
+val run : ?quota:int -> ?forbid:bool -> (unit -> 'a) -> 'a
 (** [run main] runs the [main] thunk with the scheduler.  Returns after [main]
     and all of the fibers spawned by [main] have returned.
 
     The optional [forbid] argument defaults to [false] and determines whether
-    propagation of cancelation is initially allowed. *)
+    propagation of cancelation is initially allowed.
+
+    The optional [quota] argument defaults to [Int.max_int] and determines the
+    number of effects a fiber is allowed to perform before it is forced to
+    yield. *)

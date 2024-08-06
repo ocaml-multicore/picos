@@ -1,11 +1,15 @@
 open Picos
 
+let[@inline never] quota_non_positive () = invalid_arg "quota must be positive"
+
 (* As a minor optimization, we avoid allocating closures, which take slightly
    more memory than values of this type. *)
 type ready =
   | Spawn of Fiber.t * (unit -> unit)
+  | Current of Fiber.t * (Fiber.t, unit) Effect.Deep.continuation
   | Continue of Fiber.t * (unit, unit) Effect.Deep.continuation
   | Resume of Fiber.t * (Exn_bt.t option, unit) Effect.Deep.continuation
+  | Return of Fiber.t * (unit, unit) Effect.Deep.continuation
 
 type t = {
   ready : ready Picos_mpscq.t;
@@ -18,7 +22,14 @@ type t = {
     Fiber.t ->
     (Exn_bt.t option, unit) Effect.Deep.continuation ->
     unit;
-  retc : unit -> unit;
+  current : ((Fiber.t, unit) Effect.Deep.continuation -> unit) option;
+  yield : ((unit, unit) Effect.Deep.continuation -> unit) option;
+  return : ((unit, unit) Effect.Deep.continuation -> unit) option;
+  discontinue : ((unit, unit) Effect.Deep.continuation -> unit) option;
+  handler : (unit, unit) Effect.Deep.handler;
+  quota : int;
+  mutable fiber : Fiber.Maybe.t;
+  mutable remaining_quota : int;
 }
 
 let rec spawn t n forbid packed = function
@@ -28,61 +39,30 @@ let rec spawn t n forbid packed = function
       Picos_mpscq.push t.ready (Spawn (fiber, main));
       spawn t (n + 1) forbid packed mains
 
-let continue = Some (fun k -> Effect.Deep.continue k ())
-
 let rec next t =
   match Picos_mpscq.pop_exn t.ready with
   | Spawn (fiber, main) ->
-      let current =
-        (* The current handler must never propagate cancelation, but it would be
-           possible to continue some other fiber and resume the current fiber
-           later. *)
-        Some (fun k -> Effect.Deep.continue k fiber)
-      and yield =
-        Some
-          (fun k ->
-            Picos_mpscq.push t.ready (Continue (fiber, k));
-            next t)
-      and discontinue = Some (fun k -> Fiber.continue fiber k ()) in
-      let[@alert "-handler"] effc (type a) :
-          a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option = function
-        | Fiber.Current ->
-            (* We handle [Current] first as it is perhaps the most latency
-               sensitive effect. *)
-            current
-        | Fiber.Spawn r ->
-            (* We check cancelation status once and then either perform the
-               whole operation or discontinue the fiber. *)
-            if Fiber.is_canceled fiber then discontinue
-            else begin
-              spawn t 0 r.forbid (Packed r.computation) r.mains;
-              continue
-            end
-        | Fiber.Yield -> yield
-        | Computation.Cancel_after r -> begin
-            (* We check cancelation status once and then either perform the
-               whole operation or discontinue the fiber. *)
-            if Fiber.is_canceled fiber then discontinue
-            else
-              match
-                Select.cancel_after r.computation ~seconds:r.seconds r.exn_bt
-              with
-              | () -> continue
-              | exception exn ->
-                  let exn_bt = Exn_bt.get exn in
-                  Some (fun k -> Exn_bt.discontinue k exn_bt)
-          end
-        | Trigger.Await trigger ->
-            Some
-              (fun k ->
-                if Fiber.try_suspend fiber trigger fiber k t.resume then next t
-                else Fiber.resume fiber k)
-        | _ -> None
-      in
-      Effect.Deep.match_with main () { retc = t.retc; exnc = raise; effc }
-  | Continue (fiber, k) -> Fiber.continue fiber k ()
-  | Resume (fiber, k) -> Fiber.resume fiber k
+      t.fiber <- Fiber.Maybe.of_fiber fiber;
+      t.remaining_quota <- t.quota;
+      Effect.Deep.match_with main () t.handler
+  | Current (fiber, k) ->
+      t.fiber <- Fiber.Maybe.of_fiber fiber;
+      t.remaining_quota <- t.quota;
+      Effect.Deep.continue k fiber
+  | Return (fiber, k) ->
+      t.fiber <- Fiber.Maybe.of_fiber fiber;
+      t.remaining_quota <- t.quota;
+      Effect.Deep.continue k ()
+  | Continue (fiber, k) ->
+      t.fiber <- Fiber.Maybe.of_fiber fiber;
+      t.remaining_quota <- t.quota;
+      Fiber.continue fiber k ()
+  | Resume (fiber, k) ->
+      t.fiber <- Fiber.Maybe.of_fiber fiber;
+      t.remaining_quota <- t.quota;
+      Fiber.resume fiber k
   | exception Picos_mpscq.Empty ->
+      t.fiber <- Fiber.Maybe.nothing;
       if Atomic.get t.num_alive_fibers <> 0 then begin
         if Atomic.get t.needs_wakeup then begin
           Mutex.lock t.mutex;
@@ -102,7 +82,14 @@ let rec next t =
         next t
       end
 
-let run ?(forbid = false) main =
+let run ?quota ?(forbid = false) main =
+  let quota =
+    match quota with
+    | None -> Int.max_int
+    | Some quota ->
+        if quota <= 0 then quota_non_positive ();
+        quota
+  in
   Select.check_configured ();
   let ready = Picos_mpscq.create ~padded:true ()
   and needs_wakeup = Atomic.make false |> Multicore_magic.copy_as_padded
@@ -110,7 +97,101 @@ let run ?(forbid = false) main =
   and mutex = Mutex.create ()
   and condition = Condition.create () in
   let rec t =
-    { ready; needs_wakeup; num_alive_fibers; mutex; condition; resume; retc }
+    {
+      ready;
+      fiber = Fiber.Maybe.nothing;
+      needs_wakeup;
+      num_alive_fibers;
+      mutex;
+      condition;
+      resume;
+      current;
+      yield;
+      return;
+      discontinue;
+      handler;
+      quota;
+      remaining_quota = quota;
+    }
+  and current =
+    (* The current handler must never propagate cancelation, but it would be
+       possible to continue some other fiber and resume the current fiber
+       later. *)
+    Some
+      (fun k ->
+        let remaining_quota = t.remaining_quota - 1 in
+        let fiber = Fiber.Maybe.to_fiber t.fiber in
+        if 0 < remaining_quota then Effect.Deep.continue k fiber
+        else begin
+          Picos_mpscq.push t.ready (Current (fiber, k));
+          next t
+        end)
+  and yield =
+    Some
+      (fun k ->
+        let fiber = Fiber.Maybe.to_fiber t.fiber in
+        Picos_mpscq.push t.ready (Continue (fiber, k));
+        next t)
+  and return =
+    Some
+      (fun k ->
+        let remaining_quota = t.remaining_quota - 1 in
+        if 0 < remaining_quota then Effect.Deep.continue k ()
+        else begin
+          let fiber = Fiber.Maybe.to_fiber t.fiber in
+          Picos_mpscq.push t.ready (Return (fiber, k));
+          next t
+        end)
+  and discontinue =
+    Some
+      (fun k ->
+        let fiber = Fiber.Maybe.to_fiber t.fiber in
+        Fiber.continue fiber k ())
+  and handler = { retc; exnc = raise; effc }
+  and[@alert "-handler"] effc :
+      type a. a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option =
+    function
+    | Fiber.Current ->
+        (* We handle [Current] first as it is perhaps the most latency
+           sensitive effect. *)
+        t.current
+    | Fiber.Spawn r ->
+        (* We check cancelation status once and then either perform the
+           whole operation or discontinue the fiber. *)
+        let fiber = Fiber.Maybe.to_fiber t.fiber in
+        if Fiber.is_canceled fiber then t.discontinue
+        else begin
+          spawn t 0 r.forbid (Packed r.computation) r.mains;
+          t.return
+        end
+    | Fiber.Yield -> t.yield
+    | Computation.Cancel_after r -> begin
+        (* We check cancelation status once and then either perform the
+           whole operation or discontinue the fiber. *)
+        let fiber = Fiber.Maybe.to_fiber t.fiber in
+        if Fiber.is_canceled fiber then t.discontinue
+        else
+          match
+            Select.cancel_after r.computation ~seconds:r.seconds r.exn_bt
+          with
+          | () -> t.return
+          | exception exn ->
+              let exn_bt = Exn_bt.get exn in
+              Some (fun k -> Exn_bt.discontinue k exn_bt)
+      end
+    | Trigger.Await trigger ->
+        Some
+          (fun k ->
+            let fiber = Fiber.Maybe.to_fiber t.fiber in
+            if Fiber.try_suspend fiber trigger fiber k t.resume then next t
+            else
+              let remaining_quota = t.remaining_quota - 1 in
+              if 0 < remaining_quota then Fiber.resume fiber k
+              else begin
+                Picos_mpscq.push t.ready (Resume (fiber, k));
+                next t
+              end)
+    | _ -> None
   and retc () =
     Atomic.decr t.num_alive_fibers;
     next t
