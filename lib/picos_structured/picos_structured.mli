@@ -249,7 +249,12 @@ module Flock : sig
   (** An implicit dynamic flock of fibers guaranteed to be joined at the end.
 
       This is essentially a very thin convenience wrapper for an implicitly
-      propagated {!Bundle}. *)
+      propagated {!Bundle}.
+
+      ⚠️ All of the operations in this module, except {!join_after}, raise the
+      {!Invalid_argument} exception in case they are called from outside of the
+      dynamic multifiber scope of a flock established by calling
+      {!join_after}. *)
 
   val join_after : (unit -> 'a) -> 'a
   (** [join_after scope] creates a new flock for fibers, calls [scope] after
