@@ -33,7 +33,7 @@ module Fiber = struct
 
     let[@inline] to_fiber_or_current = function
       | T Nothing -> current ()
-      | T (Fiber r) -> Fiber r
+      | T (Fiber _ as t) -> t
 
     let[@inline] or_current t = T (to_fiber_or_current t)
     let nothing = T Nothing
@@ -56,7 +56,7 @@ module Fiber = struct
 
     let[@inline] check = function
       | T Nothing -> ()
-      | T (Fiber r) -> check (Fiber r)
+      | T (Fiber _ as t) -> check t
   end
 
   exception Done
