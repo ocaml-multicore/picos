@@ -113,17 +113,11 @@ let test_select () =
 
   Flock.terminate ();
 
-  let expected = [| "Inn1"; "Inn2"; "Timeout" |] in
-  let actual =
-    (* Ignore additional timeouts *)
-    Array.sub
-      (Array.of_seq
-         (Picos_mpscq.pop_all events |> Seq.drop_while (( = ) "Timeout")))
-      0 (Array.length expected)
-  in
+  let events = Picos_mpscq.pop_all events in
 
-  (* This is non-deterministic and might need to be changed if flaky *)
-  Alcotest.(check' (array string)) ~msg:"events" ~actual ~expected
+  assert (Seq.exists (( = ) "Timeout") events);
+  assert (
+    List.of_seq (Seq.filter (( <> ) "Timeout") events) = [ "Inn1"; "Inn2" ])
 
 let () =
   [
