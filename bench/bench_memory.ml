@@ -37,9 +37,33 @@ let run_suite ~budgetf:_ =
       end;
       begin
         Scheduler.run @@ fun () ->
+        let open Picos_structured in
+        Bundle.join_after @@ fun bundle ->
+        let n = 10_000 in
+        let bytes =
+          measure_live_bytes @@ fun () ->
+          let main () =
+            while true do
+              Control.yield ()
+            done
+          in
+          for _ = 1 to n do
+            Bundle.fork_as_promise bundle main |> ignore
+          done;
+          Control.yield ()
+        in
+        Bundle.terminate bundle;
+        Metric.make ~metric:"memory used" ~config:"promise in a bundle"
+          ~units:"B" ~trend:`Lower_is_better ~description:"Memory usage"
+          (`Float (Float.of_int (bytes / n)))
+      end;
+      begin
+        Scheduler.run @@ fun () ->
         let open Picos in
         let open Picos_sync in
         let computation = Computation.create () in
+        let (Packed main) = Fiber.get_computation (Fiber.current ()) in
+        let _ = Computation.attach_canceler ~from:main ~into:computation in
         let n = 10_000 in
         let latch = Latch.create 1 in
         let bytes =
