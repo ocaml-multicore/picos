@@ -248,7 +248,16 @@ end
 module Flock : sig
   (** An implicit dynamic flock of fibers guaranteed to be joined at the end.
 
-      This is essentially a very thin convenience wrapper for an implicitly
+      Flocks allow you to conveniently structure or delimit concurrency into
+      nested scopes.  After a flock returns or raises an exception, no fibers
+      {{!fork} forked} to the flock remain.
+
+      An unhandled exception, or error, within any fiber of the flock causes all
+      of the fibers {{!fork} forked} to the flock to be canceled and the flock
+      to raise the error exception or {{!Control.Errors} error exceptions}
+      raised by all of the fibers forked into the flock.
+
+      ℹ️ This is essentially a very thin convenience wrapper for an implicitly
       propagated {!Bundle}.
 
       ⚠️ All of the operations in this module, except {!join_after}, raise the
