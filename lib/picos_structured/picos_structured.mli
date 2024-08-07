@@ -474,7 +474,7 @@ end
     abstractions like mutexes and condition variables, asynchronous IO
     libraries, and others can be designed to support cancelation.
 
-    Cancelation is a control flow mechanism that allows structured concurrent
+    Cancelation is a signaling mechanism that allows structured concurrent
     abstractions, like the {!Flock} abstraction, to (hopefully) gracefully tear
     down concurrent fibers in case of errors.  Indeed, one of the basic ideas
     behind the {!Flock} abstraction is that in case any fiber forked to the
