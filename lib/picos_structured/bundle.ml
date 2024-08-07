@@ -85,8 +85,6 @@ let join_after_pass (type a) (fn : a -> _) (pass : a pass) =
       await t fiber packed canceler outer pass;
       Exn_bt.raise exn_bt
 
-let join_after fn = join_after_pass fn Arg
-
 let rec incr (Bundle r as t : t) backoff =
   let before = Atomic.get r.num_fibers in
   if before = 0 then completed ()
@@ -124,11 +122,31 @@ let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
     decr t;
     raise canceled_exn
 
-let fork_as_promise t thunk = fork_as_promise_pass t thunk Arg
-let fork t thunk = fork_as_promise t thunk |> ignore
+let fork_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
+  (* The sequence of operations below ensures that nothing is leaked. *)
+  incr t Backoff.default;
+  try
+    let main () =
+      begin
+        match pass with
+        | FLS -> Fiber.FLS.set (Fiber.current ()) flock_key t
+        | Arg -> ()
+      end;
+      begin
+        try thunk () with exn -> error t (Exn_bt.get exn)
+      end;
+      decr t
+    in
+    Fiber.spawn ~forbid:false r.bundle [ main ]
+  with canceled_exn ->
+    decr t;
+    raise canceled_exn
 
 (* *)
 
+let join_after fn = join_after_pass fn Arg
+let fork t thunk = fork_pass t thunk Arg
+let fork_as_promise t thunk = fork_as_promise_pass t thunk Arg
 let is_running (Bundle r : t) = Computation.is_running r.bundle
 let unsafe_incr (Bundle r : t) = Atomic.incr r.num_fibers
 let unsafe_reset (Bundle r : t) = Atomic.set r.num_fibers 1
