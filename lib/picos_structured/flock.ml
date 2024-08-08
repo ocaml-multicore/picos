@@ -1,11 +1,6 @@
 open Picos
 
-let[@inline never] no_flock () = invalid_arg "no flock"
-
-let get () =
-  match Fiber.FLS.get (Fiber.current ()) Bundle.flock_key with
-  | Nothing -> no_flock ()
-  | Bundle _ as t -> t
+let get () = Bundle.get_flock (Fiber.current ())
 
 let terminate_after ?callstack ~seconds () =
   Bundle.terminate_after ?callstack (get ()) ~seconds
