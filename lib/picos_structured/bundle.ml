@@ -39,6 +39,13 @@ let decr (Bundle r : t) =
 
 type _ pass = FLS : unit pass | Arg : t pass
 
+let[@inline never] no_flock () = invalid_arg "no flock"
+
+let get_flock fiber =
+  match Fiber.FLS.get fiber flock_key with
+  | Nothing -> no_flock ()
+  | Bundle _ as t -> t
+
 let await (type a) (Bundle r as t : t) fiber packed canceler outer
     (pass : a pass) =
   decr t;
@@ -94,31 +101,49 @@ let rec incr (Bundle r as t : t) backoff =
 let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
   (* The sequence of operations below ensures that nothing is leaked. *)
   incr t Backoff.default;
-  let child = Computation.create ~mode:`LIFO () in
   try
+    let child = Computation.create ~mode:`LIFO () in
     let canceler = Computation.attach_canceler ~from:r.bundle ~into:child in
-    let main () =
-      begin
-        match pass with
-        | FLS -> Fiber.FLS.set (Fiber.current ()) flock_key t
-        | Arg -> ()
-      end;
-      begin
-        match thunk () with
-        | value -> Computation.return child value
-        | exception exn ->
-            let exn_bt = Exn_bt.get exn in
-            Computation.cancel child exn_bt;
-            error t exn_bt
-      end;
-      Computation.detach r.bundle canceler;
-      decr t
+    let main =
+      match pass with
+      | FLS ->
+          let main () =
+            let fiber = Fiber.current () in
+            Fiber.FLS.set fiber flock_key t;
+            begin
+              match thunk () with
+              | value -> Computation.return child value
+              | exception exn ->
+                  let exn_bt = Exn_bt.get exn in
+                  Computation.cancel child exn_bt;
+                  error (get_flock fiber) exn_bt
+            end;
+            let (Bundle r as t : t) = get_flock fiber in
+            Computation.detach r.bundle canceler;
+            decr t
+          in
+          [ main ]
+      | Arg ->
+          let main () =
+            begin
+              match thunk () with
+              | value -> Computation.return child value
+              | exception exn ->
+                  let exn_bt = Exn_bt.get exn in
+                  Computation.cancel child exn_bt;
+                  error t exn_bt
+            end;
+            Computation.detach r.bundle canceler;
+            decr t
+          in
+          [ main ]
     in
-    Fiber.spawn ~forbid:false child [ main ];
+    Fiber.spawn ~forbid:false child main;
     child
   with canceled_exn ->
-    (* We don't need to worry about detaching the [canceler], because at this
-       point we know the bundle computation has completed. *)
+    (* We don't worry about detaching the [canceler], because at this point we
+       know the bundle computation has completed or there is something more
+       serious. *)
     decr t;
     raise canceled_exn
 
@@ -126,18 +151,29 @@ let fork_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
   (* The sequence of operations below ensures that nothing is leaked. *)
   incr t Backoff.default;
   try
-    let main () =
-      begin
-        match pass with
-        | FLS -> Fiber.FLS.set (Fiber.current ()) flock_key t
-        | Arg -> ()
-      end;
-      begin
-        try thunk () with exn -> error t (Exn_bt.get exn)
-      end;
-      decr t
+    let main =
+      match pass with
+      | FLS ->
+          let main () =
+            let fiber = Fiber.current () in
+            Fiber.FLS.set fiber flock_key t;
+            begin
+              try thunk ()
+              with exn -> error (get_flock fiber) (Exn_bt.get exn)
+            end;
+            decr (get_flock fiber)
+          in
+          [ main ]
+      | Arg ->
+          let main () =
+            begin
+              try thunk () with exn -> error t (Exn_bt.get exn)
+            end;
+            decr t
+          in
+          [ main ]
     in
-    Fiber.spawn ~forbid:false r.bundle [ main ]
+    Fiber.spawn ~forbid:false r.bundle main
   with canceled_exn ->
     decr t;
     raise canceled_exn
