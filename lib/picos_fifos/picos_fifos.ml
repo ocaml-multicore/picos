@@ -121,7 +121,10 @@ let run ?quota ?(forbid = false) main =
       (fun k ->
         let remaining_quota = t.remaining_quota - 1 in
         let fiber = Fiber.Maybe.to_fiber t.fiber in
-        if 0 < remaining_quota then Effect.Deep.continue k fiber
+        if 0 < remaining_quota then begin
+          t.remaining_quota <- remaining_quota;
+          Effect.Deep.continue k fiber
+        end
         else begin
           Picos_mpscq.push t.ready (Current (fiber, k));
           next t
@@ -136,7 +139,10 @@ let run ?quota ?(forbid = false) main =
     Some
       (fun k ->
         let remaining_quota = t.remaining_quota - 1 in
-        if 0 < remaining_quota then Effect.Deep.continue k ()
+        if 0 < remaining_quota then begin
+          t.remaining_quota <- remaining_quota;
+          Effect.Deep.continue k ()
+        end
         else begin
           let fiber = Fiber.Maybe.to_fiber t.fiber in
           Picos_mpscq.push t.ready (Return (fiber, k));
@@ -186,7 +192,10 @@ let run ?quota ?(forbid = false) main =
             if Fiber.try_suspend fiber trigger fiber k t.resume then next t
             else
               let remaining_quota = t.remaining_quota - 1 in
-              if 0 < remaining_quota then Fiber.resume fiber k
+              if 0 < remaining_quota then begin
+                t.remaining_quota <- remaining_quota;
+                Fiber.resume fiber k
+              end
               else begin
                 Picos_mpscq.push t.ready (Resume (fiber, k));
                 next t
