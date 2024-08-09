@@ -50,7 +50,7 @@ or auxiliary libraries.
 
 ⚠️ Please note that Picos is still considered experimental and unstable.
 
-### Why?
+## Motivation
 
 There are already several concrete effects-based concurrent programming
 libraries and models being developed. Here is a list of some such publicly
@@ -101,3 +101,123 @@ to
 Please read
 [the reference manual](https://ocaml-multicore.github.io/picos/doc/picos/index.html)
 for further information.
+
+## Introduction
+
+### The architecture of Picos
+
+#### Understanding Cancelation
+
+#### Concepts
+
+<!--
+``` ocaml
+open Picos
+```
+-->
+
+#### Trigger
+
+- first order
+
+```ocaml
+module type Trigger = sig
+  type t
+  val create : unit -> t           (* initial *)
+  val signal : t -> unit           (* signaled *)
+  val await : t -> Exn_bt.t option (* awaiting *)
+end
+```
+
+```ocaml
+module type Ivar = sig
+  type 'a t
+  val create : unit -> 'a t
+  val try_fill : 'a t -> 'a -> bool
+  val read : 'a t -> 'a
+end
+```
+
+```ocaml
+module Ivar = struct
+  type 'a state =
+    | Filled of 'a
+    | Empty of Trigger.t list
+  type 'a t = 'a state Atomic.t
+
+  let create () = Atomic.make (Empty [])
+
+  let rec try_fill t value =
+    match Atomic.get t with
+    | Filled _ -> false
+    | Empty triggers as before ->
+      let after = Filled value in
+      if Atomic.compare_and_set t before after then begin
+        List.iter Trigger.signal triggers;
+        true
+      end
+      else
+        try_fill t value
+
+  let rec cleanup t trigger =
+    match Atomic.get t with
+    | Filled _ -> ()
+    | Empty triggers as before ->
+      let triggers = List.filter ((!=) trigger) triggers in
+      let after = Empty triggers in
+      if not (Atomic.compare_and_set t before after) then
+        cleanup t trigger
+
+  let rec read t =
+    match Atomic.get t with
+    | Filled value -> value
+    | Empty triggers as before ->
+      let trigger = Trigger.create () in
+      let after = Empty (trigger :: triggers) in
+      if Atomic.compare_and_set t before after then
+        match Trigger.await trigger with
+        | None -> read t
+        | Some exn_bt ->
+          cleanup t trigger;
+          Exn_bt.raise exn_bt
+      else
+        read t
+end
+```
+
+#### Computation
+
+```ocaml
+module type Computation = sig
+  type 'a t
+
+  val create : unit -> 'a t                 (* running *)
+
+  val try_return : 'a t -> 'a -> bool       (* completed *)
+  val try_cancel : 'a t -> Exn_bt.t -> bool (* completed *)
+
+  val try_attach : 'a t -> Trigger.t -> bool
+  val detach : 'a t -> Trigger.t -> unit
+end
+```
+
+- notification of status change
+
+  - cleanup
+
+```ocaml
+module Ivar : Ivar = struct
+  type 'a t = 'a Computation.t
+  let create () = Computation.create ()
+  let try_fill = Computation.try_return
+  let read = Computation.await
+end
+```
+
+#### Fiber
+
+### Elements of Concurrency
+
+### Performance
+
+### Future of Schedulers
