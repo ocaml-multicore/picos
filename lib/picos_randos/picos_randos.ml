@@ -28,11 +28,11 @@ end
 
 type ready =
   | Spawn of Fiber.t * (Fiber.t -> unit)
-  | Current of Fiber.t * (Fiber.t, unit) Effect.Deep.continuation
-  | Continue of Fiber.t * (unit, unit) Effect.Deep.continuation
-  | Resume of Fiber.t * (Exn_bt.t option, unit) Effect.Deep.continuation
-  | Raise of (unit, unit) Effect.Deep.continuation * Exn_bt.t
-  | Return of (unit, unit) Effect.Deep.continuation
+  | Current of Fiber.t * (Fiber.t, unit) Effect.Shallow.continuation
+  | Continue of Fiber.t * (unit, unit) Effect.Shallow.continuation
+  | Resume of Fiber.t * (Exn_bt.t option, unit) Effect.Shallow.continuation
+  | Raise of Fiber.t * (unit, unit) Effect.Shallow.continuation * Exn_bt.t
+  | Return of Fiber.t * (unit, unit) Effect.Shallow.continuation
 
 type t = {
   ready : ready Collection.t;
@@ -41,9 +41,8 @@ type t = {
   resume :
     Trigger.t ->
     Fiber.t ->
-    (Exn_bt.t option, unit) Effect.Deep.continuation ->
+    (Exn_bt.t option, unit) Effect.Shallow.continuation ->
     unit;
-  retc : unit -> unit;
   exnc : exn -> unit;
   num_waiters : int ref;
   condition : Condition.t;
@@ -51,98 +50,70 @@ type t = {
   mutable run : bool;
 }
 
-let rec next t =
-  match Collection.pop_exn t.ready with
+type per_thread = {
+  context : t;
+  current : ((Fiber.t, unit) Effect.Shallow.continuation -> unit) option;
+  yield : ((unit, unit) Effect.Shallow.continuation -> unit) option;
+  return : ((unit, unit) Effect.Shallow.continuation -> unit) option;
+  handler : (unit, unit) Effect.Shallow.handler;
+  mutable fiber : Fiber.Maybe.t;
+}
+
+let rec next p =
+  match Collection.pop_exn p.context.ready with
   | Spawn (fiber, main) ->
-      let current =
-        Some
-          (fun k ->
-            Collection.push t.ready (Current (fiber, k));
-            next t)
-      and yield =
-        Some
-          (fun k ->
-            Collection.push t.ready (Continue (fiber, k));
-            next t)
-      and return =
-        Some
-          (fun k ->
-            Collection.push t.ready (Return k);
-            next t)
-      in
-      let[@alert "-handler"] effc (type a) :
-          a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option = function
-        | Fiber.Current -> current
-        | Fiber.Spawn r ->
-            if Fiber.is_canceled fiber then yield
-            else begin
-              Atomic.incr t.num_alive_fibers;
-              Collection.push t.ready (Spawn (r.fiber, r.main));
-              if !(t.num_waiters_non_zero) then Condition.signal t.condition;
-              return
-            end
-        | Fiber.Yield -> yield
-        | Computation.Cancel_after r -> begin
-            if Fiber.is_canceled fiber then yield
-            else
-              match
-                Select.cancel_after r.computation ~seconds:r.seconds r.exn_bt
-              with
-              | () -> return
-              | exception exn ->
-                  let exn_bt = Exn_bt.get exn in
-                  Some
-                    (fun k ->
-                      Collection.push t.ready (Raise (k, exn_bt));
-                      next t)
-          end
-        | Trigger.Await trigger ->
-            Some
-              (fun k ->
-                if Fiber.try_suspend fiber trigger fiber k t.resume then next t
-                else begin
-                  Collection.push t.ready (Resume (fiber, k));
-                  next t
-                end)
-        | _ -> None
-      in
-      Effect.Deep.match_with main fiber { retc = t.retc; exnc = t.exnc; effc }
-  | Raise (k, exn_bt) -> Exn_bt.discontinue k exn_bt
-  | Return k -> Effect.Deep.continue k ()
-  | Current (fiber, k) -> Effect.Deep.continue k fiber
-  | Continue (fiber, k) -> Fiber.continue fiber k ()
-  | Resume (fiber, k) -> Fiber.resume fiber k
+      p.fiber <- Fiber.Maybe.of_fiber fiber;
+      let k = Effect.Shallow.fiber main in
+      Effect.Shallow.continue_with k fiber p.handler
+  | Raise (fiber, k, exn_bt) ->
+      p.fiber <- Fiber.Maybe.of_fiber fiber;
+      Exn_bt.discontinue_with k exn_bt p.handler
+  | Return (fiber, k) ->
+      p.fiber <- Fiber.Maybe.of_fiber fiber;
+      Effect.Shallow.continue_with k () p.handler
+  | Current (fiber, k) ->
+      p.fiber <- Fiber.Maybe.of_fiber fiber;
+      Effect.Shallow.continue_with k fiber p.handler
+  | Continue (fiber, k) ->
+      p.fiber <- Fiber.Maybe.of_fiber fiber;
+      Fiber.continue_with fiber k () p.handler
+  | Resume (fiber, k) ->
+      p.fiber <- Fiber.Maybe.of_fiber fiber;
+      Fiber.resume_with fiber k p.handler
   | exception Not_found ->
-      if Atomic.get t.num_alive_fibers <> 0 then begin
-        Mutex.lock t.mutex;
-        if Collection.is_empty t.ready && Atomic.get t.num_alive_fibers <> 0
+      p.fiber <- Fiber.Maybe.nothing;
+      if Atomic.get p.context.num_alive_fibers <> 0 then begin
+        Mutex.lock p.context.mutex;
+        if
+          Collection.is_empty p.context.ready
+          && Atomic.get p.context.num_alive_fibers <> 0
         then begin
-          let n = !(t.num_waiters) + 1 in
-          t.num_waiters := n;
-          if n = 1 then t.num_waiters_non_zero := true;
-          match Condition.wait t.condition t.mutex with
+          let n = !(p.context.num_waiters) + 1 in
+          p.context.num_waiters := n;
+          if n = 1 then p.context.num_waiters_non_zero := true;
+          match Condition.wait p.context.condition p.context.mutex with
           | () ->
-              let n = !(t.num_waiters) - 1 in
-              t.num_waiters := n;
-              if n = 0 then t.num_waiters_non_zero := false;
-              Mutex.unlock t.mutex;
-              next t
+              let n = !(p.context.num_waiters) - 1 in
+              p.context.num_waiters := n;
+              if n = 0 then p.context.num_waiters_non_zero := false;
+              Mutex.unlock p.context.mutex;
+              next p
           | exception async_exn ->
-              let n = !(t.num_waiters) - 1 in
-              t.num_waiters := n;
-              if n = 0 then t.num_waiters_non_zero := false;
-              Mutex.unlock t.mutex;
+              let n = !(p.context.num_waiters) - 1 in
+              p.context.num_waiters := n;
+              if n = 0 then p.context.num_waiters_non_zero := false;
+              Mutex.unlock p.context.mutex;
               raise async_exn
         end
         else begin
-          Mutex.unlock t.mutex;
-          next t
+          Mutex.unlock p.context.mutex;
+          next p
         end
       end
       else begin
-        Mutex.lock t.mutex;
-        Mutex.unlock t.mutex;
-        Condition.broadcast t.condition
+        Mutex.lock p.context.mutex;
+        Mutex.unlock p.context.mutex;
+        Condition.broadcast p.context.condition
       end
 
 let default_fatal_exn_handler exn =
@@ -152,6 +123,75 @@ let default_fatal_exn_handler exn =
   Printexc.print_backtrace stderr;
   flush stderr;
   exit 2
+
+let per_thread context =
+  let rec p =
+    { context; current; yield; return; handler; fiber = Fiber.Maybe.nothing }
+  and current =
+    Some
+      (fun k ->
+        let fiber = Fiber.Maybe.to_fiber p.fiber in
+        Collection.push p.context.ready (Current (fiber, k));
+        next p)
+  and yield =
+    Some
+      (fun k ->
+        let fiber = Fiber.Maybe.to_fiber p.fiber in
+        Collection.push p.context.ready (Continue (fiber, k));
+        next p)
+  and return =
+    Some
+      (fun k ->
+        let fiber = Fiber.Maybe.to_fiber p.fiber in
+        Collection.push p.context.ready (Return (fiber, k));
+        next p)
+  and handler = { retc; exnc = context.exnc; effc }
+  and[@alert "-handler"] effc :
+      type a. a Effect.t -> ((a, _) Effect.Shallow.continuation -> _) option =
+    function
+    | Fiber.Current -> p.current
+    | Fiber.Spawn r ->
+        let fiber = Fiber.Maybe.to_fiber p.fiber in
+        if Fiber.is_canceled fiber then p.yield
+        else begin
+          Atomic.incr p.context.num_alive_fibers;
+          Collection.push p.context.ready (Spawn (r.fiber, r.main));
+          if !(p.context.num_waiters_non_zero) then
+            Condition.signal p.context.condition;
+          p.return
+        end
+    | Fiber.Yield -> p.yield
+    | Computation.Cancel_after r -> begin
+        let fiber = Fiber.Maybe.to_fiber p.fiber in
+        if Fiber.is_canceled fiber then p.yield
+        else
+          match
+            Select.cancel_after r.computation ~seconds:r.seconds r.exn_bt
+          with
+          | () -> p.return
+          | exception exn ->
+              let exn_bt = Exn_bt.get exn in
+              Some
+                (fun k ->
+                  Collection.push p.context.ready (Raise (fiber, k, exn_bt));
+                  next p)
+      end
+    | Trigger.Await trigger ->
+        Some
+          (fun k ->
+            let fiber = Fiber.Maybe.to_fiber p.fiber in
+            if Fiber.try_suspend fiber trigger fiber k p.context.resume then
+              next p
+            else begin
+              Collection.push p.context.ready (Resume (fiber, k));
+              next p
+            end)
+    | _ -> None
+  and retc () =
+    Atomic.decr p.context.num_alive_fibers;
+    next p
+  in
+  p
 
 let context ?fatal_exn_handler () =
   Select.check_configured ();
@@ -169,16 +209,12 @@ let context ?fatal_exn_handler () =
       num_waiters_non_zero = ref false |> Multicore_magic.copy_as_padded;
       num_alive_fibers = Atomic.make 1 |> Multicore_magic.copy_as_padded;
       resume;
-      retc;
       exnc;
       num_waiters = ref 0 |> Multicore_magic.copy_as_padded;
       condition = Condition.create ();
       mutex = Mutex.create ();
       run = false;
     }
-  and retc () =
-    Atomic.decr t.num_alive_fibers;
-    next t
   and resume trigger fiber k =
     let resume = Resume (fiber, k) in
     Fiber.unsuspend fiber trigger |> ignore;
@@ -197,7 +233,7 @@ let context ?fatal_exn_handler () =
 
 let runner_on_this_thread t =
   Select.check_configured ();
-  next t
+  next (per_thread t)
 
 let rec await t =
   if !(t.num_waiters_non_zero) then begin
@@ -226,7 +262,7 @@ let run_fiber ?context:t_opt fiber main =
     t.run <- true;
     Mutex.unlock t.mutex;
     Collection.push t.ready (Spawn (fiber, main));
-    next t;
+    next (per_thread t);
     Mutex.lock t.mutex;
     await t
   end
