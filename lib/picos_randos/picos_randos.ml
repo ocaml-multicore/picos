@@ -31,8 +31,8 @@ type ready =
   | Current of Fiber.t * (Fiber.t, unit) Effect.Deep.continuation
   | Continue of Fiber.t * (unit, unit) Effect.Deep.continuation
   | Resume of Fiber.t * (Exn_bt.t option, unit) Effect.Deep.continuation
-  | Raise of (unit, unit) Effect.Deep.continuation * Exn_bt.t
-  | Return of (unit, unit) Effect.Deep.continuation
+  | Raise of Fiber.t * (unit, unit) Effect.Deep.continuation * Exn_bt.t
+  | Return of Fiber.t * (unit, unit) Effect.Deep.continuation
 
 type t = {
   ready : ready Collection.t;
@@ -43,76 +43,40 @@ type t = {
     Fiber.t ->
     (Exn_bt.t option, unit) Effect.Deep.continuation ->
     unit;
-  retc : unit -> unit;
-  exnc : exn -> unit;
   num_waiters : int ref;
   condition : Condition.t;
   mutex : Mutex.t;
+  current : ((Fiber.t, unit) Effect.Deep.continuation -> unit) option;
+  yield : ((unit, unit) Effect.Deep.continuation -> unit) option;
+  return : ((unit, unit) Effect.Deep.continuation -> unit) option;
+  handler : (unit, unit) Effect.Deep.handler;
   mutable run : bool;
 }
 
-let rec next t =
+let fiber_key = Picos_thread.TLS.new_key @@ fun () -> ref Fiber.Maybe.nothing
+
+let rec next p t =
   match Collection.pop_exn t.ready with
   | Spawn (fiber, main) ->
-      let current =
-        Some
-          (fun k ->
-            Collection.push t.ready (Current (fiber, k));
-            next t)
-      and yield =
-        Some
-          (fun k ->
-            Collection.push t.ready (Continue (fiber, k));
-            next t)
-      and return =
-        Some
-          (fun k ->
-            Collection.push t.ready (Return k);
-            next t)
-      in
-      let[@alert "-handler"] effc (type a) :
-          a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option = function
-        | Fiber.Current -> current
-        | Fiber.Spawn r ->
-            if Fiber.is_canceled fiber then yield
-            else begin
-              Atomic.incr t.num_alive_fibers;
-              Collection.push t.ready (Spawn (r.fiber, r.main));
-              if !(t.num_waiters_non_zero) then Condition.signal t.condition;
-              return
-            end
-        | Fiber.Yield -> yield
-        | Computation.Cancel_after r -> begin
-            if Fiber.is_canceled fiber then yield
-            else
-              match
-                Select.cancel_after r.computation ~seconds:r.seconds r.exn_bt
-              with
-              | () -> return
-              | exception exn ->
-                  let exn_bt = Exn_bt.get exn in
-                  Some
-                    (fun k ->
-                      Collection.push t.ready (Raise (k, exn_bt));
-                      next t)
-          end
-        | Trigger.Await trigger ->
-            Some
-              (fun k ->
-                if Fiber.try_suspend fiber trigger fiber k t.resume then next t
-                else begin
-                  Collection.push t.ready (Resume (fiber, k));
-                  next t
-                end)
-        | _ -> None
-      in
-      Effect.Deep.match_with main fiber { retc = t.retc; exnc = t.exnc; effc }
-  | Raise (k, exn_bt) -> Exn_bt.discontinue k exn_bt
-  | Return k -> Effect.Deep.continue k ()
-  | Current (fiber, k) -> Effect.Deep.continue k fiber
-  | Continue (fiber, k) -> Fiber.continue fiber k ()
-  | Resume (fiber, k) -> Fiber.resume fiber k
+      p := Fiber.Maybe.of_fiber fiber;
+      Effect.Deep.match_with main fiber t.handler
+  | Raise (fiber, k, exn_bt) ->
+      p := Fiber.Maybe.of_fiber fiber;
+      Exn_bt.discontinue k exn_bt
+  | Return (fiber, k) ->
+      p := Fiber.Maybe.of_fiber fiber;
+      Effect.Deep.continue k ()
+  | Current (fiber, k) ->
+      p := Fiber.Maybe.of_fiber fiber;
+      Effect.Deep.continue k fiber
+  | Continue (fiber, k) ->
+      p := Fiber.Maybe.of_fiber fiber;
+      Fiber.continue fiber k ()
+  | Resume (fiber, k) ->
+      p := Fiber.Maybe.of_fiber fiber;
+      Fiber.resume fiber k
   | exception Not_found ->
+      p := Fiber.Maybe.nothing;
       if Atomic.get t.num_alive_fibers <> 0 then begin
         Mutex.lock t.mutex;
         if Collection.is_empty t.ready && Atomic.get t.num_alive_fibers <> 0
@@ -126,7 +90,7 @@ let rec next t =
               t.num_waiters := n;
               if n = 0 then t.num_waiters_non_zero := false;
               Mutex.unlock t.mutex;
-              next t
+              next p t
           | exception async_exn ->
               let n = !(t.num_waiters) - 1 in
               t.num_waiters := n;
@@ -136,7 +100,7 @@ let rec next t =
         end
         else begin
           Mutex.unlock t.mutex;
-          next t
+          next p t
         end
       end
       else begin
@@ -169,16 +133,15 @@ let context ?fatal_exn_handler () =
       num_waiters_non_zero = ref false |> Multicore_magic.copy_as_padded;
       num_alive_fibers = Atomic.make 1 |> Multicore_magic.copy_as_padded;
       resume;
-      retc;
-      exnc;
       num_waiters = ref 0 |> Multicore_magic.copy_as_padded;
       condition = Condition.create ();
       mutex = Mutex.create ();
+      current;
+      yield;
+      return;
+      handler;
       run = false;
     }
-  and retc () =
-    Atomic.decr t.num_alive_fibers;
-    next t
   and resume trigger fiber k =
     let resume = Resume (fiber, k) in
     Fiber.unsuspend fiber trigger |> ignore;
@@ -192,12 +155,80 @@ let context ?fatal_exn_handler () =
       | exception Sys_error _ -> false
     in
     if non_zero then Condition.signal t.condition
+  and current =
+    Some
+      (fun k ->
+        let p = Picos_thread.TLS.get fiber_key in
+        let fiber = Fiber.Maybe.to_fiber !p in
+        Collection.push t.ready (Current (fiber, k));
+        next p t)
+  and yield =
+    Some
+      (fun k ->
+        let p = Picos_thread.TLS.get fiber_key in
+        let fiber = Fiber.Maybe.to_fiber !p in
+        Collection.push t.ready (Continue (fiber, k));
+        next p t)
+  and return =
+    Some
+      (fun k ->
+        let p = Picos_thread.TLS.get fiber_key in
+        let fiber = Fiber.Maybe.to_fiber !p in
+        Collection.push t.ready (Return (fiber, k));
+        next p t)
+  and handler = { retc; exnc; effc }
+  and[@alert "-handler"] effc :
+      type a. a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option =
+    function
+    | Fiber.Current -> t.current
+    | Fiber.Spawn r ->
+        let p = Picos_thread.TLS.get fiber_key in
+        let fiber = Fiber.Maybe.to_fiber !p in
+        if Fiber.is_canceled fiber then t.yield
+        else begin
+          Atomic.incr t.num_alive_fibers;
+          Collection.push t.ready (Spawn (r.fiber, r.main));
+          if !(t.num_waiters_non_zero) then Condition.signal t.condition;
+          t.return
+        end
+    | Fiber.Yield -> t.yield
+    | Computation.Cancel_after r -> begin
+        let p = Picos_thread.TLS.get fiber_key in
+        let fiber = Fiber.Maybe.to_fiber !p in
+        if Fiber.is_canceled fiber then t.yield
+        else
+          match
+            Select.cancel_after r.computation ~seconds:r.seconds r.exn_bt
+          with
+          | () -> t.return
+          | exception exn ->
+              let exn_bt = Exn_bt.get exn in
+              Some
+                (fun k ->
+                  Collection.push t.ready (Raise (fiber, k, exn_bt));
+                  next p t)
+      end
+    | Trigger.Await trigger ->
+        Some
+          (fun k ->
+            let p = Picos_thread.TLS.get fiber_key in
+            let fiber = Fiber.Maybe.to_fiber !p in
+            if Fiber.try_suspend fiber trigger fiber k t.resume then next p t
+            else begin
+              Collection.push t.ready (Resume (fiber, k));
+              next p t
+            end)
+    | _ -> None
+  and retc () =
+    Atomic.decr t.num_alive_fibers;
+    let p = Picos_thread.TLS.get fiber_key in
+    next p t
   in
   t
 
 let runner_on_this_thread t =
   Select.check_configured ();
-  next t
+  next (Picos_thread.TLS.get fiber_key) t
 
 let rec await t =
   if !(t.num_waiters_non_zero) then begin
@@ -226,7 +257,7 @@ let run_fiber ?context:t_opt fiber main =
     t.run <- true;
     Mutex.unlock t.mutex;
     Collection.push t.ready (Spawn (fiber, main));
-    next t;
+    next (Picos_thread.TLS.get fiber_key) t;
     Mutex.lock t.mutex;
     await t
   end

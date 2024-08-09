@@ -11,4 +11,5 @@
    (picos.select -> select.some.ml)
    (-> select.none.ml))
   multicore-magic
+  picos.thread
   picos.htbl))
