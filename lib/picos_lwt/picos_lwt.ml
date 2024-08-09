@@ -49,6 +49,7 @@ let[@alert "-handler"] rec go :
           (fun k ->
             match Fiber.canceled fiber with
             | None ->
+                Fiber.initialize ~parent:fiber ~child:r.fiber;
                 Lwt.async (fun () ->
                     go r.fiber system (Effect.Shallow.fiber r.main) (Ok r.fiber));
                 go fiber system k (Ok ())
@@ -107,6 +108,6 @@ let run_fiber system fiber main =
 let run ?(forbid = false) system main =
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
-  let main _ = Computation.capture computation main () in
+  let main fiber = Fiber.capture_and_finalize fiber computation main () in
   run_fiber system fiber main
   |> Lwt.map @@ fun () -> Computation.await computation
