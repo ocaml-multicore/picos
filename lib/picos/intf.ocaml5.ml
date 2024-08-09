@@ -132,13 +132,13 @@ module type Fiber = sig
       associated with the fiber has been canceled the scheduler is free to
       discontinue the fiber immediately before spawning new fibers.
 
-      The scheduler is free to run the newly created fibers on any domain and
+      The scheduler is free to run the newly created fiber on any domain and
       decide which fiber to give priority to.
 
-      ⚠️ The scheduler should guarantee that, when [Spawn] returns normally, all
-      of the [mains] will eventually be called by the scheduler and, when
-      [Spawn] raises an exception, none of the [mains] will be called.  In other
-      words, [Spawn] should check cancelation just once and be all or nothing.
+      ⚠️ The scheduler should guarantee that, when [Spawn] returns normally, the
+      given [main] will eventually be called by the scheduler and, when [Spawn]
+      raises an exception, the [main] will not be called.  In other words,
+      [Spawn] should check cancelation just once and be all or nothing.
       Furthermore, in case a newly spawned fiber is canceled before its main is
       called, the scheduler must still call the main.  This allows a program to
       ensure, i.e. keep track of, that all fibers it spawns are terminated
@@ -146,10 +146,5 @@ module type Fiber = sig
       properly. *)
   type _ Effect.t +=
     private
-    | Spawn : {
-        forbid : bool;
-        computation : 'a computation;
-        mains : (unit -> unit) list;
-      }
-        -> unit Effect.t
+    | Spawn : { fiber : t; main : t -> unit } -> unit Effect.t
 end

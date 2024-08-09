@@ -1,12 +1,15 @@
 open Picos
 
-type t = { fiber : Fiber.t; mutex : Mutex.t; condition : Condition.t }
+type t = {
+  fiber : Fiber.t;
+  mutex : Mutex.t;
+  condition : Condition.t;
+  fatal_exn_handler : exn -> unit;
+}
 
-let create_packed ~forbid packed =
-  let fiber = Fiber.create_packed ~forbid packed in
-  let mutex = Mutex.create () in
-  let condition = Condition.create () in
-  { fiber; mutex; condition }
+let create ~fatal_exn_handler fiber =
+  let mutex = Mutex.create () and condition = Condition.create () in
+  { fiber; mutex; condition; fatal_exn_handler }
 
 let rec block trigger t =
   if not (Trigger.is_signaled trigger) then begin
@@ -45,6 +48,14 @@ let resume trigger t _ =
   end;
   Condition.broadcast t.condition
 
+let default_fatal_exn_handler exn =
+  prerr_string "Fatal error: exception ";
+  prerr_string (Printexc.to_string exn);
+  prerr_char '\n';
+  Printexc.print_backtrace stderr;
+  flush stderr;
+  exit 2
+
 let[@alert "-handler"] rec await t trigger =
   if Fiber.try_suspend t.fiber trigger t t resume then block trigger t;
   Fiber.canceled t.fiber
@@ -67,79 +78,31 @@ and cancel_after : type a. _ -> a Computation.t -> _ =
   Fiber.check t.fiber;
   Select.cancel_after computation ~seconds exn_bt
 
-and spawn : type a. _ -> forbid:bool -> a Computation.t -> _ =
- fun t ~forbid computation mains ->
+and spawn t fiber main =
   Fiber.check t.fiber;
-  let packed = Computation.Packed computation in
-  match mains with
-  | [ main ] ->
-      Thread.create
-        (fun () ->
-          (* We need to (recursively) install the handler on each new thread
-             that we create. *)
-          Handler.using handler (create_packed ~forbid packed) main)
-        ()
-      |> ignore
-  | mains -> begin
-      (* We try to be careful to implement the all-or-nothing behaviour based on
-         the assumption that we may run out of threads well before we run out of
-         memory.  In a thread pool based scheduler this should actually not
-         require special treatment. *)
-      let all_or_nothing = ref `Wait in
-      match
-        mains
-        |> List.iter @@ fun main ->
-           Thread.create
-             (fun () ->
-               if !all_or_nothing == `Wait then begin
-                 Mutex.lock t.mutex;
-                 match
-                   while
-                     match !all_or_nothing with
-                     | `Wait ->
-                         Condition.wait t.condition t.mutex;
-                         true
-                     | `All | `Nothing -> false
-                   do
-                     ()
-                   done
-                 with
-                 | () -> Mutex.unlock t.mutex
-                 | exception async_exn ->
-                     (* Condition.wait may be interrupted by asynchronous
-                        exceptions and we must make sure to unlock even in that
-                        case. *)
-                     Mutex.unlock t.mutex;
-                     raise async_exn
-               end;
-               if !all_or_nothing == `All then
-                 (* We need to (recursively) install the handler on each new
-                    thread that we create. *)
-                 Handler.using handler (create_packed ~forbid packed) main)
-             ()
-           |> ignore
-      with
-      | () ->
-          Mutex.lock t.mutex;
-          all_or_nothing := `All;
-          Mutex.unlock t.mutex;
-          Condition.broadcast t.condition
-      | exception exn ->
-          Mutex.lock t.mutex;
-          all_or_nothing := `Nothing;
-          Mutex.unlock t.mutex;
-          Condition.broadcast t.condition;
-          raise exn
-    end
+  match Thread.create start (fiber, t.fatal_exn_handler, main) with
+  | _ -> ( (* We assume that [main] is now guaranteed to be called. *) )
+  | exception exn ->
+      let exn_bt = Exn_bt.get exn in
+      (* [main] wasn't called, so we need to finalize. *)
+      let (Packed computation) = Fiber.get_computation fiber in
+      Computation.cancel computation exn_bt;
+      Exn_bt.raise exn_bt
 
 and handler = Handler.{ current; spawn; yield; cancel_after; await }
 
-let run ?(forbid = false) main =
+and start (fiber, fatal_exn_handler, main) =
+  (* We need to install the handler on each new thread that we create. *)
+  try Handler.using handler (create ~fatal_exn_handler fiber) main
+  with exn -> fatal_exn_handler exn
+
+let run_fiber ?(fatal_exn_handler = default_fatal_exn_handler) fiber main =
   Select.check_configured ();
+  Handler.using handler (create ~fatal_exn_handler fiber) main
+
+let run ?(forbid = false) ?fatal_exn_handler main =
   let computation = Computation.create ~mode:`LIFO () in
-  let context = create_packed ~forbid (Packed computation) in
-  let main () =
-    Computation.capture computation main ();
-    Computation.await computation
-  in
-  Handler.using handler context main
+  let fiber = Fiber.create ~forbid computation in
+  let main _ = Computation.capture computation main () in
+  run_fiber ?fatal_exn_handler fiber main;
+  Computation.await computation

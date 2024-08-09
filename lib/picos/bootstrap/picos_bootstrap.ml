@@ -385,8 +385,7 @@ end
 module Handler = struct
   type 'c t = {
     current : 'c -> Fiber.t;
-    spawn :
-      'a. 'c -> forbid:bool -> 'a Computation.t -> (unit -> unit) list -> unit;
+    spawn : 'c -> Fiber.t -> (Fiber.t -> unit) -> unit;
     yield : 'c -> unit;
     cancel_after :
       'a. 'c -> 'a Computation.t -> seconds:float -> Exn_bt.t -> unit;

@@ -1,6 +1,8 @@
 let () = Printexc.record_backtrace true
 let () = Random.self_init ()
 
+open Picos
+
 let () =
   Picos_select.check_configured ();
 
@@ -15,5 +17,12 @@ let () =
   in
   propagate ()
 
-let run ?max_domains:_ ?allow_lwt:_ ?forbid main =
-  Picos_threaded.run ?forbid main
+let run_fiber ?max_domains:_ ?allow_lwt:_ ?fatal_exn_handler fiber main =
+  Picos_threaded.run_fiber ?fatal_exn_handler fiber main
+
+let run ?max_domains ?allow_lwt ?fatal_exn_handler ?(forbid = false) main =
+  let computation = Computation.create ~mode:`LIFO () in
+  let fiber = Fiber.create ~forbid computation in
+  let main _ = Computation.capture computation main () in
+  run_fiber ?max_domains ?allow_lwt ?fatal_exn_handler fiber main;
+  Computation.await computation

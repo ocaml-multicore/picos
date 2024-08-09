@@ -108,13 +108,13 @@ let test_block_raises_sys_error () =
   let success = ref false in
   let finished = Trigger.create () in
   let computation = Computation.create () in
-  let main () =
+  let main _ =
     begin
       try Control.block () with Sys_error _ -> success := true
     end;
     Trigger.signal finished
   in
-  Fiber.spawn ~forbid:false computation [ main ];
+  Fiber.spawn (Fiber.create ~forbid:false computation) main;
   Control.sleep ~seconds:0.1;
   Computation.finish computation;
   Trigger.await finished |> ignore;

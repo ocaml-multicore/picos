@@ -6,7 +6,7 @@ type _ tdt =
   | Nothing : [> `Nothing ] tdt
   | Bundle : {
       num_fibers : int Atomic.t;
-      bundle : unit Computation.t;
+      bundle : Computation.packed;
       errors : Control.Errors.t;
       finished : Trigger.t;
     }
@@ -17,12 +17,12 @@ let flock_key : [ `Bundle | `Nothing ] tdt Fiber.FLS.key =
 
 type t = [ `Bundle ] tdt
 
-let terminate ?callstack (Bundle r : t) =
-  Computation.cancel r.bundle (Control.terminate_bt ?callstack ())
+let terminate ?callstack (Bundle { bundle = Packed bundle; _ } : t) =
+  Computation.cancel bundle (Control.terminate_bt ?callstack ())
 
-let terminate_after ?callstack (Bundle r : t) ~seconds =
-  Computation.cancel_after r.bundle ~seconds
-    (Control.terminate_bt ?callstack ())
+let terminate_after ?callstack (Bundle { bundle = Packed bundle; _ } : t)
+    ~seconds =
+  Computation.cancel_after bundle ~seconds (Control.terminate_bt ?callstack ())
 
 let error ?callstack (Bundle r as t : t) (exn_bt : Exn_bt.t) =
   if exn_bt.Exn_bt.exn != Control.Terminate then begin
@@ -33,7 +33,8 @@ let error ?callstack (Bundle r as t : t) (exn_bt : Exn_bt.t) =
 let decr (Bundle r : t) =
   let n = Atomic.fetch_and_add r.num_fibers (-1) in
   if n = 1 then begin
-    Computation.finish r.bundle;
+    let (Packed bundle) = r.bundle in
+    Computation.cancel bundle (Control.terminate_bt ());
     Trigger.signal r.finished
   end
 
@@ -65,7 +66,7 @@ let join_after_pass (type a) (fn : a -> _) (pass : a pass) =
   (* The sequence of operations below ensures that nothing is leaked. *)
   let (Bundle r as t : t) =
     let num_fibers = Atomic.make 1 in
-    let bundle = Computation.create ~mode:`LIFO () in
+    let bundle = Computation.Packed (Computation.create ~mode:`LIFO ()) in
     let errors = Control.Errors.create () in
     let finished = Trigger.create () in
     Bundle { num_fibers; bundle; errors; finished }
@@ -75,12 +76,12 @@ let join_after_pass (type a) (fn : a -> _) (pass : a pass) =
     match pass with FLS -> Fiber.FLS.get fiber flock_key | Arg -> Nothing
   in
   let (Packed parent as packed) = Fiber.get_computation fiber in
-  let bundle = Computation.Packed r.bundle in
-  let canceler = Computation.attach_canceler ~from:parent ~into:r.bundle in
+  let (Packed bundle) = r.bundle in
+  let canceler = Computation.attach_canceler ~from:parent ~into:bundle in
   (* Ideally there should be no poll point betweem [attach_canceler] and the
      [match ... with] below. *)
   match
-    Fiber.set_computation fiber bundle;
+    Fiber.set_computation fiber r.bundle;
     fn (match pass with FLS -> Fiber.FLS.set fiber flock_key t | Arg -> t)
   with
   | value ->
@@ -103,13 +104,14 @@ let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
   incr t Backoff.default;
   try
     let child = Computation.create ~mode:`LIFO () in
-    let canceler = Computation.attach_canceler ~from:r.bundle ~into:child in
+    let fiber = Fiber.create ~forbid:false child in
+    let (Packed bundle) = r.bundle in
+    let canceler = Computation.attach_canceler ~from:bundle ~into:child in
     let main =
       match pass with
       | FLS ->
-          let main () =
-            let fiber = Fiber.current () in
-            Fiber.FLS.set fiber flock_key t;
+          Fiber.FLS.set fiber flock_key t;
+          fun fiber ->
             begin
               match thunk () with
               | value -> Computation.return child value
@@ -119,12 +121,11 @@ let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
                   error (get_flock fiber) exn_bt
             end;
             let (Bundle r as t : t) = get_flock fiber in
-            Computation.detach r.bundle canceler;
+            let (Packed bundle) = r.bundle in
+            Computation.detach bundle canceler;
             decr t
-          in
-          [ main ]
       | Arg ->
-          let main () =
+          fun _ ->
             begin
               match thunk () with
               | value -> Computation.return child value
@@ -133,12 +134,11 @@ let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
                   Computation.cancel child exn_bt;
                   error t exn_bt
             end;
-            Computation.detach r.bundle canceler;
+            let (Packed bundle) = r.bundle in
+            Computation.detach bundle canceler;
             decr t
-          in
-          [ main ]
     in
-    Fiber.spawn ~forbid:false child main;
+    Fiber.spawn fiber main;
     child
   with canceled_exn ->
     (* We don't worry about detaching the [canceler], because at this point we
@@ -151,38 +151,36 @@ let fork_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
   (* The sequence of operations below ensures that nothing is leaked. *)
   incr t Backoff.default;
   try
+    let fiber = Fiber.create_packed ~forbid:false r.bundle in
     let main =
       match pass with
       | FLS ->
-          let main () =
-            let fiber = Fiber.current () in
-            Fiber.FLS.set fiber flock_key t;
+          Fiber.FLS.set fiber flock_key t;
+          fun fiber ->
             begin
               try thunk ()
               with exn -> error (get_flock fiber) (Exn_bt.get exn)
             end;
             decr (get_flock fiber)
-          in
-          [ main ]
       | Arg ->
-          let main () =
+          fun _ ->
             begin
               try thunk () with exn -> error t (Exn_bt.get exn)
             end;
             decr t
-          in
-          [ main ]
     in
-    Fiber.spawn ~forbid:false r.bundle main
+    Fiber.spawn fiber main
   with canceled_exn ->
     decr t;
     raise canceled_exn
 
 (* *)
 
+let is_running (Bundle { bundle = Packed bundle; _ } : t) =
+  Computation.is_running bundle
+
 let join_after fn = join_after_pass fn Arg
 let fork t thunk = fork_pass t thunk Arg
 let fork_as_promise t thunk = fork_as_promise_pass t thunk Arg
-let is_running (Bundle r : t) = Computation.is_running r.bundle
 let unsafe_incr (Bundle r : t) = Atomic.incr r.num_fibers
 let unsafe_reset (Bundle r : t) = Atomic.set r.num_fibers 1

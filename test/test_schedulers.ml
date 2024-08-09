@@ -55,6 +55,30 @@ let test_cancel_after_long_timeout () =
   | () -> Computation.finish computation
   | exception Invalid_argument _ -> ()
 
+let test_fatal () =
+  match
+    let computation = Computation.create () in
+    let fiber = Fiber.create ~forbid:false computation in
+    let fatal_exn_handler exn =
+      Computation.cancel computation (Exn_bt.get exn);
+      raise exn
+    in
+    Test_scheduler.run_fiber ~fatal_exn_handler ~max_domains:3 fiber @@ fun _ ->
+    for _ = 1 to 100 do
+      Fiber.spawn (Fiber.create ~forbid:false computation) @@ fun _ ->
+      while true do
+        Fiber.yield ()
+      done
+    done;
+    Fiber.spawn (Fiber.create ~forbid:false computation) (fun _ ->
+        failwith "fatal");
+    while true do
+      Fiber.yield ()
+    done
+  with
+  | _ -> assert false
+  | exception Failure msg -> assert (msg = "fatal")
+
 let () =
   [
     ("Trivial main returns", [ Alcotest.test_case "" `Quick test_returns ]);
@@ -66,5 +90,9 @@ let () =
         Alcotest.test_case "basic" `Quick test_cancel_after_basic;
         Alcotest.test_case "long timeout" `Quick test_cancel_after_long_timeout;
       ] );
+    (* The fatal exn test must be kept last, because it may leave some
+       schedulers in a bad state. *)
+    ( "Fatal exception terminates scheduler",
+      [ Alcotest.test_case "" `Quick test_fatal ] );
   ]
   |> Alcotest.run "Picos schedulers"

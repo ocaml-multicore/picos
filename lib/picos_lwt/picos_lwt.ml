@@ -49,13 +49,8 @@ let[@alert "-handler"] rec go :
           (fun k ->
             match Fiber.canceled fiber with
             | None ->
-                let packed = Computation.Packed r.computation in
-                List.iter
-                  (fun main ->
-                    let fiber = Fiber.create_packed ~forbid:r.forbid packed in
-                    Lwt.async @@ fun () ->
-                    go fiber system (Effect.Shallow.fiber main) (Ok ()))
-                  r.mains;
+                Lwt.async (fun () ->
+                    go r.fiber system (Effect.Shallow.fiber r.main) (Ok r.fiber));
                 go fiber system k (Ok ())
             | Some exn_bt -> go fiber system k (Error exn_bt))
     | Fiber.Yield ->
@@ -105,12 +100,13 @@ let[@alert "-handler"] rec go :
   | Ok v -> Effect.Shallow.continue_with k v handler
   | Error exn_bt -> Exn_bt.discontinue_with k exn_bt handler
 
-let run ?(forbid = false) system main =
+let run_fiber system fiber main =
   if not (Picos_thread.is_main_thread ()) then not_main_thread ();
+  go fiber system (Effect.Shallow.fiber main) (Ok fiber)
+
+let run ?(forbid = false) system main =
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
-  let main () =
-    Computation.capture computation main ();
-    Computation.await computation
-  in
-  go fiber system (Effect.Shallow.fiber main) (Ok ())
+  let main _ = Computation.capture computation main () in
+  run_fiber system fiber main
+  |> Lwt.map @@ fun () -> Computation.await computation
