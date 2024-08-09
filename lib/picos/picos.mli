@@ -758,30 +758,6 @@ module Fiber : sig
   (** [sleep ~seconds] suspends the current fiber for the specified number of
       [seconds]. *)
 
-  (** {2 Interface for spawning} *)
-
-  val spawn : forbid:bool -> 'a Computation.t -> (unit -> unit) list -> unit
-  (** [spawn ~forbid computation mains] starts new fibers by performing the
-      {!Spawn} effect.  The fibers will share the same [computation] and start
-      with {{!Fiber.has_forbidden} propagation of cancelation forbidden or
-      permitted} depending on the [forbid] flag.
-
-      ℹ️ Any {{!Computation} computation}, including the computation of the
-      current fiber, may be passed as the computation for new fibers.  Higher
-      level libraries are free to implement the desired structuring principles.
-
-      ⚠️ Behavior is undefined if any function in [mains] raises an exception.
-      For example, raising an exception might terminate the whole application
-      (recommended, but not required) or the exception might be ignored.  In
-      other words, the caller {i must} arrange for the computation to be
-      completed and errors reported in a desired manner.
-
-      ℹ️ The behavior is that
-
-      - on OCaml 5, [spawn] performs the {!Spawn} effect, and
-      - on OCaml 4, [spawn] will call the [spawn] operation of the {{!Handler}
-        current handler}. *)
-
   (** {2 Interface for current fiber} *)
 
   type t
@@ -966,6 +942,39 @@ module Fiber : sig
         ⚠️ It is only safe to call [set] from the fiber itself. *)
   end
 
+  (** {2 Interface for spawning} *)
+
+  val create_packed : forbid:bool -> Computation.packed -> t
+  (** [create_packed ~forbid packed] creates a new fiber record. *)
+
+  val create : forbid:bool -> 'a Computation.t -> t
+  (** [create ~forbid computation] is equivalent to
+      {{!create_packed} [create_packed ~forbid (Computation.Packed computation)]}. *)
+
+  val spawn : t -> (t -> unit) -> unit
+  (** [spawn fiber main] starts a new fiber by performing the {!Spawn} effect.
+
+      ⚠️ Fiber records must be unique and the caller of [spawn] must make sure
+      that a specific {{!fiber} fiber} record is not reused.  Failure to ensure
+      that fiber records are unique will break concurrent abstractions written
+      on top the the Picos interface.
+
+      ⚠️ If the [main] function raises an exception it is considered a {i fatal
+      error}.  A fatal error should effectively either directly exit the program
+      or stop the entire scheduler, without discontinuing existing fibers, and
+      force the invocations of the scheduler on all domains to exit.  What this
+      means is that the caller of [spawn] {i should} ideally arrange for any
+      exception to be handled by [main], but, in case that is not practical, it
+      is also possible to allow an exception to propagate out of [main], which
+      is then guaranteed to, one way or the other, to stop the entire program.
+      It is not possible to recover from a fatal error.
+
+      ℹ️ The behavior is that
+
+      - on OCaml 5, [spawn] performs the {!Spawn} effect, and
+      - on OCaml 4, [spawn] will call the [spawn] operation of the {{!Handler}
+        current handler}. *)
+
   (** {2 Interface for structuring} *)
 
   val get_computation : t -> Computation.packed
@@ -1057,13 +1066,6 @@ module Fiber : sig
 
   (** {2 Interface for schedulers} *)
 
-  val create_packed : forbid:bool -> Computation.packed -> t
-  (** [create_packed ~forbid packed] creates a new fiber. *)
-
-  val create : forbid:bool -> 'a Computation.t -> t
-  (** [create ~forbid computation] is equivalent to
-      {{!create_packed} [create_packed ~forbid (Computation.Packed computation)]}. *)
-
   val try_suspend :
     t -> Trigger.t -> 'x -> 'y -> (Trigger.t -> 'x -> 'y -> unit) -> bool
   (** [try_suspend fiber trigger x y resume] tries to suspend the [fiber] to
@@ -1121,8 +1123,7 @@ module Handler : sig
 
   type 'c t = {
     current : 'c -> Fiber.t;  (** See {!Picos.Fiber.current}. *)
-    spawn :
-      'a. 'c -> forbid:bool -> 'a Computation.t -> (unit -> unit) list -> unit;
+    spawn : 'c -> Fiber.t -> (Fiber.t -> unit) -> unit;
         (** See {!Picos.Fiber.spawn}. *)
     yield : 'c -> unit;  (** See {!Picos.Fiber.yield}. *)
     cancel_after :
@@ -1134,10 +1135,10 @@ module Handler : sig
   (** A record of implementations of the primitive effects based operations of
       Picos.  The operations take a context of type ['c] as an argument. *)
 
-  val using : 'c t -> 'c -> (unit -> 'a) -> 'a
-  (** [using handler context thunk] sets the [handler] and the [context] for the
+  val using : 'c t -> 'c -> (Fiber.t -> unit) -> unit
+  (** [using handler context main] sets the [handler] and the [context] for the
       handler of the primitive effects based operations of Picos while running
-      [thunk].
+      [main].
 
       ℹ️ The behavior is that
 

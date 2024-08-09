@@ -1,3 +1,5 @@
+open Picos
+
 let[@inline never] not_main_thread () =
   invalid_arg "not called from the main thread"
 
@@ -61,7 +63,7 @@ let notification_decr _ =
   notification.ref_count <- ref_count;
   if ref_count = 0 then Lwt_unix.stop_notification notification.id
 
-let run ?forbid main =
+let run_fiber fiber main =
   if not (Picos_thread.is_main_thread ()) then not_main_thread ();
   begin
     let ref_count = notification.ref_count + 1 in
@@ -69,8 +71,14 @@ let run ?forbid main =
     if ref_count = 1 then
       notification.id <- Lwt_unix.make_notification notify_callback
   end;
-  let promise = Picos_lwt.run ?forbid system main in
+  let promise = Picos_lwt.run_fiber system fiber main in
   Lwt.on_any promise notification_decr notification_decr;
   promise
+
+let run ?(forbid = false) main =
+  let computation = Computation.create ~mode:`LIFO () in
+  let fiber = Fiber.create ~forbid computation in
+  let main _ = Computation.capture computation main () in
+  run_fiber fiber main |> Lwt.map @@ fun () -> Computation.await computation
 
 let () = Lwt_main.run (Lwt_unix.sleep 0.0)

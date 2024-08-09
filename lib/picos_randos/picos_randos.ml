@@ -27,7 +27,7 @@ module Collection = struct
 end
 
 type ready =
-  | Spawn of Fiber.t * (unit -> unit)
+  | Spawn of Fiber.t * (Fiber.t -> unit)
   | Current of Fiber.t * (Fiber.t, unit) Effect.Deep.continuation
   | Continue of Fiber.t * (unit, unit) Effect.Deep.continuation
   | Resume of Fiber.t * (Exn_bt.t option, unit) Effect.Deep.continuation
@@ -44,20 +44,12 @@ type t = {
     (Exn_bt.t option, unit) Effect.Deep.continuation ->
     unit;
   retc : unit -> unit;
+  exnc : exn -> unit;
   num_waiters : int ref;
   condition : Condition.t;
   mutex : Mutex.t;
   mutable run : bool;
 }
-
-let rec spawn t forbid packed = function
-  | [] -> ()
-  | main :: mains ->
-      let fiber = Fiber.create_packed ~forbid packed in
-      Atomic.incr t.num_alive_fibers;
-      Collection.push t.ready (Spawn (fiber, main));
-      if !(t.num_waiters_non_zero) then Condition.signal t.condition;
-      spawn t forbid packed mains
 
 let rec next t =
   match Collection.pop_exn t.ready with
@@ -84,7 +76,9 @@ let rec next t =
         | Fiber.Spawn r ->
             if Fiber.is_canceled fiber then yield
             else begin
-              spawn t r.forbid (Packed r.computation) r.mains;
+              Atomic.incr t.num_alive_fibers;
+              Collection.push t.ready (Spawn (r.fiber, r.main));
+              if !(t.num_waiters_non_zero) then Condition.signal t.condition;
               return
             end
         | Fiber.Yield -> yield
@@ -112,7 +106,7 @@ let rec next t =
                 end)
         | _ -> None
       in
-      Effect.Deep.match_with main () { retc = t.retc; exnc = raise; effc }
+      Effect.Deep.match_with main fiber { retc = t.retc; exnc = t.exnc; effc }
   | Raise (k, exn_bt) -> Exn_bt.discontinue k exn_bt
   | Return k -> Effect.Deep.continue k ()
   | Current (fiber, k) -> Effect.Deep.continue k fiber
@@ -151,8 +145,24 @@ let rec next t =
         Condition.broadcast t.condition
       end
 
-let context () =
+let default_fatal_exn_handler exn =
+  prerr_string "Fatal error: exception ";
+  prerr_string (Printexc.to_string exn);
+  prerr_char '\n';
+  Printexc.print_backtrace stderr;
+  flush stderr;
+  exit 2
+
+let context ?fatal_exn_handler () =
   Select.check_configured ();
+  let exnc =
+    match fatal_exn_handler with
+    | None -> default_fatal_exn_handler
+    | Some handler ->
+        fun exn ->
+          handler exn;
+          raise exn
+  in
   let rec t =
     {
       ready = Collection.create ();
@@ -160,6 +170,7 @@ let context () =
       num_alive_fibers = Atomic.make 1 |> Multicore_magic.copy_as_padded;
       resume;
       retc;
+      exnc;
       num_waiters = ref 0 |> Multicore_magic.copy_as_padded;
       condition = Condition.create ();
       mutex = Mutex.create ();
@@ -188,20 +199,17 @@ let runner_on_this_thread t =
   Select.check_configured ();
   next t
 
-let rec await t computation =
+let rec await t =
   if !(t.num_waiters_non_zero) then begin
     match Condition.wait t.condition t.mutex with
-    | () -> await t computation
+    | () -> await t
     | exception async_exn ->
         Mutex.unlock t.mutex;
         raise async_exn
   end
-  else begin
-    Mutex.unlock t.mutex;
-    Computation.await computation
-  end
+  else Mutex.unlock t.mutex
 
-let run ?context:t_opt ?(forbid = false) main =
+let run_fiber ?context:t_opt fiber main =
   let t =
     match t_opt with
     | Some t ->
@@ -217,17 +225,21 @@ let run ?context:t_opt ?(forbid = false) main =
   else begin
     t.run <- true;
     Mutex.unlock t.mutex;
-    let computation = Computation.create ~mode:`LIFO () in
-    let fiber = Fiber.create ~forbid computation in
-    let main = Computation.capture computation main in
     Collection.push t.ready (Spawn (fiber, main));
     next t;
     Mutex.lock t.mutex;
-    await t computation
+    await t
   end
 
-let rec run_on n ?forbid main context =
-  if n <= 1 then run ~context ?forbid main
+let run ?context ?(forbid = false) main =
+  let computation = Computation.create ~mode:`LIFO () in
+  let fiber = Fiber.create ~forbid computation in
+  let main _ = Computation.capture computation main () in
+  run_fiber ?context fiber main;
+  Computation.await computation
+
+let rec run_fiber_on n fiber main context =
+  if n <= 1 then run_fiber ~context fiber main
   else
     let runner =
       try Domain.spawn @@ fun () -> runner_on_this_thread context
@@ -236,7 +248,7 @@ let rec run_on n ?forbid main context =
         run ~context Fun.id;
         Printexc.raise_with_backtrace exn bt
     in
-    match run_on (n - 1) ?forbid main context with
+    match run_fiber_on (n - 1) fiber main context with
     | result ->
         Domain.join runner;
         result
@@ -245,6 +257,13 @@ let rec run_on n ?forbid main context =
         Domain.join runner;
         Printexc.raise_with_backtrace exn bt
 
-let run_on ~n_domains ?forbid main =
+let run_fiber_on ?fatal_exn_handler ~n_domains fiber main =
   if n_domains < 1 then invalid_arg "n_domains must be positive";
-  run_on n_domains ?forbid main (context ())
+  run_fiber_on n_domains fiber main (context ?fatal_exn_handler ())
+
+let run_on ?fatal_exn_handler ~n_domains ?(forbid = false) main =
+  let computation = Computation.create ~mode:`LIFO () in
+  let fiber = Fiber.create ~forbid computation in
+  let main _ = Computation.capture computation main () in
+  run_fiber_on ?fatal_exn_handler ~n_domains fiber main;
+  Computation.await computation

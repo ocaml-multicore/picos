@@ -3,7 +3,9 @@ open Picos_finally
 
 let run_in_fiber main =
   let computation = Computation.create ~mode:`LIFO () in
-  Fiber.spawn ~forbid:false computation [ Computation.capture computation main ];
+  let fiber = Fiber.create ~forbid:false computation in
+  let main _ = Computation.capture computation main () in
+  Fiber.spawn fiber main;
   Computation.await computation
 
 let test_fls_basics =
@@ -90,13 +92,15 @@ let test_thread_cancelation () =
   let@ _ =
     finally Computation.await @@ fun () ->
     let result = Computation.create () in
-    let main =
-      Computation.capture result @@ fun () ->
-      while true do
-        Fiber.yield ()
-      done
+    let main _ =
+      Computation.capture result
+        (fun () ->
+          while true do
+            Fiber.yield ()
+          done)
+        ()
     in
-    Fiber.spawn ~forbid:false computation [ main ];
+    Fiber.spawn (Fiber.create ~forbid:false computation) main;
     result
   in
   Computation.cancel computation (Exn_bt.get_callstack 0 Exit)
@@ -105,13 +109,15 @@ let test_cancel_after () =
   Alcotest.check_raises "should be canceled" Not_found @@ fun () ->
   Test_scheduler.run ~max_domains:2 @@ fun () ->
   let computation = Computation.create () in
-  let main =
-    Computation.capture computation @@ fun () ->
-    while true do
-      Fiber.yield ()
-    done
+  let main _ =
+    Computation.capture computation
+      (fun () ->
+        while true do
+          Fiber.yield ()
+        done)
+      ()
   in
-  Fiber.spawn ~forbid:false computation [ main ];
+  Fiber.spawn (Fiber.create ~forbid:false computation) main;
   Computation.cancel_after computation ~seconds:0.01
     (Exn_bt.get_callstack 0 Not_found);
   Computation.await computation

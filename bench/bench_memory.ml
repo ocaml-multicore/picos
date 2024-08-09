@@ -112,7 +112,7 @@ let run_suite ~budgetf:_ =
         let latch = Latch.create 1 in
         let bytes =
           measure_live_bytes @@ fun () ->
-          let main () =
+          let main _ =
             try
               Latch.incr latch;
               while true do
@@ -121,7 +121,7 @@ let run_suite ~budgetf:_ =
             with Exit -> Latch.decr latch
           in
           for _ = 1 to n do
-            Fiber.spawn ~forbid:false computation [ main ]
+            Fiber.spawn (Fiber.create ~forbid:false computation) main
           done;
           Fiber.yield ()
         in

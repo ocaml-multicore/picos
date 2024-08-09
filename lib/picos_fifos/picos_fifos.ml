@@ -5,7 +5,7 @@ let[@inline never] quota_non_positive () = invalid_arg "quota must be positive"
 (* As a minor optimization, we avoid allocating closures, which take slightly
    more memory than values of this type. *)
 type ready =
-  | Spawn of Fiber.t * (unit -> unit)
+  | Spawn of Fiber.t * (Fiber.t -> unit)
   | Current of Fiber.t * (Fiber.t, unit) Effect.Deep.continuation
   | Continue of Fiber.t * (unit, unit) Effect.Deep.continuation
   | Resume of Fiber.t * (Exn_bt.t option, unit) Effect.Deep.continuation
@@ -32,19 +32,12 @@ type t = {
   mutable remaining_quota : int;
 }
 
-let rec spawn t n forbid packed = function
-  | [] -> Atomic.fetch_and_add t.num_alive_fibers n |> ignore
-  | main :: mains ->
-      let fiber = Fiber.create_packed ~forbid packed in
-      Picos_mpscq.push t.ready (Spawn (fiber, main));
-      spawn t (n + 1) forbid packed mains
-
 let rec next t =
   match Picos_mpscq.pop_exn t.ready with
   | Spawn (fiber, main) ->
       t.fiber <- Fiber.Maybe.of_fiber fiber;
       t.remaining_quota <- t.quota;
-      Effect.Deep.match_with main () t.handler
+      Effect.Deep.match_with main fiber t.handler
   | Current (fiber, k) ->
       t.fiber <- Fiber.Maybe.of_fiber fiber;
       t.remaining_quota <- t.quota;
@@ -82,7 +75,7 @@ let rec next t =
         next t
       end
 
-let run ?quota ?(forbid = false) main =
+let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
   let quota =
     match quota with
     | None -> Int.max_int
@@ -153,7 +146,7 @@ let run ?quota ?(forbid = false) main =
       (fun k ->
         let fiber = Fiber.Maybe.to_fiber t.fiber in
         Fiber.continue fiber k ())
-  and handler = { retc; exnc = raise; effc }
+  and handler = { retc; exnc; effc }
   and[@alert "-handler"] effc :
       type a. a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option =
     function
@@ -164,10 +157,10 @@ let run ?quota ?(forbid = false) main =
     | Fiber.Spawn r ->
         (* We check cancelation status once and then either perform the
            whole operation or discontinue the fiber. *)
-        let fiber = Fiber.Maybe.to_fiber t.fiber in
         if Fiber.is_canceled fiber then t.discontinue
         else begin
-          spawn t 0 r.forbid (Packed r.computation) r.mains;
+          Atomic.incr t.num_alive_fibers;
+          Picos_mpscq.push t.ready (Spawn (r.fiber, r.main));
           t.return
         end
     | Fiber.Yield -> t.yield
@@ -233,9 +226,12 @@ let run ?quota ?(forbid = false) main =
       Condition.broadcast t.condition
     end
   in
+  Picos_mpscq.push t.ready (Spawn (fiber, main));
+  next t
+
+let run ?quota ?fatal_exn_handler ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
-  let main = Computation.capture computation main in
-  Picos_mpscq.push t.ready (Spawn (fiber, main));
-  next t;
+  let main _ = Computation.capture computation main () in
+  run_fiber ?quota ?fatal_exn_handler fiber main;
   Computation.await computation

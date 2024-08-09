@@ -25,15 +25,9 @@ module Fiber = struct
   let current () = Effect.perform Current
 
   type _ Effect.t +=
-    | Spawn : {
-        forbid : bool;
-        computation : 'a Computation.t;
-        mains : (unit -> unit) list;
-      }
-        -> unit Effect.t
+    | Spawn : { fiber : Fiber.t; main : Fiber.t -> unit } -> unit Effect.t
 
-  let spawn ~forbid computation mains =
-    Effect.perform @@ Spawn { forbid; computation; mains }
+  let spawn fiber main = Effect.perform @@ Spawn { fiber; main }
 
   type _ Effect.t += Yield : unit Effect.t
 
@@ -78,7 +72,7 @@ module Handler = struct
       | Fiber.Spawn r ->
           Some
             (fun k ->
-              match h.spawn c ~forbid:r.forbid r.computation r.mains with
+              match h.spawn c r.fiber r.main with
               | unit -> Effect.Deep.continue k unit
               | exception exn -> discontinue k exn)
       | Fiber.Yield -> yield
@@ -95,5 +89,5 @@ module Handler = struct
       | _ -> None
     in
     let handler = Effect.Deep.{ retc = Fun.id; exnc = raise; effc } in
-    fun main -> Effect.Deep.match_with main () handler
+    fun main -> Effect.Deep.match_with main (h.current c) handler
 end

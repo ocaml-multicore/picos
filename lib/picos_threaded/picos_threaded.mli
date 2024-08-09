@@ -24,9 +24,16 @@
     OCaml 5 a scheduler that implements an effect handler directly is likely to
     perform better. *)
 
-val run : ?forbid:bool -> (unit -> 'a) -> 'a
-(** [run main] runs the [main] thunk with the scheduler.  Returns after [main]
-    and all of the fibers spawned by [main] have returned.
+open Picos
+
+val run_fiber :
+  ?fatal_exn_handler:(exn -> unit) -> Fiber.t -> (Fiber.t -> unit) -> unit
+(** [run_fiber fiber main] runs the [main] program as the specified [fiber] and
+    returns [main] and all of the fibers spawned by [main] have returned. *)
+
+val run : ?forbid:bool -> ?fatal_exn_handler:(exn -> unit) -> (unit -> 'a) -> 'a
+(** [run main] is equivalent to calling {!run_fiber} with a freshly created
+    fiber and [main] wrapped to capture the result of [main].
 
     The optional [forbid] argument defaults to [false] and determines whether
     propagation of cancelation is initially allowed. *)

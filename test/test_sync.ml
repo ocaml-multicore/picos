@@ -7,10 +7,11 @@ let msgs = ref []
 module Fiber = struct
   include Fiber
 
-  let start thunk =
+  let start main =
     let computation = Computation.create ~mode:`LIFO () in
-    Fiber.spawn ~forbid:false computation
-      [ Computation.capture computation thunk ];
+    let fiber = Fiber.create ~forbid:false computation in
+    let main _ = Computation.capture computation main () in
+    Fiber.spawn fiber main;
     computation
 end
 
@@ -30,13 +31,14 @@ let test_mutex_and_condition_basics () =
            let n = Atomic.make 10 in
            let test = Computation.create () in
 
-           let main () =
+           let main _ =
              Mutex.protect ?checked mutex (fun () ->
                  Condition.wait condition mutex);
              if 1 = Atomic.fetch_and_add n (-1) then Computation.finish test
            in
-           Fiber.spawn ~forbid:false computation
-             (List.init (Atomic.get n) @@ fun _ -> main);
+           for _ = 1 to Atomic.get n do
+             Fiber.spawn (Fiber.create ~forbid:false computation) main
+           done;
 
            while Computation.is_running test do
              Fiber.yield ();
@@ -84,7 +86,7 @@ let test_mutex_and_condition_cancelation () =
     Array.init n @@ fun _ -> Computation.Packed (Computation.create ())
   in
 
-  let attempt i finished ?checked () =
+  let attempt i finished ?checked _ =
     computations.(i) <- Fiber.get_computation (Fiber.current ());
     match
       Atomic.incr step_1;
@@ -135,8 +137,9 @@ let test_mutex_and_condition_cancelation () =
     do
       let finished = Trigger.create () in
       let checked = if Random.State.bool state then None else some_false in
-      Fiber.spawn ~forbid:false (Computation.create ())
-        [ attempt i finished ?checked ];
+      Fiber.spawn
+        (Fiber.create ~forbid:false (Computation.create ()))
+        (attempt i finished ?checked);
       Trigger.await finished |> ignore
     done
   in
@@ -194,14 +197,14 @@ let test_lazy_cancelation () =
     let to_await = Trigger.create () in
     let s = susp ~to_await 42 in
     let tried = Atomic.make false in
-    let main () =
+    let main _ =
       match Lazy.force s with
       | _ -> assert false
       | exception Exit -> Atomic.set tried true
     in
     let computation = Computation.create () in
     Computation.cancel computation (Exn_bt.get_callstack 0 Exit);
-    Fiber.spawn ~forbid:false computation [ main ];
+    Fiber.spawn (Fiber.create ~forbid:false computation) main;
     while not (Atomic.get tried) do
       Fiber.yield ()
     done;
