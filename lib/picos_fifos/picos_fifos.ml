@@ -157,6 +157,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
     | Fiber.Spawn r ->
         (* We check cancelation status once and then either perform the
            whole operation or discontinue the fiber. *)
+        let fiber = Fiber.Maybe.to_fiber t.fiber in
         if Fiber.is_canceled fiber then t.discontinue
         else begin
           Atomic.incr t.num_alive_fibers;

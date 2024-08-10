@@ -161,7 +161,7 @@
 (test
  (name test_schedulers)
  (modules test_schedulers)
- (libraries picos picos.structured test_scheduler alcotest))
+ (libraries picos picos.structured test_scheduler test_util alcotest))
 
 ;;
 
