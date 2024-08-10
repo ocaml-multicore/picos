@@ -1,5 +1,6 @@
 open Picos
 open Picos_structured
+open Picos_sync
 
 let exit_exn_bt = Exn_bt.get_callstack 0 Exit
 
@@ -55,6 +56,57 @@ let test_cancel_after_long_timeout () =
   | () -> Computation.finish computation
   | exception Invalid_argument _ -> ()
 
+let test_op_raises_when_canceled () =
+  Test_scheduler.run @@ fun () ->
+  Flock.join_after @@ fun () ->
+  let ivar = Ivar.create () in
+  let wait () = Control.protect (fun () -> Ivar.read ivar) in
+  [
+    begin
+      fun () ->
+        Flock.fork_as_promise @@ fun () ->
+        wait ();
+        match Trigger.await (Trigger.create ()) with
+        | None -> assert false
+        | Some _ -> ()
+    end;
+    begin
+      fun () ->
+        Flock.fork_as_promise @@ fun () ->
+        wait ();
+        match
+          Computation.cancel_after (Computation.create ()) ~seconds:1.0
+            (Exn_bt.get_callstack 0 Exit)
+        with
+        | () -> assert false
+        | exception Control.Terminate -> ()
+    end;
+    begin
+      fun () ->
+        Flock.fork_as_promise @@ fun () ->
+        wait ();
+        match Fiber.yield () with
+        | () -> assert false
+        | exception Control.Terminate -> ()
+    end;
+    begin
+      fun () ->
+        Flock.fork_as_promise @@ fun () ->
+        wait ();
+        match
+          Fiber.spawn
+            (Fiber.create ~forbid:false (Computation.create ()))
+            ignore
+        with
+        | () -> assert false
+        | exception Control.Terminate -> ()
+    end;
+  ]
+  |> Test_util.shuffle
+  |> List.map (fun op -> op ())
+  |> List.iter Promise.terminate;
+  Ivar.fill ivar ()
+
 let test_fatal () =
   match
     let computation = Computation.create () in
@@ -90,6 +142,8 @@ let () =
         Alcotest.test_case "basic" `Quick test_cancel_after_basic;
         Alcotest.test_case "long timeout" `Quick test_cancel_after_long_timeout;
       ] );
+    ( "Operation on canceled fiber raises",
+      [ Alcotest.test_case "" `Quick test_op_raises_when_canceled ] );
     (* The fatal exn test must be kept last, because it may leave some
        schedulers in a bad state. *)
     ( "Fatal exception terminates scheduler",
