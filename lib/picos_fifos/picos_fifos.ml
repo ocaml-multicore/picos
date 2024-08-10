@@ -6,7 +6,6 @@ let[@inline never] quota_non_positive () = invalid_arg "quota must be positive"
    more memory than values of this type. *)
 type ready =
   | Spawn of Fiber.t * (Fiber.t -> unit)
-  | Current of Fiber.t * (Fiber.t, unit) Effect.Deep.continuation
   | Continue of Fiber.t * (unit, unit) Effect.Deep.continuation
   | Resume of Fiber.t * (Exn_bt.t option, unit) Effect.Deep.continuation
   | Return of Fiber.t * (unit, unit) Effect.Deep.continuation
@@ -38,10 +37,6 @@ let rec next t =
       t.fiber <- Fiber.Maybe.of_fiber fiber;
       t.remaining_quota <- t.quota;
       Effect.Deep.match_with main fiber t.handler
-  | Current (fiber, k) ->
-      t.fiber <- Fiber.Maybe.of_fiber fiber;
-      t.remaining_quota <- t.quota;
-      Effect.Deep.continue k fiber
   | Return (fiber, k) ->
       t.fiber <- Fiber.Maybe.of_fiber fiber;
       t.remaining_quota <- t.quota;
@@ -112,16 +107,8 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
        later. *)
     Some
       (fun k ->
-        let remaining_quota = t.remaining_quota - 1 in
         let fiber = Fiber.Maybe.to_fiber t.fiber in
-        if 0 < remaining_quota then begin
-          t.remaining_quota <- remaining_quota;
-          Effect.Deep.continue k fiber
-        end
-        else begin
-          Picos_mpscq.push t.ready (Current (fiber, k));
-          next t
-        end)
+        Effect.Deep.continue k fiber)
   and yield =
     Some
       (fun k ->
