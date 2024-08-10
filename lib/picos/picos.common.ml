@@ -1,13 +1,47 @@
 module Exn_bt = Picos_exn_bt
 
+module Handler = struct
+  include Picos_bootstrap.Handler
+  include Picos_ocaml.Handler
+
+  let key = Picos_thread.TLS.create ()
+
+  let get () =
+    match Picos_thread.TLS.get_exn key with
+    | p -> p
+    | exception Picos_thread.TLS.Not_set -> default
+
+  let using handler context main x =
+    let old = get () in
+    Picos_thread.TLS.set key (Packed { context; handler });
+    match main x with
+    | value ->
+        Picos_thread.TLS.set key old;
+        value
+    | exception exn ->
+        Picos_thread.TLS.set key old;
+        raise exn
+end
+
 module Trigger = struct
   include Picos_bootstrap.Trigger
   include Picos_ocaml.Trigger
+
+  let await t =
+    if is_initial t then
+      let (Packed r) = Handler.get () in
+      r.handler.await r.context t
+    else None
 end
 
 module Computation = struct
   include Picos_bootstrap.Computation
   include Picos_ocaml.Computation
+
+  let cancel_after computation ~seconds exn_bt =
+    check_non_negative seconds;
+    let (Packed r) = Handler.get () in
+    r.handler.cancel_after r.context computation ~seconds exn_bt
 
   let block t =
     let trigger = Trigger.create () in
@@ -28,10 +62,22 @@ module Fiber = struct
   include Picos_bootstrap.Fiber
   include Picos_ocaml.Fiber
 
-  module Maybe = struct
-    let[@inline never] not_a_fiber () = invalid_arg "not a fiber"
+  let current () =
+    let (Packed r) = Handler.get () in
+    r.handler.current r.context
 
-    type t = T : [< `Nothing | `Fiber ] tdt -> t [@@unboxed]
+  let spawn fiber main =
+    let (Packed r) = Handler.get () in
+    r.handler.spawn r.context fiber main
+
+  let yield () =
+    let (Packed r) = Handler.get () in
+    r.handler.yield r.context
+
+  module Maybe = struct
+    include Maybe
+
+    let[@inline never] not_a_fiber () = invalid_arg "not a fiber"
 
     let[@inline] to_fiber_or_current = function
       | T Nothing -> current ()
@@ -79,9 +125,4 @@ module Fiber = struct
       | Some exn_bt ->
           Computation.finish sleep;
           Exn_bt.raise exn_bt
-end
-
-module Handler = struct
-  include Picos_bootstrap.Handler
-  include Picos_ocaml.Handler
 end

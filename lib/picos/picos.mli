@@ -1191,7 +1191,7 @@ module Handler : sig
   (** A record of implementations of the primitive effects based operations of
       Picos.  The operations take a context of type ['c] as an argument. *)
 
-  val using : 'c t -> 'c -> (Fiber.t -> unit) -> unit
+  val using : 'c t -> 'c -> ('a -> unit) -> 'a -> unit
   (** [using handler context main] sets the [handler] and the [context] for the
       handler of the primitive effects based operations of Picos while running
       [main].
@@ -1207,4 +1207,10 @@ module Handler : sig
       ⚠️ While this works on OCaml 5, you usually want to use a scheduler that
       implements an effect handler directly, because that is likely to perform
       better. *)
+
+  (** *)
+  type packed = Packed : { context : 'c; handler : 'c t } -> packed
+
+  val get : unit -> packed
+  (** *)
 end

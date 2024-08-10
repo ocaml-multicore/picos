@@ -27,7 +27,7 @@ module type Trigger = sig
       as a response to {!Await}.
 
       The scheduler is free to choose which ready fiber to resume next. *)
-  type _ Effect.t += private Await : t -> exn_bt option Effect.t
+  type _ Effect.t += Await : t -> exn_bt option Effect.t
 end
 
 module type Computation = sig
@@ -53,7 +53,6 @@ module type Computation = sig
 
       The scheduler is free to choose which ready fiber to resume next. *)
   type _ Effect.t +=
-    private
     | Cancel_after : {
         seconds : float;  (** Guaranteed to be non-negative. *)
         exn_bt : exn_bt;
@@ -110,7 +109,7 @@ module type Fiber = sig
       The scheduler is free to choose which ready fiber to resume next.
       However, in typical use cases of {!current} it makes sense to give
       priority to the fiber performing {!Current}, but this is not required. *)
-  type _ Effect.t += private Current : t Effect.t
+  type _ Effect.t += Current : t Effect.t
 
   (** Schedulers must handle the {!Yield} effect to implement the behavior of
       {!yield}.
@@ -123,7 +122,7 @@ module type Fiber = sig
       resuming the fiber performing {!Yield}.  A scheduler that always
       immediately resumes the fiber performing {!Yield} may prevent an otherwise
       valid program from making progress. *)
-  type _ Effect.t += private Yield : unit Effect.t
+  type _ Effect.t += Yield : unit Effect.t
 
   (** Schedulers must handle the {!Spawn} effect to implement the behavior of
       {!spawn}.
@@ -144,7 +143,5 @@ module type Fiber = sig
       ensure, i.e. keep track of, that all fibers it spawns are terminated
       properly and any resources transmitted to spawned fibers will be disposed
       properly. *)
-  type _ Effect.t +=
-    private
-    | Spawn : { fiber : t; main : t -> unit } -> unit Effect.t
+  type _ Effect.t += Spawn : { fiber : t; main : t -> unit } -> unit Effect.t
 end

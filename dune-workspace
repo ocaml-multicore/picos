@@ -1,0 +1,13 @@
+(lang dune 3.9)
+
+(env
+ (dev
+  (ocamlopt_flags
+   (:standard -S))
+  (flags
+   (:standard -warn-error -A)))
+ (release
+  (ocamlopt_flags
+   (:standard -S))))
+
+(display verbose)

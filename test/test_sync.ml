@@ -4,6 +4,25 @@ open Picos_structured
 
 let msgs = ref []
 
+(** Work around Stdlib.Domain not keeping stack traces. *)
+module Domain = struct
+  include Domain
+
+  let () = Printexc.record_backtrace true
+
+  let spawn main =
+    Domain.spawn @@ fun () ->
+    Printexc.record_backtrace true;
+    match main () with
+    | result -> Ok result
+    | exception exn -> Error (Exn_bt.get exn)
+
+  let join domain =
+    match Domain.join domain with
+    | Ok result -> result
+    | Error exn_bt -> Exn_bt.raise exn_bt
+end
+
 module Fiber = struct
   include Fiber
 

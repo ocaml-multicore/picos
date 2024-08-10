@@ -31,6 +31,31 @@ type t = {
   mutable remaining_quota : int;
 }
 
+let tls_handler =
+  let yield _ = Effect.perform Fiber.Yield in
+  let current t =
+    begin
+      let remaining_quota = t.remaining_quota - 1 in
+      if 0 < remaining_quota then t.remaining_quota <- remaining_quota
+      else yield t
+    end;
+    Fiber.Maybe.to_fiber t.fiber
+  in
+  let spawn t new_fiber new_main =
+    let fiber = Fiber.Maybe.to_fiber t.fiber in
+    Fiber.check fiber;
+    Atomic.incr t.num_alive_fibers;
+    Picos_mpscq.push t.ready (Spawn (new_fiber, new_main));
+    let remaining_quota = t.remaining_quota - 1 in
+    if 0 < remaining_quota then t.remaining_quota <- remaining_quota
+    else yield t
+  in
+  let cancel_after _ computation ~seconds exn_bt =
+    Effect.perform (Computation.Cancel_after { computation; seconds; exn_bt })
+  in
+  let await _ trigger = Effect.perform (Trigger.Await trigger) in
+  Handler.{ current; spawn; yield; cancel_after; await }
+
 let rec next t =
   match Picos_mpscq.pop_exn t.ready with
   | Spawn (fiber, main) ->
@@ -214,7 +239,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
     end
   in
   Picos_mpscq.push t.ready (Spawn (fiber, main));
-  next t
+  Handler.using tls_handler t next t
 
 let run ?quota ?fatal_exn_handler ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in

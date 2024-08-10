@@ -86,12 +86,12 @@ and handler = Handler.{ current; spawn; yield; cancel_after; await }
 
 and start (fiber, fatal_exn_handler, main) =
   (* We need to install the handler on each new thread that we create. *)
-  try Handler.using handler (create ~fatal_exn_handler fiber) main
+  try Handler.using handler (create ~fatal_exn_handler fiber) main fiber
   with exn -> fatal_exn_handler exn
 
 let run_fiber ?(fatal_exn_handler = default_fatal_exn_handler) fiber main =
   Select.check_configured ();
-  Handler.using handler (create ~fatal_exn_handler fiber) main
+  Handler.using handler (create ~fatal_exn_handler fiber) main fiber
 
 let run ?(forbid = false) ?fatal_exn_handler main =
   let computation = Computation.create ~mode:`LIFO () in

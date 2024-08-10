@@ -374,6 +374,10 @@ module Fiber = struct
 
   type t = [ `Fiber ] tdt
 
+  module Maybe = struct
+    type t = T : [< `Nothing | `Fiber ] tdt -> t [@@unboxed]
+  end
+
   let create_packed ~forbid packed = Fiber { forbid; packed; fls = [||] }
 
   let create ~forbid computation =
@@ -509,4 +513,6 @@ module Handler = struct
       'a. 'c -> 'a Computation.t -> seconds:float -> Exn_bt.t -> unit;
     await : 'c -> Trigger.t -> Exn_bt.t option;
   }
+
+  type packed = Packed : { context : 'c; handler : 'c t } -> packed
 end

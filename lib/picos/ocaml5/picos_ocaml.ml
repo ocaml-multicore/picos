@@ -2,8 +2,6 @@ open Picos_bootstrap
 
 module Trigger = struct
   type _ Effect.t += Await : Trigger.t -> Exn_bt.t option Effect.t
-
-  let await t = if Trigger.is_initial t then Effect.perform (Await t) else None
 end
 
 module Fiber = struct
@@ -22,16 +20,10 @@ module Fiber = struct
 
   type _ Effect.t += Current : Fiber.t Effect.t
 
-  let current () = Effect.perform Current
-
   type _ Effect.t +=
     | Spawn : { fiber : Fiber.t; main : Fiber.t -> unit } -> unit Effect.t
 
-  let spawn fiber main = Effect.perform @@ Spawn { fiber; main }
-
   type _ Effect.t += Yield : unit Effect.t
-
-  let yield () = Effect.perform Yield
 end
 
 module Computation = struct
@@ -42,52 +34,21 @@ module Computation = struct
         computation : 'a Computation.t;
       }
         -> unit Effect.t
-
-  let cancel_after computation ~seconds exn_bt =
-    Computation.check_non_negative seconds;
-    Effect.perform (Cancel_after { seconds; exn_bt; computation })
 end
 
 module Handler = struct
-  let discontinue k exn =
-    Effect.Deep.discontinue_with_backtrace k exn (Printexc.get_raw_backtrace ())
-
-  let using (h : _ Handler.t) c =
-    let current =
-      Some
-        (fun k ->
-          match h.current c with
-          | fiber -> Effect.Deep.continue k fiber
-          | exception exn -> discontinue k exn)
-    and yield =
-      Some
-        (fun k ->
-          match h.yield c with
-          | () -> Effect.Deep.continue k ()
-          | exception exn -> discontinue k exn)
+  let default =
+    let current _ = Effect.perform Fiber.Current
+    and spawn _ fiber main = Effect.perform @@ Fiber.Spawn { fiber; main }
+    and yield _ = Effect.perform Fiber.Yield
+    and cancel_after _ computation ~seconds exn_bt =
+      Picos_bootstrap.Computation.check_non_negative seconds;
+      Effect.perform (Computation.Cancel_after { seconds; exn_bt; computation })
+    and await _ t =
+      if Picos_bootstrap.Trigger.is_initial t then
+        Effect.perform (Trigger.Await t)
+      else None
     in
-    let effc (type a) :
-        a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option = function
-      | Fiber.Current -> current
-      | Fiber.Spawn r ->
-          Some
-            (fun k ->
-              match h.spawn c r.fiber r.main with
-              | unit -> Effect.Deep.continue k unit
-              | exception exn -> discontinue k exn)
-      | Fiber.Yield -> yield
-      | Trigger.Await trigger ->
-          Some (fun k -> Effect.Deep.continue k (h.await c trigger))
-      | Computation.Cancel_after r ->
-          Some
-            (fun k ->
-              match
-                h.cancel_after c r.computation ~seconds:r.seconds r.exn_bt
-              with
-              | unit -> Effect.Deep.continue k unit
-              | exception exn -> discontinue k exn)
-      | _ -> None
-    in
-    let handler = Effect.Deep.{ retc = Fun.id; exnc = raise; effc } in
-    fun main -> Effect.Deep.match_with main (h.current c) handler
+    Handler.Packed
+      { context = (); handler = { current; spawn; yield; cancel_after; await } }
 end
