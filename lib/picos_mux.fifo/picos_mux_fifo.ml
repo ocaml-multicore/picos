@@ -27,8 +27,8 @@ type t = {
   return : ((unit, unit) Effect.Deep.continuation -> unit) option;
   discontinue : ((unit, unit) Effect.Deep.continuation -> unit) option;
   handler : (unit, unit) Effect.Deep.handler;
+  per_thread : Per_thread.t;
   quota : int;
-  mutable fiber : Fiber.Maybe.t;
   mutable remaining_quota : int;
   mutable num_alive_fibers : int;
 }
@@ -36,23 +36,23 @@ type t = {
 let rec next t =
   match Mpscq.pop_exn t.ready with
   | Spawn (fiber, main) ->
-      t.fiber <- Fiber.Maybe.of_fiber fiber;
+      t.per_thread.current <- Fiber.Maybe.of_fiber fiber;
       t.remaining_quota <- t.quota;
       Effect.Deep.match_with main fiber t.handler
   | Return (fiber, k) ->
-      t.fiber <- fiber;
+      t.per_thread.current <- fiber;
       t.remaining_quota <- t.quota;
       Effect.Deep.continue k ()
   | Continue (fiber, k) ->
-      t.fiber <- Fiber.Maybe.of_fiber fiber;
+      t.per_thread.current <- Fiber.Maybe.of_fiber fiber;
       t.remaining_quota <- t.quota;
       Fiber.continue fiber k ()
   | Resume (fiber, k) ->
-      t.fiber <- Fiber.Maybe.of_fiber fiber;
+      t.per_thread.current <- Fiber.Maybe.of_fiber fiber;
       t.remaining_quota <- t.quota;
       Fiber.resume fiber k
   | exception Mpscq.Empty ->
-      t.fiber <- Fiber.Maybe.nothing;
+      t.per_thread.current <- Fiber.Maybe.nothing;
       if t.num_alive_fibers <> 0 then begin
         if Atomic.get t.needs_wakeup then begin
           Mutex.lock t.mutex;
@@ -84,7 +84,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
   let rec t =
     {
       ready;
-      fiber = Fiber.Maybe.nothing;
+      per_thread = Per_thread.get ();
       needs_wakeup;
       mutex;
       condition;
@@ -101,12 +101,12 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
   and current =
     Some
       (fun k ->
-        let fiber = Fiber.Maybe.to_fiber t.fiber in
+        let fiber = Fiber.Maybe.to_fiber t.per_thread.current in
         Effect.Deep.continue k fiber)
   and yield =
     Some
       (fun k ->
-        let fiber = Fiber.Maybe.to_fiber t.fiber in
+        let fiber = Fiber.Maybe.to_fiber t.per_thread.current in
         Mpscq.push t.ready (Continue (fiber, k));
         next t)
   and return =
@@ -118,13 +118,13 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
           Effect.Deep.continue k ()
         end
         else begin
-          Mpscq.push t.ready (Return (t.fiber, k));
+          Mpscq.push t.ready (Return (t.per_thread.current, k));
           next t
         end)
   and discontinue =
     Some
       (fun k ->
-        let fiber = Fiber.Maybe.to_fiber t.fiber in
+        let fiber = Fiber.Maybe.to_fiber t.per_thread.current in
         Fiber.continue fiber k ())
   and handler = { retc; exnc; effc }
   and[@alert "-handler"] effc :
@@ -132,7 +132,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
     function
     | Fiber.Current -> t.current
     | Fiber.Spawn r ->
-        let fiber = Fiber.Maybe.to_fiber t.fiber in
+        let fiber = Fiber.Maybe.to_fiber t.per_thread.current in
         if Fiber.is_canceled fiber then t.discontinue
         else begin
           t.num_alive_fibers <- t.num_alive_fibers + 1;
@@ -141,7 +141,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
         end
     | Fiber.Yield -> t.yield
     | Computation.Cancel_after r -> begin
-        let fiber = Fiber.Maybe.to_fiber t.fiber in
+        let fiber = Fiber.Maybe.to_fiber t.per_thread.current in
         if Fiber.is_canceled fiber then t.discontinue
         else
           match
@@ -155,7 +155,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
     | Trigger.Await trigger ->
         Some
           (fun k ->
-            let fiber = Fiber.Maybe.to_fiber t.fiber in
+            let fiber = Fiber.Maybe.to_fiber t.per_thread.current in
             if Fiber.try_suspend fiber trigger fiber k t.resume then next t
             else
               let remaining_quota = t.remaining_quota - 1 in

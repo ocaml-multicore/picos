@@ -88,7 +88,7 @@
  (modules test_picos_dscheck picos_bootstrap)
  (build_if
   (>= %{ocaml_version} 5))
- (libraries picos backoff traced_atomic dscheck alcotest))
+ (libraries picos.thread backoff traced_atomic dscheck alcotest))
 
 ;;
 

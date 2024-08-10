@@ -376,6 +376,10 @@ module Fiber = struct
 
   type t = [ `Fiber ] tdt
 
+  module Maybe = struct
+    type t = T : [< `Nothing | `Fiber ] tdt -> t [@@unboxed]
+  end
+
   let create_packed ~forbid packed = Fiber { forbid; packed; fls = [||] }
 
   let create ~forbid computation =
@@ -525,4 +529,18 @@ module Handler = struct
       unit;
     await : 'c -> Trigger.t -> (exn * Printexc.raw_backtrace) option;
   }
+end
+
+module Per_thread = struct
+  type t = { mutable current : Fiber.Maybe.t  (** *) }
+
+  let key = Picos_thread.TLS.create ()
+
+  let get () =
+    match Picos_thread.TLS.get_exn key with
+    | p -> p
+    | exception Picos_thread.TLS.Not_set ->
+        let p = { current = T Nothing } in
+        Picos_thread.TLS.set key p;
+        p
 end

@@ -1254,3 +1254,13 @@ module Handler : sig
       implements an effect handler directly, because that is likely to perform
       better. *)
 end
+
+module Per_thread : sig
+  (** *)
+
+  type t = { mutable current : Fiber.Maybe.t  (** *) }
+  (** *)
+
+  val get : unit -> t
+  (** *)
+end

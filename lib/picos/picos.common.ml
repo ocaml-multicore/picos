@@ -27,9 +27,9 @@ module Fiber = struct
   include Picos_ocaml.Fiber
 
   module Maybe = struct
-    let[@inline never] not_a_fiber () = invalid_arg "not a fiber"
+    include Maybe
 
-    type t = T : [< `Nothing | `Fiber ] tdt -> t [@@unboxed]
+    let[@inline never] not_a_fiber () = invalid_arg "not a fiber"
 
     let[@inline] to_fiber_or_current = function
       | T Nothing -> current ()
@@ -82,4 +82,8 @@ end
 module Handler = struct
   include Picos_bootstrap.Handler
   include Picos_ocaml.Handler
+end
+
+module Per_thread = struct
+  include Picos_bootstrap.Per_thread
 end
