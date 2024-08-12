@@ -1,7 +1,7 @@
 (** Lock-free multi-producer, single-consumer queue.
 
-    🏎️ This data structure is optimized for use as a non-work-stealing
-    scheduler's ready queue. *)
+    🏎️ This data structure is optimized for use as the ready queue of a fair
+    (i.e. FIFO) single-threaded scheduler. *)
 
 (** {1 API} *)
 

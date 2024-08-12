@@ -191,6 +191,7 @@ implementation of the other libraries.
   Picos_exn_bt
   Picos_fd
   Picos_htbl
+  Picos_mpmcq
   Picos_mpscq
   Picos_rc
   Picos_thread
