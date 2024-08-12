@@ -1,7 +1,12 @@
 (** Lock-free multi-producer, multi-consumer queue.
 
-    🏎️ This data structure is optimized for use as the ready queue of a fair
-    (i.e. FIFO) multi-threaded scheduler. *)
+    🏎️ This data structure is optimized for use as a building block of the ready
+    queue of a (mostly) fair (i.e. mostly FIFO) multi-threaded scheduler.  For
+    example, one could use a queue per thread, to reduce contention, and have
+    threads attempt to pop fibers from the queues of other threads when their
+    local queues are empty.  It is also possible to use only a single shared
+    queue, but that will result in very high contention as this queue is not
+    relaxed. *)
 
 (** {1 API} *)
 
