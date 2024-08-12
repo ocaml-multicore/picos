@@ -133,6 +133,16 @@
   stm_run))
 
 (test
+ (name test_mpmcq)
+ (modules test_mpmcq)
+ (libraries
+  picos.mpmcq
+  qcheck-core
+  qcheck-multicoretests-util
+  qcheck-stm.stm
+  stm_run))
+
+(test
  (name test_htbl)
  (modules test_htbl)
  (libraries
