@@ -93,4 +93,4 @@ module Spec = struct
     | _, _ -> false
 end
 
-let () = Stm_run.run ~name:"Picos_htbl" ~verbose:true (module Spec) |> exit
+let () = Stm_run.run ~name:"Picos_htbl" (module Spec) |> exit
