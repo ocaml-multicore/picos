@@ -8,7 +8,7 @@ type ready =
   | Spawn of Fiber.t * (Fiber.t -> unit)
   | Continue of Fiber.t * (unit, unit) Effect.Deep.continuation
   | Resume of Fiber.t * (Exn_bt.t option, unit) Effect.Deep.continuation
-  | Return of Fiber.t * (unit, unit) Effect.Deep.continuation
+  | Return of Fiber.Maybe.t * (unit, unit) Effect.Deep.continuation
 
 type t = {
   ready : ready Picos_mpscq.t;
@@ -38,7 +38,7 @@ let rec next t =
       t.remaining_quota <- t.quota;
       Effect.Deep.match_with main fiber t.handler
   | Return (fiber, k) ->
-      t.fiber <- Fiber.Maybe.of_fiber fiber;
+      t.fiber <- fiber;
       t.remaining_quota <- t.quota;
       Effect.Deep.continue k ()
   | Continue (fiber, k) ->
@@ -124,8 +124,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
           Effect.Deep.continue k ()
         end
         else begin
-          let fiber = Fiber.Maybe.to_fiber t.fiber in
-          Picos_mpscq.push t.ready (Return (fiber, k));
+          Picos_mpscq.push t.ready (Return (t.fiber, k));
           next t
         end)
   and discontinue =
