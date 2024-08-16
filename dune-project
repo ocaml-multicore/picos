@@ -81,6 +81,7 @@
    (and
     (<> :arch "x86_32")
     (<> :arch "riscv64")
+    (<> :os "win32")
     :with-test))
   (dscheck
    (and
