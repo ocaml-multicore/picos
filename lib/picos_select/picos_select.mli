@@ -99,7 +99,8 @@ val on_sigchld : unit Event.t
 
 (** {2 Configuration} *)
 
-val configure : ?intr_sig:int -> ?handle_sigchld:bool -> unit -> unit
+val configure :
+  ?intr_sig:int -> ?handle_sigchld:bool -> ?ignore_sigpipe:bool -> unit -> unit
 (** [configure ~intr_sig ~handle_sigchld ()] can, and sometimes must, be called
     by an application to configure the use of signals by this module.
 
@@ -110,6 +111,10 @@ val configure : ?intr_sig:int -> ?handle_sigchld:bool -> unit -> unit
     module should setup handling of {!Sys.sigchld}.  The default is [true].
     When explicitly specified as [~handle_sigchld:false], the application should
     arrange to call {!handle_signal} whenever a {!Sys.sigchld} signal occurs.
+
+    The optional [ignore_sigpipe] argument can be used to specify whether
+    {!Sys.sigpipe} will be configured to be ignored or not.  The default is
+    [true].
 
     ⚠️ This module must always be configured before use.  Unless this module has
     been explicitly configured, calling a method of this module from the main

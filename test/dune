@@ -93,6 +93,11 @@
   picos.structured
   alcotest))
 
+(test
+ (name test_stdio_cohttp)
+ (modules test_stdio_cohttp)
+ (libraries picos.finally picos.stdio.cohttp picos.structured test_scheduler))
+
 ;;
 
 (test
