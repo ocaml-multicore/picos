@@ -167,6 +167,7 @@ These are examples of libraries implemented in Picos.
   Picos_structured
   Picos_sync
   Picos_stdio
+  Picos_stdio_cohttp
   Picos_select
 }
 

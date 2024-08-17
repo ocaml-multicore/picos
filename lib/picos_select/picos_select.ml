@@ -1,8 +1,9 @@
 open Picos
 open Picos_sync
 
-let handle_sigchld_bit = 0b01
-let select_thread_running_on_main_domain_bit = 0b10
+let handle_sigchld_bit = 0b001
+let select_thread_running_on_main_domain_bit = 0b010
+let ignore_sigpipe_bit = 0b100
 
 type config = {
   mutable bits : int;
@@ -267,10 +268,12 @@ let select_thread s =
   if s.pipe_out != Unix.stdin then Unix.close s.pipe_out
 
 let[@poll error] [@inline never] try_configure ~intr_sig ~intr_sigs
-    ~handle_sigchld =
+    ~handle_sigchld ~ignore_sigpipe =
   config.intr_sigs == []
   && begin
-       config.bits <- Bool.to_int handle_sigchld;
+       config.bits <-
+         Bool.to_int handle_sigchld
+         lor (ignore_sigpipe_bit land -Bool.to_int ignore_sigpipe);
        config.intr_sig <- intr_sig;
        config.intr_sigs <- intr_sigs;
        true
@@ -296,17 +299,24 @@ let reconfigure_signal_handlers () =
     if config.bits land handle_sigchld_bit <> 0 then begin
       Sys.signal Sys.sigchld (Sys.Signal_handle handle_signal) |> ignore;
       Thread.sigmask SIG_BLOCK [ Sys.sigchld ] |> ignore
+    end;
+    if config.bits land ignore_sigpipe_bit <> 0 then begin
+      Sys.signal Sys.sigpipe Signal_ignore |> ignore
     end
   end
 
-let configure ?(intr_sig = Sys.sigusr2) ?(handle_sigchld = true) () =
+let configure ?(intr_sig = Sys.sigusr2) ?(handle_sigchld = true)
+    ?(ignore_sigpipe = true) () =
   if not (Picos_thread.is_main_thread ()) then
     invalid_arg "must be called from the main thread on the main domain";
   assert (Sys.sigabrt = -1 && Sys.sigxfsz < Sys.sigabrt);
   if intr_sig < Sys.sigxfsz || 0 <= intr_sig || intr_sig = Sys.sigchld then
     invalid_arg "invalid interrupt signal number";
-  if not (try_configure ~intr_sig ~intr_sigs:[ intr_sig ] ~handle_sigchld) then
-    invalid_arg "already configured";
+  if
+    not
+      (try_configure ~intr_sig ~intr_sigs:[ intr_sig ] ~handle_sigchld
+         ~ignore_sigpipe)
+  then invalid_arg "already configured";
 
   reconfigure_signal_handlers ()
 

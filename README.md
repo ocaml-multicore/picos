@@ -44,6 +44,7 @@ scheduler agnostic libraries (e.g.
 [`picos.structured`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_structured/index.html),
 [`picos.sync`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_sync/index.html),
 [`picos.stdio`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_stdio/index.html),
+[`picos.stdio.cohttp`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_stdio_cohttp/index.html),
 and
 [`picos.select`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_select/index.html)),
 or auxiliary libraries.

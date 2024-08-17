@@ -40,6 +40,13 @@
   ;; For picos.lwt
   (lwt
    (>= 5.7.0))
+  ;; For picos.stdio.cohttp
+  (cohttp
+   (>= 6.0.0~beta2))
+  (uri
+   (>= 4.4.0))
+  (fmt
+   (>= 0.9.0))
   ;; Test dependencies
   (multicore-bench
    (and
@@ -99,10 +106,6 @@
   (ocaml
    (>= 4.14.0)))
  (depopts
-  (cohttp
-   (and
-    (>= 5.3.1)
-    :with-test))
   (cohttp-lwt
    (and
     (>= 5.3.0)
@@ -114,8 +117,4 @@
   (conduit-lwt-unix
    (and
     (>= 6.2.2)
-    :with-test))
-  (uri
-   (and
-    (>= 4.4.0)
     :with-test))))
