@@ -8,3 +8,17 @@
   fmt
   picos.finally
   picos.structured))
+
+(mdx
+ (enabled_if
+  (>= %{ocaml_version} 5.1.0))
+ (libraries
+  cohttp
+  http
+  picos.fifos
+  picos.finally
+  picos.stdio
+  picos.stdio.cohttp
+  picos.structured
+  uri)
+ (files picos_stdio_cohttp.mli))
