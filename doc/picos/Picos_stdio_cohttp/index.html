@@ -31,7 +31,8 @@ open Picos_structured</code></pre><h3 id="a-server-and-client"><a href="#a-serve
   in
   if Response.status resp != `OK then
     failwith &quot;Not OK&quot;;
-  Body.to_string body</code></pre><p>Now we are ready to put everything together:</p><pre class="language-ocaml"><code># Picos_fifos.run @@ fun () -&gt;
+  Body.to_string body</code></pre><p>Now we are ready to put everything together:</p><pre class="language-ocaml"><code># Picos_randos.run_on ~n_domains:2 @@ fun () -&gt;
+
   let@ server_socket =
     finally Unix.close @@ fun () -&gt;
     server_create

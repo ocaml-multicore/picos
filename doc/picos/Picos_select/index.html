@@ -19,7 +19,7 @@ let search_urls = ['../db.js','../../sherlodoc.js'];
 open Picos_finally
 open Picos_structured
 open Picos_stdio
-open Picos_sync</code></pre><h3 id="one-of-many"><a href="#one-of-many" class="anchor"></a>One of many</h3><p>Here is an example that awaits for one of multiple alternative events:</p><pre class="language-ocaml"><code># Picos_fifos.run @@ fun () -&gt;
+open Picos_sync</code></pre><h3 id="one-of-many"><a href="#one-of-many" class="anchor"></a>One of many</h3><p>Here is an example that awaits for one of multiple alternative events:</p><pre class="language-ocaml"><code># Picos_randos.run_on ~n_domains:2 @@ fun () -&gt;
 
   let@ msg_inn1, msg_out1 =
     finally Unix.close_pair @@ fun () -&gt;
