@@ -700,7 +700,7 @@ end
     pipes:
 
     {[
-      # Picos_fifos.run @@ fun () ->
+      # Picos_randos.run_on ~n_domains:2 @@ fun () ->
 
         let@ msg_i, msg_o =
           finally Unix.close_pair @@ fun () ->

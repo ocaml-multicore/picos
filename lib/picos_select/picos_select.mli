@@ -154,7 +154,7 @@ val check_configured : unit -> unit
     Here is an example that awaits for one of multiple alternative events:
 
     {[
-      # Picos_fifos.run @@ fun () ->
+      # Picos_randos.run_on ~n_domains:2 @@ fun () ->
 
         let@ msg_inn1, msg_out1 =
           finally Unix.close_pair @@ fun () ->
