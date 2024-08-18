@@ -656,7 +656,7 @@ end
     Finally we run the main program with a scheduler:
 
     {[
-      # Picos_randos.run_on ~n_domains:2 main
+      # Picos_randos.run_on ~n_domains:1 main
       Received: Hello!
       Received: Hello!
       Received: Hello!
