@@ -17,8 +17,8 @@
  (libraries
   cohttp
   http
-  picos.fifos
   picos.finally
+  picos.randos
   picos.stdio
   picos.stdio.cohttp
   picos.structured

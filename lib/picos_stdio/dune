@@ -14,8 +14,8 @@
  (libraries
   picos
   picos.exn_bt
-  picos.fifos
   picos.finally
+  picos.randos
   picos.stdio
   picos.structured
   unix)

@@ -472,7 +472,7 @@ end
     immediately and without leaking or leaving anything in an invalid state:
 
     {[
-      # Picos_fifos.run main
+      # Picos_randos.run_on ~n_domains:2 main
       - : unit = ()
     ]}
 
@@ -545,8 +545,6 @@ end
 
     {[
       let run_server server_fd =
-        Unix.listen server_fd 8;
-
         Flock.join_after begin fun () ->
           while true do
             let@ client_fd =
@@ -574,10 +572,10 @@ end
         end
     ]}
 
-    The server function expects a bound socket and starts listening.  For each
-    accepted client the server forks a new fiber to handle it.  The client
-    socket is {{!Finally.move} moved} from the server fiber to the client fiber
-    to avoid leaks and to ensure that the socket will be closed.
+    The server function expects a listening socket.  For each accepted client
+    the server forks a new fiber to handle it.  The client socket is
+    {{!Finally.move} moved} from the server fiber to the client fiber to avoid
+    leaks and to ensure that the socket will be closed.
 
     Let's then define a function for the clients:
 
@@ -622,10 +620,10 @@ end
             PF_INET SOCK_STREAM 0
         in
         Unix.set_nonblock server_fd;
-
         (* Let system determine the port *)
         Unix.bind server_fd Unix.(
           ADDR_INET(inet_addr_loopback, 0));
+        Unix.listen server_fd 8;
 
         let server_addr =
           Unix.getsockname server_fd
@@ -651,14 +649,14 @@ end
         end
     ]}
 
-    The main program creates a socket for the server and binds it.  The server
-    is then started as a new fiber.  Then the clients are started to run
+    The main program creates a socket for the server and configures it.  The
+    server is then started as a new fiber.  Then the clients are started to run
     concurrently.  Finally the server is terminated.
 
     Finally we run the main program with a scheduler:
 
     {[
-      # Picos_fifos.run main
+      # Picos_randos.run_on ~n_domains:2 main
       Received: Hello!
       Received: Hello!
       Received: Hello!

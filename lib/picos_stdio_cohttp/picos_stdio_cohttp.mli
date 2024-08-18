@@ -106,7 +106,8 @@ end
     Now we are ready to put everything together:
 
     {[
-      # Picos_fifos.run @@ fun () ->
+      # Picos_randos.run_on ~n_domains:2 @@ fun () ->
+
         let@ server_socket =
           finally Unix.close @@ fun () ->
           server_create
