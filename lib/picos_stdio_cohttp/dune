@@ -11,7 +11,9 @@
 
 (mdx
  (enabled_if
-  (>= %{ocaml_version} 5.1.0))
+  (and
+   (>= %{ocaml_version} 5.1.0)
+   (= %{env:OPAM_REPO_CI=false} false)))
  (libraries
   cohttp
   http
