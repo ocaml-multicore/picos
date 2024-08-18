@@ -8,7 +8,7 @@ open Picos_stdio
 
 (** {1 Modules} *)
 
-(** Convenience functions for constructing and processing requests.
+(** Convenience functions for constructing requests and processing responses.
 
     Please consult the
     {{:https://ocaml.org/p/cohttp/latest/doc/Cohttp/Generic/Client/module-type-S/index.html} CoHTTP documentation}. *)
