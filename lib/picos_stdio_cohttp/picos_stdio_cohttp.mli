@@ -5,7 +5,7 @@
 
 open Picos_stdio
 
-(** Convenience funtions for constructing and processing requests.
+(** Convenience functions for constructing and processing requests.
 
     Please consult the
     {{:https://ocaml.org/p/cohttp/latest/doc/Cohttp/Generic/Client/module-type-S/index.html} CoHTTP documentation}. *)
@@ -17,7 +17,7 @@ module Client : sig
       with type body = Cohttp.Body.t
 end
 
-(** Convenience funtions for processing requests and constructing responses.
+(** Convenience functions for processing requests and constructing responses.
 
     Please consult the
     {{:https://ocaml.org/p/cohttp/latest/doc/Cohttp/Generic/Server/module-type-S/index.html} CoHTTP documentation}. *)
