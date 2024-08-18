@@ -12,7 +12,9 @@ let yielder () =
 
 let run_one ~budgetf ~n_fibers ~use_domains () =
   let n_domains = if use_domains then n_fibers else 1 in
-  let n_ops = (if use_domains then 10 else 100) * Util.iter_factor in
+  let n_ops =
+    (if use_domains || is_ocaml4 then 10 else 100) * Util.iter_factor
+  in
 
   let v = ref 0 in
   let n_ops_todo = Countdown.create ~n_domains () in
@@ -46,7 +48,7 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
         loop n
     in
     if use_domains then begin
-      Flock.fork yielder;
+      if not is_ocaml4 then Flock.fork yielder;
       work ();
       Flock.terminate ()
     end
