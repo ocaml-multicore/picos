@@ -176,20 +176,14 @@ module Client =
               Fmt.(option ~none:(any "None") Dump.string)
               x
 
-      let connect uri =
-        let ai = resolve uri in
-        let socket = Unix.socket ~cloexec:true ai.ai_family ai.ai_socktype 0 in
-        match
-          Unix.set_nonblock socket;
-          Unix.connect socket ai.ai_addr
-        with
-        | () -> socket
-        | exception exn ->
-            Unix.close socket;
-            raise exn
-
       let call ?headers ?body ?(chunked = false) meth uri =
-        let@ socket = finally Unix.close @@ fun () -> connect uri in
+        let ai = resolve uri in
+        let@ socket =
+          finally Unix.close @@ fun () ->
+          Unix.socket ~cloexec:true ai.ai_family ai.ai_socktype 0
+        in
+        Unix.set_nonblock socket;
+        Unix.connect socket ai.ai_addr;
         let body_length =
           if chunked then None
           else
@@ -202,15 +196,12 @@ module Client =
             ~chunked:(Option.is_none body_length)
             ?body_length meth uri
         in
-        Bundle.join_after @@ fun bundle ->
-        begin
-          Bundle.fork bundle @@ fun () ->
-          Request.write ~flush:false
-            (match body with
-            | None -> ignore
-            | Some body -> Body.write_with Request.write_body body)
-            request socket
-        end;
+        Request.write ~flush:false
+          (match body with
+          | None -> ignore
+          | Some body -> Body.write_with Request.write_body body)
+          request socket;
+        Unix.shutdown socket SHUTDOWN_SEND;
         let input = Private.IO.ic socket in
         match Response.read input with
         | `Eof -> failwith "connection closed by peer"
@@ -289,6 +280,7 @@ module Server = struct
             let keep_alive =
               Http.Request.is_keep_alive req && Http.Response.is_keep_alive res
             in
+            if not keep_alive then Unix.shutdown ic.file_descr SHUTDOWN_RECEIVE;
             let headers =
               Http.Header.add_unless_exists
                 (Http.Response.headers res)
