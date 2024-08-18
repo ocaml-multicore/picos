@@ -171,7 +171,7 @@ Exception: Errors[Stdlib.Exit; Not_found]</code></pre><p>raises a collection of 
 
     (* Stop server *)
     Promise.terminate server
-  end</code></pre><p>The main program creates a socket for the server and configures it. The server is then started as a new fiber. Then the clients are started to run concurrently. Finally the server is terminated.</p><p>Finally we run the main program with a scheduler:</p><pre class="language-ocaml"><code># Picos_randos.run_on ~n_domains:2 main
+  end</code></pre><p>The main program creates a socket for the server and configures it. The server is then started as a new fiber. Then the clients are started to run concurrently. Finally the server is terminated.</p><p>Finally we run the main program with a scheduler:</p><pre class="language-ocaml"><code># Picos_randos.run_on ~n_domains:1 main
 Received: Hello!
 Received: Hello!
 Received: Hello!
