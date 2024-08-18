@@ -1,4 +1,5 @@
-(** Minimalistic Cohttp implementation using {!Picos_stdio} for {!Picos}.
+(** Minimalistic {{:https://github.com/mirage/ocaml-cohttp/} Cohttp}
+    implementation using {!Picos_stdio} for {!Picos}.
 
     ⚠️ This library is currently minimalistic and experimental and is highly
     likely to change.  Feedback from potential users is welcome! *)
