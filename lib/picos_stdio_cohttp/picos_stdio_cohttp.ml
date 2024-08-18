@@ -85,7 +85,7 @@ module Private = struct
           i - Bool.to_int (0 < i && Bytes.get ic.bytes (ic.start + i - 1) = '\r')
         in
         let result = Some (Bytes.sub_string ic.bytes ic.start n) in
-        ic.start <- ic.start + i + Bool.to_int (ic.start + i < ic.stop - 1);
+        ic.start <- ic.start + i + Bool.to_int (ic.start + i < ic.stop);
         result
 
     let rec read_line_to_lf ic i =
