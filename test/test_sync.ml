@@ -15,8 +15,6 @@ module Fiber = struct
     computation
 end
 
-let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
-
 let test_mutex_and_condition_basics () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
   let mutex = Mutex.create () in
@@ -124,7 +122,7 @@ let test_mutex_and_condition_cancelation () =
 
   let exit = Atomic.make n in
 
-  let limit = if is_ocaml4 then 1_000 else 10_000 in
+  let limit = 10_000 in
 
   let some_false = Some false in
 
