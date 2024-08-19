@@ -540,7 +540,8 @@ examples presented here.
 
 For example, a library provides an operation to run a block with a timeout on
 the current fiber. One could use it with `Ivar.read` to implement a read
-operation with a timeout:
+operation
+[with a timeout](https://ocaml-multicore.github.io/picos/doc/picos/Picos_structured/Control/index.html#val-terminate_after):
 
 ```ocaml
 let read_in ~seconds ivar =
