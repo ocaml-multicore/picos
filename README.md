@@ -10,7 +10,7 @@ Picos is a
 [systems programming](https://en.wikipedia.org/wiki/Systems_programming)
 interface between effects based schedulers and concurrent abstractions.
 
-<p align="center"><a href="https://ocaml-multicore.github.io/picos/doc/picos/Picos/index.html"><img width="60%" src="https://raw.githubusercontent.com/ocaml-multicore/picos/main/doc/picos-ecosystem.svg"></a></p>
+<p align="center"><a href="https://ocaml-multicore.github.io/picos/doc/picos/Picos/index.html"><img width="65%" src="https://raw.githubusercontent.com/ocaml-multicore/picos/main/doc/picos-ecosystem.svg"></a></p>
 
 Picos is designed to enable an _open ecosystem_ of
 [interoperable](https://en.wikipedia.org/wiki/Interoperability) and
