@@ -1,6 +1,8 @@
 open Multicore_bench
 open Picos
 
+let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
+
 let factor =
   Util.iter_factor
   * if String.starts_with ~prefix:"4." Sys.ocaml_version then 1 else 10
@@ -31,4 +33,5 @@ let run_one ~budgetf () =
     ~work ()
   |> Times.to_thruput_metrics ~n:n_spawns ~singular:"spawn" ~config
 
-let run_suite ~budgetf = if Sys.int_size <= 32 then [] else run_one ~budgetf ()
+let run_suite ~budgetf =
+  if Sys.int_size <= 32 || is_ocaml4 then [] else run_one ~budgetf ()
