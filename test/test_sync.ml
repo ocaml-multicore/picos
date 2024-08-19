@@ -127,6 +127,7 @@ let test_mutex_and_condition_cancelation () =
   let some_false = Some false in
 
   let deadline = Unix.gettimeofday () +. 60.0 in
+  let hard_deadline = Unix.gettimeofday () +. 120.0 in
 
   let main i () =
     Fun.protect ~finally:(fun () -> Atomic.decr exit) @@ fun () ->
@@ -145,7 +146,8 @@ let test_mutex_and_condition_cancelation () =
     Domain.spawn (fun () ->
         let state = Random.State.make_self_init () in
         while Atomic.get exit <> 0 do
-          Domain.cpu_relax ();
+          if hard_deadline < Unix.gettimeofday () then Stdlib.exit 4
+          else Domain.cpu_relax ();
           let (Packed computation) =
             computations.(Random.State.bits state land (n - 1))
           in
@@ -155,7 +157,8 @@ let test_mutex_and_condition_cancelation () =
   in
   let state = Random.State.make_self_init () in
   while Atomic.get exit <> 0 do
-    Domain.cpu_relax ();
+    if hard_deadline < Unix.gettimeofday () then Stdlib.exit 3
+    else Domain.cpu_relax ();
     if Random.State.bool state then Condition.broadcast condition
     else Condition.signal condition
   done;
