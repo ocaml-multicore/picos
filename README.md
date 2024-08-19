@@ -103,7 +103,8 @@ end
 Assume that a fiber executing the above code might be canceled, at any point, by
 another fiber running in parallel. This could be necessary, for example, due to
 an error that requires the application to be shut down. How could that be done
-while ensuring both safety and liveness?
+while ensuring both
+[safety and liveness](https://en.wikipedia.org/wiki/Safety_and_liveness_properties)?
 
 - For safety, cancelation should not leave the program in an invalid state or
   cause the program to leak memory. In this case, `Condition.wait` must exit
@@ -332,10 +333,12 @@ flexibility in mind:
   `Computation` an omnidirectional communication primitive.
 
 Interestingly, and unintentionally, it turns out that `Computation` is almost
-expressive enough to implement the event abstraction of Concurrent ML. The same
-features that make `Computation` suitable for implementing more or less
-arbitrary dynamic completion propagation networks make it suitable for
-implementing Concurrent ML style abstractions.
+expressive enough to implement the
+[event](https://ocaml.org/manual/latest/api/Event.html) abstraction of
+[Concurrent ML](https://en.wikipedia.org/wiki/Concurrent_ML). The same features
+that make `Computation` suitable for implementing more or less arbitrary dynamic
+completion propagation networks make it suitable for implementing Concurrent ML
+style abstractions.
 
 ### `Fiber`
 
