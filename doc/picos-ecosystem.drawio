@@ -1,34 +1,37 @@
 <mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36" version="24.7.7">
   <diagram name="Page-1" id="PShktHHFir0hr1CmZQWx">
-    <mxGraphModel dx="318" dy="255" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="500" pageHeight="350" math="0" shadow="0">
+    <mxGraphModel dx="986" dy="1525" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="500" pageHeight="350" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="rqY1NgrCLtpw8ZOYy97f-2" value="&lt;i&gt;Picos&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;" parent="1" vertex="1">
+        <mxCell id="tkt-Uq00IA9Xi6PdSJ_j-1" value="" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#eeeeee;strokeColor=none;" parent="1" vertex="1">
+          <mxGeometry x="60" y="420" width="360" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="rqY1NgrCLtpw8ZOYy97f-2" value="&lt;i&gt;Picos&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=default;" parent="1" vertex="1">
           <mxGeometry x="215" y="515" width="50" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="rqY1NgrCLtpw8ZOYy97f-4" value="Async IOs" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=none;" parent="1" vertex="1">
+        <mxCell id="rqY1NgrCLtpw8ZOYy97f-4" value="Async IOs" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=default;" parent="1" vertex="1">
           <mxGeometry x="110" y="480" width="70" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="rqY1NgrCLtpw8ZOYy97f-5" value="Synchronization primitives" style="rounded=1;whiteSpace=wrap;html=1;shadow=0;glass=0;sketch=1;curveFitting=1;jiggle=2;fillColor=none;" parent="1" vertex="1">
+        <mxCell id="rqY1NgrCLtpw8ZOYy97f-5" value="Synchronization primitives" style="rounded=1;whiteSpace=wrap;html=1;shadow=0;glass=0;sketch=1;curveFitting=1;jiggle=2;fillColor=default;" parent="1" vertex="1">
           <mxGeometry x="191.32999999999998" y="450" width="97.34" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="rqY1NgrCLtpw8ZOYy97f-6" value="Concurrent DSs" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=none;" parent="1" vertex="1">
+        <mxCell id="rqY1NgrCLtpw8ZOYy97f-6" value="Concurrent DSs" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=default;" parent="1" vertex="1">
           <mxGeometry x="300" y="480" width="100" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="rqY1NgrCLtpw8ZOYy97f-7" value="Parallel algorithms" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=none;" parent="1" vertex="1">
+        <mxCell id="rqY1NgrCLtpw8ZOYy97f-7" value="Parallel algorithms" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=default;" parent="1" vertex="1">
           <mxGeometry x="100" y="510" width="70" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="rqY1NgrCLtpw8ZOYy97f-8" value="Structuring models" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=none;" parent="1" vertex="1">
+        <mxCell id="rqY1NgrCLtpw8ZOYy97f-8" value="Structuring models" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=default;" parent="1" vertex="1">
           <mxGeometry x="310" y="510" width="70" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="rqY1NgrCLtpw8ZOYy97f-9" value="STMs" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=none;" parent="1" vertex="1">
+        <mxCell id="rqY1NgrCLtpw8ZOYy97f-9" value="STMs" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=default;" parent="1" vertex="1">
           <mxGeometry x="130" y="560" width="50" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="rqY1NgrCLtpw8ZOYy97f-10" value="Resource mgmt" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=none;" parent="1" vertex="1">
+        <mxCell id="rqY1NgrCLtpw8ZOYy97f-10" value="Resource mgmt" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=default;" parent="1" vertex="1">
           <mxGeometry x="300" y="560" width="100" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="rqY1NgrCLtpw8ZOYy97f-11" value="Schedulers" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=none;" parent="1" vertex="1">
+        <mxCell id="rqY1NgrCLtpw8ZOYy97f-11" value="Schedulers" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fillColor=default;" parent="1" vertex="1">
           <mxGeometry x="200" y="570" width="80" height="20" as="geometry" />
         </mxCell>
         <mxCell id="rqY1NgrCLtpw8ZOYy97f-14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="rqY1NgrCLtpw8ZOYy97f-8" target="rqY1NgrCLtpw8ZOYy97f-8" edge="1">
