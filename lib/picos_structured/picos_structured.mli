@@ -435,7 +435,7 @@ end
           end;
 
           (* Let the children get stuck *)
-          Control.yield ();
+          Control.sleep ~seconds:0.1;
 
           Flock.terminate ()
         end
