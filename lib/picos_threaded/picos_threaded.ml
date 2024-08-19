@@ -80,14 +80,7 @@ and cancel_after : type a. _ -> a Computation.t -> _ =
 
 and spawn t fiber main =
   Fiber.check t.fiber;
-  match Thread.create start (fiber, t.fatal_exn_handler, main) with
-  | _ -> ( (* We assume that [main] is now guaranteed to be called. *) )
-  | exception exn ->
-      let exn_bt = Exn_bt.get exn in
-      (* [main] wasn't called, so we need to finalize. *)
-      let (Packed computation) = Fiber.get_computation fiber in
-      Computation.cancel computation exn_bt;
-      Exn_bt.raise exn_bt
+  Thread.create start (fiber, t.fatal_exn_handler, main) |> ignore
 
 and handler = Handler.{ current; spawn; yield; cancel_after; await }
 
