@@ -35,7 +35,8 @@ by decoupling such elements from each other.
 
 Picos comes with a
 [reference manual](https://ocaml-multicore.github.io/picos/doc/picos/index.html)
-and many sample libraries.
+and many
+[sample libraries](https://ocaml-multicore.github.io/picos/doc/picos/index.html#libraries).
 
 ⚠️ Please note that Picos is still considered experimental and unstable.
 
