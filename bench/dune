@@ -1,7 +1,26 @@
 (test
  (name main)
  (action
-  (run %{test} -brief))
+  (progn
+   (run %{test} -brief "Picos Computation")
+   (run %{test} -brief "Picos Current")
+   (run %{test} -brief "Picos FLS (excluding Current)")
+   (run %{test} -brief "Picos TLS")
+   (run %{test} -brief "Picos DLS")
+   (run %{test} -brief "Picos Mutex")
+   (run %{test} -brief "Picos Semaphore")
+   (run %{test} -brief "Picos Spawn")
+   (run %{test} -brief "Picos Yield")
+   (run %{test} -brief "Picos Cancel_after with Picos_select")
+   (run %{test} -brief "Ref with Picos_sync.Mutex")
+   (run %{test} -brief "Picos_mpscq")
+   (run %{test} -brief "Picos_htbl")
+   (run %{test} -brief "Picos_stdio")
+   (run %{test} -brief "Picos_sync Stream")
+   (run %{test} -brief "Fib")
+   (run %{test} -brief "Picos binaries")
+   (run %{test} -brief "Bounded_q with Picos_sync")
+   (run %{test} -brief "Memory usage")))
  (libraries
   picos
   picos.domain
