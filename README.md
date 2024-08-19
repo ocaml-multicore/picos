@@ -148,7 +148,8 @@ code promptly cancels external requests and frees critical resources.
 A trigger provides the ability to await for a signal and is perhaps the best
 established and least controversial element of the Picos interface.
 
-Here is an extract from the signature of `Trigger` module:
+Here is an extract from the signature of the
+[`Trigger` module](https://ocaml-multicore.github.io/picos/doc/picos/Picos/Trigger/index.html):
 
 <!--
 ```ocaml
@@ -282,7 +283,8 @@ _canceled_, of some sort of computation and allows anyone with access to the
 computation to attach triggers to it to be signaled in case the computation
 stops running.
 
-Here is an extract from the signature of the `Computation` module:
+Here is an extract from the signature of the
+[`Computation` module](https://ocaml-multicore.github.io/picos/doc/picos/Picos/Computation/index.html):
 
 ```ocaml skip
 type 'a t
@@ -343,7 +345,8 @@ it runs some function under its handler. The `Fiber` abstraction provides a way
 to share a proxy identity, and a bit of state, between a scheduler and other
 concurrent abstractions.
 
-Here is an extract from the signature of the `Fiber` module:
+Here is an extract from the signature of the
+[`Fiber` module](https://ocaml-multicore.github.io/picos/doc/picos/Picos/Fiber/index.html):
 
 ```ocaml skip
 type t
