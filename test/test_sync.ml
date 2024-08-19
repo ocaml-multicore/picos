@@ -86,9 +86,12 @@ let test_mutex_and_condition_cancelation () =
     Array.init n @@ fun _ -> Computation.Packed (Computation.create ())
   in
 
-  let attempt i finished ?checked _ =
-    computations.(i) <- Fiber.get_computation (Fiber.current ());
+  let attempt ?checked i fiber _ =
+    let new_computation = Computation.Packed (Computation.create ()) in
+    let old_computation = Fiber.get_computation fiber in
+    Fiber.set_computation fiber new_computation;
     match
+      computations.(i) <- new_computation;
       Atomic.incr step_1;
       Domain.cpu_relax ();
       Mutex.lock ?checked mutex
@@ -105,18 +108,18 @@ let test_mutex_and_condition_cancelation () =
             Domain.cpu_relax ();
             step := n + 1;
             Mutex.unlock ?checked mutex;
-            Trigger.signal finished
+            Fiber.set_computation fiber old_computation
         | exception _ ->
             let n = !step in
             Atomic.incr step_4;
             Domain.cpu_relax ();
             step := n + 1;
             Mutex.unlock ?checked mutex;
-            Trigger.signal finished
+            Fiber.set_computation fiber old_computation
       end
     | exception _ ->
         Atomic.incr step_5;
-        Trigger.signal finished
+        Fiber.set_computation fiber old_computation
   in
 
   let exit = Atomic.make n in
@@ -131,16 +134,13 @@ let test_mutex_and_condition_cancelation () =
     Fun.protect ~finally:(fun () -> Atomic.decr exit) @@ fun () ->
     Test_scheduler.run @@ fun () ->
     let state = Random.State.make_self_init () in
+    let fiber = Fiber.current () in
     while
       Array.exists (fun step -> Atomic.get step < limit) steps
       && Unix.gettimeofday () < deadline
     do
-      let finished = Trigger.create () in
       let checked = if Random.State.bool state then None else some_false in
-      Fiber.spawn
-        (Fiber.create ~forbid:false (Computation.create ()))
-        (attempt i finished ?checked);
-      Trigger.await finished |> ignore
+      attempt ?checked i fiber ()
     done
   in
   let domains =
