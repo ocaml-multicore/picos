@@ -3,6 +3,8 @@ open Picos_structured
 open Picos_sync
 module Queue = Stdlib.Queue
 
+let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
+
 module Bounded_q : sig
   type 'a t
 
@@ -119,7 +121,7 @@ let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 10 * Util.iter_factor) () =
   let wrap _ () = Scheduler.run in
   let work domain_index () =
     Flock.join_after @@ fun () ->
-    Flock.fork yielder;
+    if not is_ocaml4 then Flock.fork yielder;
     if domain_index < n_adders then
       let rec work () =
         let n = Countdown.alloc n_msgs_to_add ~domain_index ~batch:100 in
