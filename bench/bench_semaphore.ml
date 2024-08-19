@@ -21,22 +21,23 @@ let run_one ~budgetf ~use_domains ~n_resources () =
     (if use_domains || is_ocaml4 then 10 else 100) * Util.iter_factor
   in
 
-  let run_worker () =
-    for _ = 1 to n_ops do
-      Semaphore.Counting.acquire semaphore;
-      Fiber.yield ();
-      Semaphore.Counting.release semaphore
-    done
-  in
-
   let init _ = () in
   let wrap _ () = Scheduler.run in
   let work _ () =
+    Bundle.join_after @@ fun daemons ->
+    Fun.protect ~finally:(fun () -> Bundle.terminate daemons) @@ fun () ->
+    let run_worker () =
+      if not is_ocaml4 then Bundle.fork daemons yielder;
+      for _ = 1 to n_ops do
+        Semaphore.Counting.acquire semaphore;
+        Fiber.yield ();
+        Semaphore.Counting.release semaphore
+      done
+    in
+
     Flock.join_after @@ fun () ->
     if use_domains then begin
-      if not is_ocaml4 then Flock.fork yielder;
-      run_worker ();
-      Flock.terminate ()
+      run_worker ()
     end
     else
       for _ = 1 to n_workers do
