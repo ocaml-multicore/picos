@@ -708,19 +708,22 @@ considered experimental. We hope that Picos soon matures to serve the needs of
 both the commercial users of OCaml and the community at large.
 
 Previous sections already touched a couple of updates currently in development,
-such as the support for finalizing resources stored in `FLS` and the development
-of Concurrent ML style abstractions. We also have ongoing work to formalize
-aspects of the Picos interface.
+such as the support for finalizing resources stored in
+[`FLS`](https://ocaml-multicore.github.io/picos/doc/picos/Picos/Fiber/FLS/index.html)
+and the development of Concurrent ML style abstractions. We also have ongoing
+work to formalize aspects of the Picos interface.
 
-One potential change we will be investigating is whether the `Computation`
+One potential change we will be investigating is whether the
+[`Computation`](https://ocaml-multicore.github.io/picos/doc/picos/Picos/Computation/index.html)
 abstraction should be simplified to only support cancelation.
 
-The implementation of some operations, such as `Fiber.current` to retrieve the
-current fiber proxy identity, do not strictly need to be effects. Performing an
-effect is relatively expensive and we will likely design a mechanism to store a
-reference to the current fiber in some sort of local storage, which could
-significantly improve the performance of certain abstractions, such as checked
-mutexes, that need to access the current fiber.
+The implementation of some operations, such as
+[`Fiber.current`](https://ocaml-multicore.github.io/picos/doc/picos/Picos/Fiber/index.html#val-current)
+to retrieve the current fiber proxy identity, do not strictly need to be
+effects. Performing an effect is relatively expensive and we will likely design
+a mechanism to store a reference to the current fiber in some sort of local
+storage, which could significantly improve the performance of certain
+abstractions, such as checked mutexes, that need to access the current fiber.
 
 We also plan to develop a minimalist library for spawning threads over domains,
 much like Moonpool, in a cooperative manner for schedulers and other libraries.
