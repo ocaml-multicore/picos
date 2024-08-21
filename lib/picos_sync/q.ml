@@ -34,6 +34,9 @@ let[@inline] snoc (One o as t : (_, _) one) value =
   let cons = Cons { value; next = S Nil } in
   T (One { head = o.head; tail = o.cons; cons })
 
+let[@inline] add t value =
+  match t with T Zero -> singleton value | T (One _ as o) -> snoc o value
+
 let[@inline] head (One { head = Cons hd; _ } : (_, _) one) = hd.value
 
 let[@inline] tail (One o as t : (_, _) one) =

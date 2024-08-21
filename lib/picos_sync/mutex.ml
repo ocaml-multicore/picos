@@ -73,11 +73,7 @@ let rec lock_as fiber t entry backoff =
               Entry { trigger; fiber }
           | Entry _ as entry -> entry
         in
-        let waiters =
-          match r.waiters with
-          | T Zero -> Q.singleton entry
-          | T (One _ as q) -> Q.snoc q entry
-        in
+        let waiters = Q.add r.waiters entry in
         let after = Locked { fiber = r.fiber; waiters } in
         if Atomic.compare_and_set t before after then begin
           match Trigger.await entry_r.trigger with
