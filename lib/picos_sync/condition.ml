@@ -40,11 +40,7 @@ let rec cleanup backoff trigger (t : t) =
 
 let rec wait (t : t) mutex trigger fiber backoff =
   let before = Atomic.get t in
-  let after =
-    match before with
-    | T Zero -> Q.singleton trigger
-    | T (One _ as q) -> Q.snoc q trigger
-  in
+  let after = Q.add before trigger in
   if Atomic.compare_and_set t before after then begin
     Mutex.unlock_as (Fiber.Maybe.of_fiber fiber) mutex Backoff.default;
     let result = Trigger.await trigger in
