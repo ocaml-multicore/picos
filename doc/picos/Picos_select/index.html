@@ -56,7 +56,7 @@ open Picos_sync</code></pre><h3 id="one-of-many"><a href="#one-of-many" class="a
     assert (w = 1)
   in
 
-  Flock.join_after begin fun () -&gt;
+  Flock.join_after ~on_return:`Terminate begin fun () -&gt;
     Flock.fork begin fun () -&gt;
       while true do
         Event.select [
@@ -86,8 +86,6 @@ open Picos_sync</code></pre><h3 id="one-of-many"><a href="#one-of-many" class="a
     read1 syn_inn;
     write1 msg_out2;
     read1 syn_inn;
-
-    Flock.terminate ()
   end
 Inn1
 Inn2

@@ -61,7 +61,7 @@ end</code></pre><p>The above is definitely not the fastest nor the most scalable
     Bounded_q.create ~capacity:3
   in
 
-  Flock.join_after begin fun () -&gt;
+  Flock.join_after ~on_return:`Terminate begin fun () -&gt;
     Flock.fork begin fun () -&gt;
       while true do
         Printf.printf &quot;Popped %d\n%!&quot;
@@ -77,8 +77,6 @@ end</code></pre><p>The above is definitely not the fastest nor the most scalable
     Printf.printf &quot;All done?\n%!&quot;;
 
     Control.yield ();
-
-    Flock.terminate ()
   end;
 
   Printf.printf &quot;Pushing %d\n%!&quot; 101;

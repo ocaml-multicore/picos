@@ -53,13 +53,11 @@ open Picos_structured</code></pre><h3 id="a-server-and-client"><a href="#a-serve
       ()
   in
 
-  Flock.join_after @@ fun () -&gt;
+  Flock.join_after ~on_return:`Terminate @@ fun () -&gt;
 
-  let@ server =
-    finally Promise.terminate @@ fun () -&gt;
-    Flock.fork_as_promise @@ fun () -&gt;
+  Flock.fork begin fun () -&gt;
     server_run server_socket
-  in
+  end;
 
   client server_uri &quot;World&quot;
-- : string = &quot;Hello, World!&quot;</code></pre><p>We first create the <code>server_socket</code> and obtain the <code>server_port</code> and ultimately the <code>server_uri</code> from it — typically one can avoid this complexity and use a fixed port. We then create a <a href="../Picos_structured/Flock/index.html" title="Picos_structured.Flock">flock</a> for running the server as a concurrent promise, which we arrange to terminate at the end of the scope. Finally we act as the client to get a greeting from the server.</p></div></body></html>
+- : string = &quot;Hello, World!&quot;</code></pre><p>We first create the <code>server_socket</code> and obtain the <code>server_port</code> and ultimately the <code>server_uri</code> from it — typically one can avoid this complexity and use a fixed port. We then create a <a href="../Picos_structured/Flock/index.html" title="Picos_structured.Flock">flock</a> for running the server as a concurrent fiber, which we arrange to terminate at the end of the scope. Finally we act as the client to get a greeting from the server.</p></div></body></html>
