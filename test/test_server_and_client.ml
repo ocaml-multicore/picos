@@ -110,7 +110,7 @@ let main () =
   in
 
   begin
-    Flock.join_after @@ fun () ->
+    Flock.join_after ~on_return:`Terminate @@ fun () ->
     Flock.fork server;
     begin
       Mutex.protect mutex @@ fun () ->
@@ -118,8 +118,7 @@ let main () =
         Condition.wait condition mutex
       done
     end;
-    Run.all [ client "A"; client "B" ];
-    Flock.terminate ()
+    Run.all [ client "A"; client "B" ]
   end;
 
   Printf.printf "Server and Client test: OK\n%!"

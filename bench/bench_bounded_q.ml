@@ -120,7 +120,7 @@ let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 10 * Util.iter_factor) () =
   in
   let wrap _ () = Scheduler.run in
   let work domain_index () =
-    Flock.join_after @@ fun () ->
+    Flock.join_after ~on_return:`Terminate @@ fun () ->
     if not is_ocaml4 then Flock.fork yielder;
     if domain_index < n_adders then
       let rec work () =
@@ -131,7 +131,6 @@ let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 10 * Util.iter_factor) () =
           done;
           work ()
         end
-        else Flock.terminate ()
       in
       work ()
     else
@@ -143,7 +142,6 @@ let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 10 * Util.iter_factor) () =
           done;
           work ()
         end
-        else Flock.terminate ()
       in
       work ()
   in

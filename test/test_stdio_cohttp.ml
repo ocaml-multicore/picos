@@ -22,10 +22,11 @@ let main () =
   | exception Unix.Unix_error (EPERM, _, _) when is_opam_ci -> ()
   | () ->
       Unix.listen server_socket 8;
-      (* Then we start the server. *)
-      Flock.join_after @@ fun () ->
-      let server =
-        Flock.fork_as_promise @@ fun () ->
+      (* We create a scope for fibers to be terminated on return. *)
+      Flock.join_after ~on_return:`Terminate @@ fun () ->
+      begin
+        (* Then we start the server. *)
+        Flock.fork @@ fun () ->
         let callback _conn req body =
           let uri = req |> Request.uri |> Uri.to_string in
           let meth = req |> Request.meth |> Code.string_of_method in
@@ -38,7 +39,7 @@ let main () =
           Server.respond_string ~status:`OK ~body ()
         in
         Server.run (Server.make ~callback ()) server_socket
-      in
+      end;
       let server_uri =
         match Unix.getsockname server_socket with
         | ADDR_UNIX _ -> failwith "impossible"
@@ -52,8 +53,6 @@ let main () =
         Client.post ~body:(`String "It's-a-Me, Picos!")
           (Uri.of_string server_uri)
       in
-      Printf.printf "%s\n%!" (Body.to_string body);
-      (* Finally we terminate the server. *)
-      Promise.terminate server
+      Printf.printf "%s\n%!" (Body.to_string body)
 
 let () = Test_scheduler.run ~max_domains:3 main

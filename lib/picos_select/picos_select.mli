@@ -191,7 +191,7 @@ val check_configured : unit -> unit
           assert (w = 1)
         in
 
-        Flock.join_after begin fun () ->
+        Flock.join_after ~on_return:`Terminate begin fun () ->
           Flock.fork begin fun () ->
             while true do
               Event.select [
@@ -221,8 +221,6 @@ val check_configured : unit -> unit
           read1 syn_inn;
           write1 msg_out2;
           read1 syn_inn;
-
-          Flock.terminate ()
         end
       Inn1
       Inn2

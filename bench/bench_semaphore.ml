@@ -24,8 +24,7 @@ let run_one ~budgetf ~use_domains ~n_resources () =
   let init _ = () in
   let wrap _ () = Scheduler.run in
   let work _ () =
-    Bundle.join_after @@ fun daemons ->
-    Fun.protect ~finally:(fun () -> Bundle.terminate daemons) @@ fun () ->
+    Bundle.join_after ~on_return:`Terminate @@ fun daemons ->
     let run_worker () =
       if not is_ocaml4 then Bundle.fork daemons yielder;
       for _ = 1 to n_ops do
