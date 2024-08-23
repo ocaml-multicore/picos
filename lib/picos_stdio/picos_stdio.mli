@@ -718,7 +718,7 @@ end
         Unix.set_nonblock syn_i;
         Unix.set_nonblock syn_o;
 
-        Flock.join_after begin fun () ->
+        Flock.join_after ~on_return:`Terminate begin fun () ->
           Flock.fork begin fun () ->
             let bytes = Bytes.create 100 in
             while true do
@@ -752,8 +752,6 @@ end
 
           send_string "Hello, world!";
           send_string "POSIX with OCaml";
-
-          Flock.terminate ()
         end
       Hello, world!
       POSIX with OCaml

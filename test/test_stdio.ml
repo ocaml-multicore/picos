@@ -46,14 +46,13 @@ let test_select_empty_timeout () =
 
 let test_select_empty_forever () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
-  Flock.join_after @@ fun () ->
+  Flock.join_after ~on_return:`Terminate @@ fun () ->
   begin
     Flock.fork @@ fun () ->
     let _ = Unix.select [] [] [] (-1.0) in
     Printf.printf "Impossible\n%!"
   end;
-  Unix.sleepf 0.01;
-  Flock.terminate ()
+  Unix.sleepf 0.01
 
 let test_select () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
@@ -79,39 +78,39 @@ let test_select () =
 
   let events = Picos_mpscq.create ~padded:true () in
 
-  Flock.join_after @@ fun () ->
   begin
-    Flock.fork @@ fun () ->
-    while true do
-      match Unix.select [ msg_inn1; msg_inn2 ] [] [] 0.2 with
-      | inns, _, _ ->
-          if List.exists (( == ) msg_inn1) inns then begin
-            Picos_mpscq.push events (Printf.sprintf "Inn1");
-            assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1);
-            assert (1 = Unix.write_substring syn_out "!" 0 1)
-          end;
-          if List.exists (( == ) msg_inn2) inns then begin
-            Picos_mpscq.push events (Printf.sprintf "Inn2");
-            assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1);
-            assert (1 = Unix.write_substring syn_out "!" 0 1)
-          end;
-          if [] == inns then begin
-            Picos_mpscq.push events (Printf.sprintf "Timeout");
-            assert (1 = Unix.write_substring syn_out "!" 0 1)
-          end
-    done
+    Flock.join_after ~on_return:`Terminate @@ fun () ->
+    begin
+      Flock.fork @@ fun () ->
+      while true do
+        match Unix.select [ msg_inn1; msg_inn2 ] [] [] 0.2 with
+        | inns, _, _ ->
+            if List.exists (( == ) msg_inn1) inns then begin
+              Picos_mpscq.push events (Printf.sprintf "Inn1");
+              assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1);
+              assert (1 = Unix.write_substring syn_out "!" 0 1)
+            end;
+            if List.exists (( == ) msg_inn2) inns then begin
+              Picos_mpscq.push events (Printf.sprintf "Inn2");
+              assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1);
+              assert (1 = Unix.write_substring syn_out "!" 0 1)
+            end;
+            if [] == inns then begin
+              Picos_mpscq.push events (Printf.sprintf "Timeout");
+              assert (1 = Unix.write_substring syn_out "!" 0 1)
+            end
+      done
+    end;
+
+    Control.yield ();
+    assert (1 = Unix.write_substring msg_out1 "!" 0 1);
+    Control.yield ();
+    assert (1 = Unix.write_substring msg_out2 "!" 0 1);
+    Control.yield ();
+    assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
+    assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
+    assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1)
   end;
-
-  Control.yield ();
-  assert (1 = Unix.write_substring msg_out1 "!" 0 1);
-  Control.yield ();
-  assert (1 = Unix.write_substring msg_out2 "!" 0 1);
-  Control.yield ();
-  assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
-  assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
-  assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1);
-
-  Flock.terminate ();
 
   let events = Picos_mpscq.pop_all events in
 

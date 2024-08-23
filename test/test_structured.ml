@@ -3,7 +3,7 @@ open Picos_structured
 open Picos_sync
 
 (** Helper to check that computation is restored *)
-let check join_after scope =
+let check join_after ?callstack ?on_return scope =
   let open Picos in
   let fiber = Fiber.current () in
   let before = Fiber.get_computation fiber in
@@ -12,7 +12,7 @@ let check join_after scope =
     assert (before == after)
   in
   Fun.protect ~finally @@ fun () ->
-  join_after @@ fun bundle ->
+  join_after ?callstack ?on_return @@ fun bundle ->
   let during = Fiber.get_computation fiber in
   assert (before != during);
   scope bundle
@@ -69,7 +69,7 @@ let test_cancelation_awaits_children () =
   let blocked = ref false in
   let slept = ref false in
   begin
-    check Flock.join_after @@ fun () ->
+    check Flock.join_after ~on_return:`Terminate @@ fun () ->
     begin
       Flock.fork @@ fun () ->
       begin
@@ -91,8 +91,7 @@ let test_cancelation_awaits_children () =
     end;
     while not !blocked do
       Control.sleep ~seconds:0.01
-    done;
-    Flock.terminate ()
+    done
   end;
   assert !slept
 
@@ -123,7 +122,7 @@ let test_block_raises_sys_error () =
 let test_termination_nests () =
   Test_scheduler.run ~max_domains:3 @@ fun () ->
   let semaphore = Semaphore.Binary.make false in
-  check Flock.join_after @@ fun () ->
+  check Flock.join_after ~on_return:`Terminate @@ fun () ->
   begin
     Flock.fork @@ fun () ->
     begin
@@ -137,8 +136,7 @@ let test_termination_nests () =
       end
     end
   end;
-  Semaphore.Binary.acquire semaphore;
-  Flock.terminate ()
+  Semaphore.Binary.acquire semaphore
 
 let test_promise_cancelation_does_not_terminate () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
@@ -171,14 +169,13 @@ let test_can_wait_promises () =
 
 let test_can_select_promises () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
-  Flock.join_after @@ fun () ->
+  Flock.join_after ~on_return:`Terminate @@ fun () ->
   let a =
     Flock.fork_as_promise @@ fun () ->
     Control.sleep ~seconds:0.1;
     42
   and b = Flock.fork_as_promise @@ fun () -> Event.select [] in
-  assert (Event.select [ Promise.completed a; Promise.completed b ] = 42);
-  Flock.terminate ()
+  assert (Event.select [ Promise.completed a; Promise.completed b ] = 42)
 
 let test_any_and_all_errors () =
   [ Run.all; Run.any ]

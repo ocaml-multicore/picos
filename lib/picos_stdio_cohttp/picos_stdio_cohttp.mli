@@ -128,13 +128,11 @@ end
             ()
         in
 
-        Flock.join_after @@ fun () ->
+        Flock.join_after ~on_return:`Terminate @@ fun () ->
 
-        let@ server =
-          finally Promise.terminate @@ fun () ->
-          Flock.fork_as_promise @@ fun () ->
+        Flock.fork begin fun () ->
           server_run server_socket
-        in
+        end;
 
         client server_uri "World"
       - : string = "Hello, World!"
@@ -144,5 +142,5 @@ end
     ultimately the [server_uri] from it — typically one can avoid this
     complexity and use a fixed port.  We then create a
     {{!Picos_structured.Flock} flock} for running the server as a concurrent
-    promise, which we arrange to terminate at the end of the scope.  Finally we
+    fiber, which we arrange to terminate at the end of the scope.  Finally we
     act as the client to get a greeting from the server. *)

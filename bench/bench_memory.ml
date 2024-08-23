@@ -16,7 +16,7 @@ let run_suite ~budgetf:_ =
       begin
         Scheduler.run @@ fun () ->
         let open Picos_structured in
-        Bundle.join_after @@ fun bundle ->
+        Bundle.join_after ~on_return:`Terminate @@ fun bundle ->
         let n = 10_000 in
         let bytes =
           measure_live_bytes @@ fun () ->
@@ -30,7 +30,6 @@ let run_suite ~budgetf:_ =
           done;
           Control.yield ()
         in
-        Bundle.terminate bundle;
         Metric.make ~metric:"memory used" ~config:"fiber in a bundle" ~units:"B"
           ~trend:`Lower_is_better ~description:"Memory usage"
           (`Float (Float.of_int (bytes / n)))
@@ -38,7 +37,7 @@ let run_suite ~budgetf:_ =
       begin
         Scheduler.run @@ fun () ->
         let open Picos_structured in
-        Bundle.join_after @@ fun bundle ->
+        Bundle.join_after ~on_return:`Terminate @@ fun bundle ->
         let n = 10_000 in
         let bytes =
           measure_live_bytes @@ fun () ->
@@ -52,7 +51,6 @@ let run_suite ~budgetf:_ =
           done;
           Control.yield ()
         in
-        Bundle.terminate bundle;
         Metric.make ~metric:"memory used" ~config:"promise in a bundle"
           ~units:"B" ~trend:`Lower_is_better ~description:"Memory usage"
           (`Float (Float.of_int (bytes / n)))
@@ -60,7 +58,7 @@ let run_suite ~budgetf:_ =
       begin
         Scheduler.run @@ fun () ->
         let open Picos_structured in
-        Flock.join_after @@ fun () ->
+        Flock.join_after ~on_return:`Terminate @@ fun () ->
         let n = 10_000 in
         let bytes =
           measure_live_bytes @@ fun () ->
@@ -74,7 +72,6 @@ let run_suite ~budgetf:_ =
           done;
           Control.yield ()
         in
-        Flock.terminate ();
         Metric.make ~metric:"memory used" ~config:"fiber in a flock" ~units:"B"
           ~trend:`Lower_is_better ~description:"Memory usage"
           (`Float (Float.of_int (bytes / n)))
@@ -82,7 +79,7 @@ let run_suite ~budgetf:_ =
       begin
         Scheduler.run @@ fun () ->
         let open Picos_structured in
-        Flock.join_after @@ fun () ->
+        Flock.join_after ~on_return:`Terminate @@ fun () ->
         let n = 10_000 in
         let bytes =
           measure_live_bytes @@ fun () ->
@@ -96,7 +93,6 @@ let run_suite ~budgetf:_ =
           done;
           Control.yield ()
         in
-        Flock.terminate ();
         Metric.make ~metric:"memory used" ~config:"promise in a flock"
           ~units:"B" ~trend:`Lower_is_better ~description:"Memory usage"
           (`Float (Float.of_int (bytes / n)))

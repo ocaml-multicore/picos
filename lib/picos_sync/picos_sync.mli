@@ -562,7 +562,7 @@ end
           Bounded_q.create ~capacity:3
         in
 
-        Flock.join_after begin fun () ->
+        Flock.join_after ~on_return:`Terminate begin fun () ->
           Flock.fork begin fun () ->
             while true do
               Printf.printf "Popped %d\n%!"
@@ -578,8 +578,6 @@ end
           Printf.printf "All done?\n%!";
 
           Control.yield ();
-
-          Flock.terminate ()
         end;
 
         Printf.printf "Pushing %d\n%!" 101;

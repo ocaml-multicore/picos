@@ -5,12 +5,17 @@ let[@inline never] completed () = invalid_arg "already completed"
 type _ tdt =
   | Nothing : [> `Nothing ] tdt
   | Bundle : {
-      num_fibers : int Atomic.t;
+      config : int Atomic.t;
       bundle : Computation.packed;
       errors : Control.Errors.t;
       finished : Trigger.t;
     }
       -> [> `Bundle ] tdt
+
+let config_terminated_bit = 0x01
+let config_callstack_mask = 0x3E
+let config_callstack_shift = 1
+let config_one = 0x40 (* memory runs out before overflow *)
 
 let flock_key : [ `Bundle | `Nothing ] tdt Fiber.FLS.key =
   Fiber.FLS.new_key (Constant Nothing)
@@ -31,8 +36,8 @@ let error ?callstack (Bundle r as t : t) (exn_bt : Exn_bt.t) =
   end
 
 let decr (Bundle r : t) =
-  let n = Atomic.fetch_and_add r.num_fibers (-1) in
-  if n = 1 then begin
+  let n = Atomic.fetch_and_add r.config (-config_one) in
+  if n < config_one * 2 then begin
     let (Packed bundle) = r.bundle in
     Computation.cancel bundle (Control.terminate_bt ());
     Trigger.signal r.finished
@@ -62,14 +67,29 @@ let await (type a) (Bundle r as t : t) fiber packed canceler outer
   Control.Errors.check r.errors;
   Fiber.check fiber
 
-let join_after_pass (type a) (fn : a -> _) (pass : a pass) =
+let join_after_pass (type a) ?callstack ?on_return (fn : a -> _) (pass : a pass)
+    =
   (* The sequence of operations below ensures that nothing is leaked. *)
   let (Bundle r as t : t) =
-    let num_fibers = Atomic.make 1 in
+    let terminated =
+      match on_return with
+      | None | Some `Wait -> 0
+      | Some `Terminate -> config_terminated_bit
+    in
+    let callstack =
+      match callstack with
+      | None -> 0
+      | Some n ->
+          if n <= 0 then 0
+          else
+            Int.min n (config_callstack_mask lsr config_callstack_shift)
+            lsl config_callstack_shift
+    in
+    let config = Atomic.make (config_one lor callstack lor terminated) in
     let bundle = Computation.Packed (Computation.create ~mode:`LIFO ()) in
     let errors = Control.Errors.create () in
     let finished = Trigger.create () in
-    Bundle { num_fibers; bundle; errors; finished }
+    Bundle { config; bundle; errors; finished }
   in
   let fiber = Fiber.current () in
   let outer =
@@ -85,6 +105,16 @@ let join_after_pass (type a) (fn : a -> _) (pass : a pass) =
     fn (match pass with FLS -> Fiber.FLS.set fiber flock_key t | Arg -> t)
   with
   | value ->
+      let config = Atomic.get r.config in
+      if config land config_terminated_bit <> 0 then begin
+        let callstack =
+          let n =
+            (config land config_callstack_mask) lsr config_callstack_shift
+          in
+          if n = 0 then None else Some n
+        in
+        terminate ?callstack t
+      end;
       await t fiber packed canceler outer pass;
       value
   | exception exn ->
@@ -94,10 +124,10 @@ let join_after_pass (type a) (fn : a -> _) (pass : a pass) =
       Exn_bt.raise exn_bt
 
 let rec incr (Bundle r as t : t) backoff =
-  let before = Atomic.get r.num_fibers in
-  if before = 0 then completed ()
-  else if not (Atomic.compare_and_set r.num_fibers before (before + 1)) then
-    incr t (Backoff.once backoff)
+  let before = Atomic.get r.config in
+  if before < config_one then completed ()
+  else if not (Atomic.compare_and_set r.config before (before + config_one))
+  then incr t (Backoff.once backoff)
 
 let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
   (* The sequence of operations below ensures that nothing is leaked. *)
@@ -179,8 +209,11 @@ let fork_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
 let is_running (Bundle { bundle = Packed bundle; _ } : t) =
   Computation.is_running bundle
 
-let join_after fn = join_after_pass fn Arg
+let join_after ?callstack ?on_return fn =
+  join_after_pass ?callstack ?on_return fn Arg
+
 let fork t thunk = fork_pass t thunk Arg
 let fork_as_promise t thunk = fork_as_promise_pass t thunk Arg
-let unsafe_incr (Bundle r : t) = Atomic.incr r.num_fibers
-let unsafe_reset (Bundle r : t) = Atomic.set r.num_fibers 1
+
+let unsafe_incr (Bundle r : t) =
+  Atomic.fetch_and_add r.config config_one |> ignore

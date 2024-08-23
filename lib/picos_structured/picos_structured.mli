@@ -196,14 +196,20 @@ module Bundle : sig
   type t
   (** Represents a bundle of fibers. *)
 
-  val join_after : (t -> 'a) -> 'a
+  val join_after :
+    ?callstack:int -> ?on_return:[ `Terminate | `Wait ] -> (t -> 'a) -> 'a
   (** [join_after scope] calls [scope] with a {{!t} bundle}.  A call of
       [join_after] returns or raises only after [scope] has returned or raised
       and all {{!fork} forked} fibers have terminated.  If [scope] raises an
       exception, {!error} will be called.
 
-      ℹ️ When [scope] returns normally, {!terminate} will not be called
-      implicitly. *)
+      The optional [on_return] argument specifies what to do when the scope
+      returns normally.  It defaults to [`Wait], which means to just wait for
+      all the fibers to terminate on their own.  When explicitly specified as
+      [~on_return:`Terminate], then {{!terminate} [terminate ?callstack]} will
+      be called on return.  This can be convenient, for example, when dealing
+      with {{:https://en.wikipedia.org/wiki/Daemon_(computing)} daemon}
+      fibers. *)
 
   val terminate : ?callstack:int -> t -> unit
   (** [terminate bundle] cancels all of the {{!fork} forked} fibers using the
@@ -265,7 +271,8 @@ module Flock : sig
       dynamic multifiber scope of a flock established by calling
       {!join_after}. *)
 
-  val join_after : (unit -> 'a) -> 'a
+  val join_after :
+    ?callstack:int -> ?on_return:[ `Terminate | `Wait ] -> (unit -> 'a) -> 'a
   (** [join_after scope] creates a new flock for fibers, calls [scope] after
       setting current flock to the new flock, and restores the previous flock,
       if any after [scope] exits.  The flock will be implicitly propagated to
@@ -274,8 +281,13 @@ module Flock : sig
       {{!fork} forked} fibers have terminated.  If [scope] raises an exception,
       {!error} will be called.
 
-      ℹ️ When [scope] returns normally, {!terminate} will not be called
-      implicitly. *)
+      The optional [on_return] argument specifies what to do when the scope
+      returns normally.  It defaults to [`Wait], which means to just wait for
+      all the fibers to terminate on their own.  When explicitly specified as
+      [~on_return:`Terminate], then {{!terminate} [terminate ?callstack]} will
+      be called on return.  This can be convenient, for example, when dealing
+      with {{:https://en.wikipedia.org/wiki/Daemon_(computing)} daemon}
+      fibers. *)
 
   val terminate : ?callstack:int -> unit -> unit
   (** [terminate ()] cancels all of the {{!fork} forked} fibers using the
@@ -647,12 +659,11 @@ end
           Unix.getsockname server_fd
         in
 
-        Flock.join_after begin fun () ->
+        Flock.join_after ~on_return:`Terminate begin fun () ->
           (* Start server *)
-          let server =
-            Flock.fork_as_promise @@ fun () ->
+          Flock.fork begin fun () ->
             run_server server_fd
-          in
+          end;
 
           (* Run clients concurrently *)
           Flock.join_after begin fun () ->
@@ -660,16 +671,13 @@ end
               Flock.fork @@ fun () ->
                 run_client server_addr
             done
-          end;
-
-          (* Stop server *)
-          Promise.terminate server
+          end
         end
     ]}
 
     The main program creates a socket for the server and configures it.  The
-    server is then started as a new fiber.  Then the clients are started to run
-    concurrently.  Finally the server is terminated.
+    server is then started as a fiber in a flock terminated on return.  Then the
+    clients are started to run concurrently in an inner flock.
 
     Finally we run the main program with a scheduler:
 
