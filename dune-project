@@ -29,7 +29,7 @@
    (>= 0.1.0))
   ;; For OCaml 4 compatible defaults that are not used on OCaml 5 by default
   (thread-local-storage
-   (>= 0.1))
+   (>= 0.2))
   (mtime
    (>= 2.0.0))
   (psq

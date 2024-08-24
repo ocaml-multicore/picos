@@ -1,6 +1,6 @@
 open Multicore_bench
 
-let key = Picos_thread.TLS.new_key (fun () -> -1)
+let key = Picos_thread.TLS.create ()
 
 let run_one ~budgetf ~n_domains ~op () =
   let n_ops =
@@ -9,7 +9,10 @@ let run_one ~budgetf ~n_domains ~op () =
 
   let n_ops_todo = Countdown.create ~n_domains () in
 
-  let init _ = Countdown.non_atomic_set n_ops_todo n_ops in
+  let init _ =
+    Picos_thread.TLS.set key (-1);
+    Countdown.non_atomic_set n_ops_todo n_ops
+  in
   let work domain_index () =
     match op with
     | `Get ->
@@ -18,7 +21,7 @@ let run_one ~budgetf ~n_domains ~op () =
           if n <> 0 then
             let rec loop n =
               if 0 < n then begin
-                let d = Picos_thread.TLS.get key in
+                let d = Picos_thread.TLS.get_exn key in
                 loop (n + d)
               end
               else work ()

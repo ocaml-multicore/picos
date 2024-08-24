@@ -14,11 +14,14 @@ module Handler = struct
     and await _ = error in
     E { context = (); handler = { current; spawn; yield; cancel_after; await } }
 
-  let key = Picos_thread.TLS.new_key @@ fun () -> default
-  let get () = Picos_thread.TLS.get key
+  let key = Picos_thread.TLS.create ()
+  let get () = Picos_thread.TLS.get_exn key
 
   let using handler context main =
-    let old = Picos_thread.TLS.get key in
+    let old =
+      try Picos_thread.TLS.get_exn key
+      with Picos_thread.TLS.Not_set -> default
+    in
     Picos_thread.TLS.set key (E { context; handler });
     match main (handler.current context) with
     | value ->
