@@ -101,9 +101,7 @@ let cleared =
   Computation.return computation Cleared;
   computation
 
-let intr_key =
-  Picos_thread.TLS.new_key @@ fun () : [ `Req ] tdt ->
-  invalid_arg "has not been configured"
+let intr_key : [ `Req ] tdt Picos_thread.TLS.t = Picos_thread.TLS.create ()
 
 let key =
   Picos_domain.DLS.new_key @@ fun () ->
@@ -289,7 +287,7 @@ let handle_signal signal =
        Computation.return r.computation r.value
   end
   else if signal = config.intr_sig then
-    let (Req r) = Picos_thread.TLS.get intr_key in
+    let (Req r) = Picos_thread.TLS.get_exn intr_key in
     Computation.return r.computation Signaled
 
 let reconfigure_signal_handlers () =
