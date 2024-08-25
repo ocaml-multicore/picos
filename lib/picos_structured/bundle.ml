@@ -13,12 +13,11 @@ type _ tdt =
       -> [> `Bundle ] tdt
 
 let config_terminated_bit = 0x01
-let config_callstack_mask = 0x3E
-let config_callstack_shift = 1
-let config_one = 0x40 (* memory runs out before overflow *)
+and config_callstack_mask = 0x3E
+and config_callstack_shift = 1
+and config_one = 0x40 (* memory runs out before overflow *)
 
-let flock_key : [ `Bundle | `Nothing ] tdt Fiber.FLS.key =
-  Fiber.FLS.new_key (Constant Nothing)
+let flock_key : [ `Bundle | `Nothing ] tdt Fiber.FLS.t = Fiber.FLS.create ()
 
 type t = [ `Bundle ] tdt
 
@@ -48,9 +47,9 @@ type _ pass = FLS : unit pass | Arg : t pass
 let[@inline never] no_flock () = invalid_arg "no flock"
 
 let get_flock fiber =
-  match Fiber.FLS.get fiber flock_key with
-  | Nothing -> no_flock ()
+  match Fiber.FLS.get fiber flock_key ~default:Nothing with
   | Bundle _ as t -> t
+  | Nothing -> no_flock ()
 
 let await (type a) (Bundle r as t : t) fiber packed canceler outer
     (pass : a pass) =
@@ -93,7 +92,9 @@ let join_after_pass (type a) ?callstack ?on_return (fn : a -> _) (pass : a pass)
   in
   let fiber = Fiber.current () in
   let outer =
-    match pass with FLS -> Fiber.FLS.get fiber flock_key | Arg -> Nothing
+    match pass with
+    | Arg -> Nothing
+    | FLS -> Fiber.FLS.get fiber flock_key ~default:Nothing
   in
   let (Packed parent as packed) = Fiber.get_computation fiber in
   let (Packed bundle) = r.bundle in

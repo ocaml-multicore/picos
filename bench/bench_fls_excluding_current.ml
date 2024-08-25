@@ -1,7 +1,7 @@
 open Multicore_bench
 open Picos
 
-let key = Fiber.FLS.new_key (Constant (-1))
+let key = Fiber.FLS.create ()
 
 let run_one ~budgetf ~n_domains ~op () =
   let n_ops =
@@ -14,6 +14,7 @@ let run_one ~budgetf ~n_domains ~op () =
   let wrap _ () = Scheduler.run in
   let work domain_index () =
     let fiber = Fiber.current () in
+    Fiber.FLS.set fiber key (-1);
     match op with
     | `Get ->
         let rec work () =
@@ -21,7 +22,7 @@ let run_one ~budgetf ~n_domains ~op () =
           if n <> 0 then
             let rec loop n =
               if 0 < n then begin
-                let d = Fiber.FLS.get fiber key in
+                let d = Fiber.FLS.get_exn fiber key in
                 loop (n + d)
               end
               else work ()
