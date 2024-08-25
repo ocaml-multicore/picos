@@ -111,8 +111,8 @@ let test_computation_removes_triggers () =
      Array.for_all Trigger.is_signaled triggers
      &&
      match Atomic.get computation with
-     | Canceled _ | Returned _ -> false
-     | Continue { balance_and_mode; triggers } ->
+     | S (Canceled _) | S (Returned _) -> false
+     | S (Continue { balance_and_mode; triggers }) ->
          balance_and_mode <= Computation.fifo_bit
          && List.length triggers <= 2
          &&
@@ -120,8 +120,8 @@ let test_computation_removes_triggers () =
          Computation.try_attach computation trigger
          && begin
               match Atomic.get computation with
-              | Canceled _ | Returned _ -> false
-              | Continue { balance_and_mode; triggers } ->
+              | S (Canceled _) | S (Returned _) -> false
+              | S (Continue { balance_and_mode; triggers }) ->
                   balance_and_mode <= Computation.one + Computation.fifo_bit
                   && triggers = [ trigger ]
             end

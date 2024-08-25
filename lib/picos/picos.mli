@@ -544,6 +544,58 @@ module Computation : sig
   (** [capture computation fn x] is equivalent to
       {{!try_capture} [try_capture computation fn x |> ignore]}. *)
 
+  module Tx : sig
+    (** Transactional interface for atomically completing multiple computations.
+
+        ⚠️ The implementation of this mechanism is designed to avoid making the
+        single computation completing operations,
+        i.e. {{!Computation.try_return} [try_return]} and
+        {{!Computation.try_cancel} [try_cancel]}, slower and to avoid making
+        computations heavier.  For this reason the transaction mechanism is only
+        {{:https://en.wikipedia.org/wiki/Non-blocking_algorithm#Obstruction-freedom}
+        obstruction-free}.  What this means is that a transaction may be aborted
+        by another transaction or by a single computation manipulating
+        operation. *)
+
+    type 'a computation := 'a t
+    (** Destructively substituted alias for {!Computation.t}.  *)
+
+    val same : _ computation -> _ computation -> bool
+    (** [same computation1 computation2] determines whether the two computations
+        are the one and the same. *)
+
+    type t
+    (** Represents a transaction. *)
+
+    val create : unit -> t
+    (** [create ()] returns a new empty transaction. *)
+
+    val try_return : t -> 'a computation -> 'a -> bool
+    (** [try_return tx computation value] adds the completion of the
+        [computation] as having returned the given [value] to the transaction.
+        Returns [true] in case the computation had not yet been completed and
+        the transaction was still alive.  Otherwise returns [false] which means
+        that transaction was aborted and it is as if none of the completions
+        succesfully added to the transaction have taken place. *)
+
+    val try_cancel : t -> 'a computation -> Exn_bt.t -> bool
+    (** [try_cancel tx computation exn_bt] adds the completion of the
+        [computation] as having canceled with the given [exn_bt] to the
+        transaction.  Returns [true] in case the computation had not yet been
+        completed and the transaction was still alive.  Otherwise returns
+        [false] which means that transaction was aborted and it is as if none of
+        the completions succesfully added to the transaction have taken
+        place. *)
+
+    val try_commit : t -> bool
+    (** [try_commit tx] attempts to mark the transaction as committed
+        successfully.  Returns [true] in case of success, which means that all
+        the completions added to the transaction have been performed atomically.
+        Otherwise returns [false] which means that transaction was aborted and
+        it is as if none of the completions succesfully added to the transaction
+        have taken place. *)
+  end
+
   (** {2 Interface for canceling} *)
 
   (** An existential wrapper for computations. *)
