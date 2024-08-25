@@ -27,6 +27,7 @@
  (libraries
   test_scheduler
   picos.finally
+  backoff
   alcotest
   unix
   threads.posix
