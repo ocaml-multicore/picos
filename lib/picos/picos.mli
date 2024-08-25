@@ -942,37 +942,16 @@ module Fiber : sig
         Fiber local storage is intended for use as a low overhead storage
         mechanism for fiber extensions.  For example, one might associate a
         priority value with each fiber for a scheduler that uses a priority
-        queue or one might use FLS to store unique id values for fibers.
+        queue or one might use FLS to store unique id values for fibers. *)
 
-        Here is an example of how one might define a fiber id:
+    type fiber := t
+    (** Destructively substituted alias for {!Fiber.t}. *)
 
-        {[
-          let fiber_id_key =
-            let next = Atomic.make 0 in
-            Fiber.FLS.new_key
-            @@ Computed (fun () ->
-                Atomic.fetch_and_add next 1)
-        ]}
-
-        Here is an example of how one might define a fiber priority:
-
-        {[
-          let fiber_priority_key =
-            Fiber.FLS.new_key (Constant 0)
-        ]}
-
-        A priority based scheduler could then use {!get} to access the priority
-        of a fiber highly efficiently.  Fibers that are fine with the default
-        priority do not necessarily need to store a priority at all. *)
-
-    type !'a key
+    type 'a t
     (** Represents a key for storing values of type ['a] in storage associated
         with fibers. *)
 
-    (** Type to specify initial values for fibers. *)
-    type 'a initial = Constant of 'a | Computed of (unit -> 'a)
-
-    val new_key : 'a initial -> 'a key
+    val create : unit -> 'a t
     (** [new_key initial] allocates a new key for associating values in storage
         associated with fibers.  The [initial] value for every fiber is either
         the given {!Constant} or is {!Computed} with the given function.  If the
@@ -981,17 +960,30 @@ module Fiber : sig
 
         ⚠️ New keys should not be created dynamically. *)
 
-    val get : t -> 'a key -> 'a
-    (** [get fiber key] returns the value associated with the [key] in the
-        storage associated with the [fiber].
+    exception Not_set
+    (** Raised by {!get_exn} in case value has not been {!set}. *)
 
-        ⚠️ It is only safe to call [get] from the fiber itself. *)
+    val get_exn : fiber -> 'a t -> 'a
+    (** [get_exn fiber key] returns the value associated with the [key] in the
+        storage associated with the [fiber] or raises {!Not_set} using
+        {!raise_notrace}.
 
-    val set : t -> 'a key -> 'a -> unit
+        ⚠️ It is only safe to call [get_exn] from the fiber itself or when the
+        fiber is known not to be running. *)
+
+    val get : fiber -> 'a t -> default:'a -> 'a
+    (** [get fiber key ~default] returns the value associated with the [key] in
+        the storage associated with the [fiber] or the [default] value.
+
+        ⚠️ It is only safe to call [get] from the fiber itself or when the fiber
+        is known not to be running. *)
+
+    val set : fiber -> 'a t -> 'a -> unit
     (** [set fiber key value] sets the [value] associated with the [key] to the
         given value in the storage associated with the [fiber].
 
-        ⚠️ It is only safe to call [set] from the fiber itself. *)
+        ⚠️ It is only safe to call [set] from the fiber itself or when the fiber
+        is known not to be running. *)
   end
 
   (** {2 Interface for spawning} *)

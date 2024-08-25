@@ -10,45 +10,40 @@ let run_in_fiber main =
 
 let test_fls_basics =
   (* It is imperative to test with both float... *)
-  let float_key = Fiber.FLS.new_key (Constant 1.01) in
+  let float_key = Fiber.FLS.create () in
 
   (* ...and with non float keys. *)
-  let answer_key = Fiber.FLS.new_key (Constant 42) in
-
-  let counter_key =
-    let counter = Atomic.make 0 in
-    Fiber.FLS.new_key @@ Computed (fun () -> Atomic.fetch_and_add counter 1)
-  in
+  let counter_key = Fiber.FLS.create () in
+  let counter = Atomic.make 0 in
 
   fun () ->
     Test_scheduler.run ~max_domains:2 @@ fun () ->
-    let first =
+    begin
       run_in_fiber @@ fun () ->
       let fiber = Fiber.current () in
-      Alcotest.(check' int)
-        ~msg:"constant" ~expected:42
-        ~actual:(Fiber.FLS.get fiber answer_key);
-      Fiber.FLS.set fiber answer_key 101;
-      Alcotest.(check' int)
-        ~msg:"updated" ~expected:101
-        ~actual:(Fiber.FLS.get fiber answer_key);
-      Fiber.FLS.get fiber counter_key
-    in
-    run_in_fiber @@ fun () ->
-    let fiber = Fiber.current () in
-    Alcotest.(check' int)
-      ~msg:"constant" ~expected:42
-      ~actual:(Fiber.FLS.get fiber answer_key);
-    Alcotest.(check' (float 0.0))
-      ~msg:"constant" ~expected:1.01
-      ~actual:(Fiber.FLS.get fiber float_key);
-    Fiber.FLS.set fiber float_key 4.2;
-    Alcotest.(check' (float 0.0))
-      ~msg:"constant" ~expected:4.2
-      ~actual:(Fiber.FLS.get fiber float_key);
-    Alcotest.(check' int)
-      ~msg:"computed" ~expected:(first + 1)
-      ~actual:(Fiber.FLS.get fiber counter_key)
+      begin
+        match Fiber.FLS.get_exn fiber float_key with
+        | _ -> assert false
+        | exception Fiber.FLS.Not_set -> ()
+      end;
+      Fiber.FLS.set fiber float_key 4.2;
+      Fiber.FLS.set fiber counter_key (Atomic.fetch_and_add counter 1);
+      assert (Fiber.FLS.get_exn fiber float_key = 4.2);
+      assert (Fiber.FLS.get_exn fiber counter_key = 0)
+    end;
+    begin
+      run_in_fiber @@ fun () ->
+      let fiber = Fiber.current () in
+      begin
+        match Fiber.FLS.get fiber counter_key ~default:101 with
+        | 101 -> ()
+        | _ -> assert false
+      end;
+      Fiber.FLS.set fiber counter_key (Atomic.fetch_and_add counter 1);
+      Fiber.FLS.set fiber float_key 7.6;
+      assert (Fiber.FLS.get_exn fiber counter_key = 1);
+      assert (Fiber.FLS.get_exn fiber float_key = 7.6)
+    end
 
 let test_trigger_basics () =
   Test_scheduler.run @@ fun () ->

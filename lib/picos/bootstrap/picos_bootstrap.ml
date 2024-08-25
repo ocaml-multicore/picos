@@ -439,9 +439,9 @@ module Fiber = struct
     Computation.unsafe_unsuspend computation Backoff.default
 
   module FLS = struct
-    type 'a key = { index : int; default : non_float; compute : unit -> 'a }
+    type fiber = t
+    type 'a t = int
 
-    let compute = impossible
     let counter = Atomic.make 0
     let unique = Sys.opaque_identity (Obj.magic counter : non_float)
 
@@ -463,55 +463,29 @@ module Fiber = struct
       Array.blit old_fls 0 new_fls 0 (Array.length old_fls);
       new_fls
 
-    type 'a initial = Constant of 'a | Computed of (unit -> 'a)
+    let create () = Atomic.fetch_and_add counter 1
 
-    let new_key initial =
-      let index = Atomic.fetch_and_add counter 1 in
-      match initial with
-      | Constant default ->
-          let default = Sys.opaque_identity (Obj.magic default : non_float) in
-          { index; default; compute }
-      | Computed compute -> { index; default = unique; compute }
+    exception Not_set
 
-    let get (type a) (Fiber r : t) (key : a key) =
+    let get_exn (type a) (Fiber r : fiber) (key : a t) =
+      if key < Array.length r.fls && unique != Array.unsafe_get r.fls key then
+        Sys.opaque_identity (Obj.magic (Array.unsafe_get r.fls key) : a)
+      else raise_notrace Not_set
+
+    let get (type a) (Fiber r : fiber) (key : a t) ~default =
+      if key < Array.length r.fls && unique != Array.unsafe_get r.fls key then
+        Sys.opaque_identity (Obj.magic (Array.unsafe_get r.fls key) : a)
+      else default
+
+    let set (type a) (Fiber r : fiber) (key : a t) (value : a) =
       let fls = r.fls in
-      if key.index < Array.length fls then begin
-        let value = Array.unsafe_get fls key.index in
-        if value != unique then Sys.opaque_identity (Obj.magic value : a)
-        else
-          let value = key.default in
-          if value != unique then begin
-            (* As the [fls] array was already large enough, we cache the default
-               value in the array. *)
-            Array.unsafe_set fls key.index value;
-            Sys.opaque_identity (Obj.magic value : a)
-          end
-          else
-            let value = key.compute () in
-            Array.unsafe_set fls key.index
-              (Sys.opaque_identity (Obj.magic value : non_float));
-            value
-      end
-      else
-        let value = key.default in
-        if value != unique then Sys.opaque_identity (Obj.magic value : a)
-        else
-          let value = key.compute () in
-          let fls = grow fls key.index in
-          r.fls <- fls;
-          Array.unsafe_set fls key.index
-            (Sys.opaque_identity (Obj.magic value : non_float));
-          value
-
-    let set (type a) (Fiber r : t) (key : a key) (value : a) =
-      let fls = r.fls in
-      if key.index < Array.length fls then
-        Array.unsafe_set fls key.index
+      if key < Array.length fls then
+        Array.unsafe_set fls key
           (Sys.opaque_identity (Obj.magic value : non_float))
       else
-        let fls = grow fls key.index in
+        let fls = grow fls key in
         r.fls <- fls;
-        Array.unsafe_set fls key.index
+        Array.unsafe_set fls key
           (Sys.opaque_identity (Obj.magic value : non_float))
   end
 end
