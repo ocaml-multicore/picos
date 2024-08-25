@@ -4,6 +4,10 @@
     ℹ️ This scheduler implementation is mostly meant as an example and for use in
     testing libraries implemented in {!Picos}.
 
+    ⚠️ This scheduler uses {!Picos_select} internally.  If running multiple
+    threads that each run this scheduler, {!Picos_select.configure} must be
+    called by the main thread before creating other threads.
+
     Briefly:
 
     - {{!Picos.Fiber.current} [current]} returns the current fiber.
