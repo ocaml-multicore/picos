@@ -1,3 +1,5 @@
+let[@inline never] impossible () = failwith "impossible"
+
 module Exn_bt = Picos_exn_bt
 
 module Trigger = struct
@@ -51,18 +53,139 @@ module Computation = struct
 
   let[@inline never] error_returned () = invalid_arg "already returned"
 
-  type 'a state =
-    | Canceled of Exn_bt.t
-    | Returned of 'a
-    | Continue of { balance_and_mode : int; triggers : Trigger.t list }
+  type tx_state = Stopped  (** [= false] *) | Started | Aborted
 
-  type 'a t = 'a state Atomic.t
+  type _ tx =
+    | Stopped : [> `Stopped ] tx
+    | Running : {
+        state : tx_state Atomic.t;
+        mutable completions : [ `Nil | `Completion ] completions;
+      }
+        -> [> `Running ] tx
+
+  and _ completions =
+    | Unused : [> `Unused ] completions  (** Affects [Nil]s value! *)
+    | Nil : [> `Nil ] completions  (** [= true] *)
+    | Completion : {
+        computation : 'a t;
+        before : ('a, [ `Continue ]) st;
+        completions : [ `Nil | `Completion ] completions;
+      }
+        -> [> `Completion ] completions
+
+  and ('a, _) st =
+    | Canceled : {
+        exn_bt : Exn_bt.t;
+        mutable tx : [ `Stopped | `Running ] tx;
+      }
+        -> ('a, [> `Canceled ]) st
+    | Returned : {
+        value : 'a;
+        mutable tx : [ `Stopped | `Running ] tx;
+      }
+        -> ('a, [> `Returned ]) st
+    | Continue : {
+        balance_and_mode : int;
+        triggers : Trigger.t list;
+      }
+        -> ('a, [> `Continue ]) st
+
+  and 'a state =
+    | S : ('a, [< `Canceled | `Returned | `Continue ]) st -> 'a state
+  [@@unboxed]
+
+  and 'a t = 'a state Atomic.t
 
   let fifo_bit = 1
   let one = 2
 
-  let empty_fifo = Continue { triggers = []; balance_and_mode = fifo_bit }
-  and empty_lifo = Continue { triggers = []; balance_and_mode = 0 }
+  let[@inline] signal (Continue r : (_, [ `Continue ]) st) =
+    List.iter Trigger.signal
+      (if r.balance_and_mode land fifo_bit <> fifo_bit then r.triggers
+       else List.rev r.triggers)
+
+  module Tx = struct
+    let[@inline never] already_committed () = invalid_arg "already committed"
+    let[@inline] same (type a b) (x : a t) (y : b t) = x == (Obj.magic y : a t)
+
+    type t = [ `Running ] tx
+
+    let[@inline] create () =
+      Running { state = Atomic.make Started; completions = Nil }
+
+    let rec rollback tx = function
+      | Nil -> true
+      | Completion r -> begin
+          begin
+            match Atomic.get r.computation with
+            | ( S (Canceled { tx = previous_tx; _ })
+              | S (Returned { tx = previous_tx; _ }) ) as before ->
+                if tx == previous_tx then
+                  Atomic.compare_and_set r.computation before (S r.before)
+                  |> ignore
+            | S (Continue _) -> ()
+          end;
+          rollback tx r.completions
+        end
+
+    let rec abort (Running r as tx : [ `Running ] tx) =
+      match Atomic.get r.state with
+      | Started ->
+          if Atomic.compare_and_set r.state Started Aborted then
+            rollback tx r.completions
+          else abort tx (* state is write once so no need to backoff *)
+      | Aborted -> rollback tx r.completions
+      | Stopped -> false
+
+    let[@inline] try_abort = function
+      | Stopped -> false
+      | Running _ as tx -> abort tx
+
+    let rec try_complete (Running r as tx : [ `Running ] tx) computation backoff
+        (after : (_, [< `Canceled | `Returned ]) st) =
+      match Atomic.get computation with
+      | S (Continue _ as before) ->
+          Atomic.get r.state == Started
+          &&
+          let completions = r.completions in
+          r.completions <- Completion { computation; before; completions };
+          Atomic.compare_and_set computation (S before) (S after)
+          || begin
+               r.completions <- completions;
+               try_complete tx computation (Backoff.once backoff) after
+             end
+      | S (Canceled { tx = previous_tx; _ })
+      | S (Returned { tx = previous_tx; _ }) ->
+          if try_abort previous_tx then
+            try_complete tx computation backoff after
+          else (not (abort tx)) && already_committed ()
+
+    let rec commit = function
+      | Nil -> true
+      | Completion r ->
+          begin
+            match Atomic.get r.computation with
+            | S (Canceled r) -> r.tx <- Stopped
+            | S (Returned r) -> r.tx <- Stopped
+            | S (Continue _) -> impossible ()
+          end;
+          signal r.before;
+          commit r.completions
+
+    let try_commit (Running r : [ `Running ] tx) =
+      Atomic.compare_and_set r.state Started Stopped && commit r.completions
+
+    let[@inline] try_return (Running _ as tx : [ `Running ] tx) computation
+        value =
+      try_complete tx computation Backoff.default (Returned { value; tx })
+
+    let[@inline] try_cancel (Running _ as tx : [ `Running ] tx) computation
+        exn_bt =
+      try_complete tx computation Backoff.default (Canceled { exn_bt; tx })
+  end
+
+  let empty_fifo = S (Continue { triggers = []; balance_and_mode = fifo_bit })
+  and empty_lifo = S (Continue { triggers = []; balance_and_mode = 0 })
 
   let create ?(mode : [ `FIFO | `LIFO ] = `FIFO) () =
     Atomic.make (if mode == `FIFO then empty_fifo else empty_lifo)
@@ -70,17 +193,17 @@ module Computation = struct
   let with_action ?(mode : [ `FIFO | `LIFO ] = `FIFO) x y action =
     let balance_and_mode = one + Bool.to_int (mode == `FIFO) in
     let trigger = Trigger.from_action x y action in
-    Atomic.make (Continue { balance_and_mode; triggers = [ trigger ] })
+    Atomic.make (S (Continue { balance_and_mode; triggers = [ trigger ] }))
 
   let is_canceled t =
     match Atomic.get t with
-    | Canceled _ -> true
-    | Returned _ | Continue _ -> false
+    | S (Canceled { tx; _ }) -> tx == Stopped
+    | S (Returned _) | S (Continue _) -> false
 
   let canceled t =
     match Atomic.get t with
-    | Canceled exn_bt -> Some exn_bt
-    | Returned _ | Continue _ -> None
+    | S (Canceled { exn_bt; tx }) -> if tx == Stopped then Some exn_bt else None
+    | S (Returned _) | S (Continue _) -> None
 
   (** [gc] is called when balance becomes negative by both [try_attach] and
       [detach].  This ensures that the [O(n)] lazy removal done by [gc] cannot
@@ -95,15 +218,16 @@ module Computation = struct
             if balance_and_mode <= one + fifo_bit then triggers
             else List.rev triggers
           in
-          Continue { balance_and_mode; triggers }
+          S (Continue { balance_and_mode; triggers })
     | r :: rs ->
         if Trigger.is_signaled r then gc balance_and_mode triggers rs
         else gc (balance_and_mode + one) (r :: triggers) rs
 
   let rec try_attach t trigger backoff =
     match Atomic.get t with
-    | Returned _ | Canceled _ -> false
-    | Continue r as before ->
+    | S (Returned { tx; _ }) | S (Canceled { tx; _ }) ->
+        Tx.try_abort tx && try_attach t trigger backoff
+    | S (Continue r) as before ->
         (* We check the trigger before potential allocations. *)
         (not (Trigger.is_signaled trigger))
         &&
@@ -111,7 +235,7 @@ module Computation = struct
           if fifo_bit <= r.balance_and_mode then
             let balance_and_mode = r.balance_and_mode + one in
             let triggers = trigger :: r.triggers in
-            Continue { balance_and_mode; triggers }
+            S (Continue { balance_and_mode; triggers })
           else
             gc (one + (r.balance_and_mode land fifo_bit)) [ trigger ] r.triggers
         in
@@ -122,13 +246,15 @@ module Computation = struct
 
   let rec unsafe_unsuspend t backoff =
     match Atomic.get t with
-    | Returned _ -> true
-    | Canceled _ -> false
-    | Continue r as before ->
+    | S (Returned { tx; _ }) ->
+        if Tx.try_abort tx then unsafe_unsuspend t backoff else true
+    | S (Canceled { tx; _ }) ->
+        if Tx.try_abort tx then unsafe_unsuspend t backoff else false
+    | S (Continue r) as before ->
         let after =
           if fifo_bit <= r.balance_and_mode then
-            Continue
-              { r with balance_and_mode = r.balance_and_mode - (2 * one) }
+            let balance_and_mode = r.balance_and_mode - (2 * one) in
+            S (Continue { r with balance_and_mode })
           else gc (r.balance_and_mode land fifo_bit) [] r.triggers
         in
         Atomic.compare_and_set t before after
@@ -143,32 +269,34 @@ module Computation = struct
 
   let is_running t =
     match Atomic.get t with
-    | Canceled _ | Returned _ -> false
-    | Continue _ -> true
+    | S (Canceled { tx; _ }) | S (Returned { tx; _ }) -> tx != Stopped
+    | S (Continue _) -> true
 
   let rec try_terminate t after backoff =
     match Atomic.get t with
-    | Returned _ | Canceled _ -> false
-    | Continue r as before ->
-        if Atomic.compare_and_set t before after then begin
-          List.iter Trigger.signal
-            (if r.balance_and_mode land fifo_bit = fifo_bit then
-               List.rev r.triggers
-             else r.triggers);
+    | S (Returned { tx; _ }) | S (Canceled { tx; _ }) ->
+        if Tx.try_abort tx then try_terminate t after backoff else false
+    | S (Continue _ as before) ->
+        if Atomic.compare_and_set t (S before) after then begin
+          signal before;
           true
         end
         else try_terminate t after (Backoff.once backoff)
 
-  let returned_unit = Returned (Obj.magic ())
+  let returned_unit = Obj.magic (S (Returned { value = (); tx = Stopped }))
 
-  let make_returned value =
-    if value == Obj.magic () then returned_unit else Returned value
+  let[@inline] make_returned value =
+    if value == Obj.magic () then returned_unit
+    else S (Returned { value; tx = Stopped })
 
   let returned value = Atomic.make (make_returned value)
   let finished = Atomic.make (make_returned ())
   let try_return t value = try_terminate t (make_returned value) Backoff.default
   let try_finish t = try_terminate t returned_unit Backoff.default
-  let try_cancel t exn_bt = try_terminate t (Canceled exn_bt) Backoff.default
+
+  let try_cancel t exn_bt =
+    try_terminate t (S (Canceled { exn_bt; tx = Stopped })) Backoff.default
+
   let return t value = try_return t value |> ignore
   let finish t = try_finish t |> ignore
   let cancel t exn_bt = try_cancel t exn_bt |> ignore
@@ -182,19 +310,23 @@ module Computation = struct
 
   let check t =
     match Atomic.get t with
-    | Canceled exn_bt -> Exn_bt.raise exn_bt
-    | Returned _ | Continue _ -> ()
+    | S (Canceled { exn_bt; tx; _ }) ->
+        if tx == Stopped then Exn_bt.raise exn_bt
+    | S (Returned _) | S (Continue _) -> ()
 
   let peek t =
     match Atomic.get t with
-    | Canceled exn_bt -> Some (Error exn_bt)
-    | Returned value -> Some (Ok value)
-    | Continue _ -> None
+    | S (Canceled { exn_bt; tx; _ }) ->
+        if tx == Stopped then Some (Error exn_bt) else None
+    | S (Returned { value; tx; _ }) ->
+        if tx == Stopped then Some (Ok value) else None
+    | S (Continue _) -> None
 
   let propagate _ from into =
     match Atomic.get from with
-    | Returned _ | Continue _ -> ()
-    | Canceled _ as after -> try_terminate into after Backoff.default |> ignore
+    | S (Returned _) | S (Continue _) -> ()
+    | S (Canceled _ as after) ->
+        try_terminate into (S after) Backoff.default |> ignore
 
   let canceler ~from ~into = Trigger.from_action from into propagate
 
@@ -203,9 +335,11 @@ module Computation = struct
 
   let rec get_or block t =
     match Atomic.get t with
-    | Returned value -> value
-    | Canceled exn_bt -> Exn_bt.raise exn_bt
-    | Continue _ -> get_or block (block t)
+    | S (Returned { value; tx; _ }) ->
+        if tx == Stopped then value else get_or block (block t)
+    | S (Canceled { exn_bt; tx; _ }) ->
+        if tx == Stopped then Exn_bt.raise exn_bt else get_or block (block t)
+    | S (Continue _) -> get_or block (block t)
 
   let attach_canceler ~from ~into =
     let canceler = canceler ~from ~into in
@@ -307,7 +441,7 @@ module Fiber = struct
   module FLS = struct
     type 'a key = { index : int; default : non_float; compute : unit -> 'a }
 
-    let compute () = failwith "impossible"
+    let compute = impossible
     let counter = Atomic.make 0
     let unique = Sys.opaque_identity (Obj.magic counter : non_float)
 
