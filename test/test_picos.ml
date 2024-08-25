@@ -85,9 +85,74 @@ let test_computation_basics () =
   let _ : int = Computation.await computation in
   ()
 
-let test_thread_cancelation () =
+let test_computation_tx () =
+  let module Tx = Computation.Tx in
+  let exit_bt = Exn_bt.get_callstack 0 Exit in
+  let n_case_1 = ref 0 and n_case_2 = ref 0 in
+  let n = 1_000 in
+  let deadline = Unix.gettimeofday () +. 60.0 in
+  while (!n_case_1 < n || !n_case_2 < n) && Unix.gettimeofday () < deadline do
+    let a = Computation.create () in
+    let b = Computation.create () in
+    let barrier = Atomic.make 2 in
+    let either which =
+      if which then begin
+        finally Domain.join @@ fun () ->
+        Domain.spawn @@ fun () ->
+        Atomic.decr barrier;
+        while Atomic.get barrier <> 0 do
+          Domain.cpu_relax ()
+        done;
+        while
+          Computation.is_running a
+          && not
+               (let tx = Tx.create () in
+                Tx.try_return tx a 101 && Tx.try_cancel tx b exit_bt
+                && Tx.try_commit tx)
+        do
+          Domain.cpu_relax ()
+        done
+      end
+      else begin
+        finally Domain.join @@ fun () ->
+        Domain.spawn @@ fun () ->
+        Atomic.decr barrier;
+        while Atomic.get barrier <> 0 do
+          Domain.cpu_relax ()
+        done;
+        while
+          Computation.is_running a
+          && not
+               (let tx = Tx.create () in
+                not
+                  (Tx.try_return tx b 42 && Tx.try_cancel tx a exit_bt
+                 && Tx.try_commit tx))
+        do
+          Domain.cpu_relax ()
+        done
+      end
+    in
+    let which = Random.bool () in
+    let@ _ = either which in
+    let@ _ = either (not which) in
+    while Computation.is_running a || Computation.is_running b do
+      Domain.cpu_relax ()
+    done;
+    if
+      Computation.peek a = Some (Ok 101)
+      && Computation.peek b = Some (Error exit_bt)
+    then incr n_case_1
+    else if
+      Computation.peek a = Some (Error exit_bt)
+      && Computation.peek b = Some (Ok 42)
+    then incr n_case_2
+    else assert false
+  done;
+  assert (n <= !n_case_1 && n <= !n_case_2)
+
+let test_cancel () =
   Alcotest.check_raises "should be canceled" Exit @@ fun () ->
-  Test_scheduler.run @@ fun () ->
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
   let computation = Computation.create () in
   let@ _ =
     finally Computation.await @@ fun () ->
@@ -174,17 +239,16 @@ let test_computation_completion_signals_triggers_in_order () =
 
 let () =
   [
-    ("Trigger basics", [ Alcotest.test_case "" `Quick test_trigger_basics ]);
-    ( "Computation basics",
-      [ Alcotest.test_case "" `Quick test_computation_basics ] );
-    ("Fiber.FLS basics", [ Alcotest.test_case "" `Quick test_fls_basics ]);
-    ( "Thread cancelation",
-      [ Alcotest.test_case "" `Quick test_thread_cancelation ] );
-    ("Cancel after", [ Alcotest.test_case "" `Quick test_cancel_after ]);
-    ( "Computation signals in order",
+    ("Trigger", [ Alcotest.test_case "basics" `Quick test_trigger_basics ]);
+    ( "Computation",
       [
-        Alcotest.test_case "" `Quick
+        Alcotest.test_case "basics" `Quick test_computation_basics;
+        Alcotest.test_case "tx" `Quick test_computation_tx;
+        Alcotest.test_case "signals in order" `Quick
           test_computation_completion_signals_triggers_in_order;
       ] );
+    ("Fiber.FLS", [ Alcotest.test_case "basics" `Quick test_fls_basics ]);
+    ("Cancel", [ Alcotest.test_case "" `Quick test_cancel ]);
+    ("Cancel after", [ Alcotest.test_case "" `Quick test_cancel_after ]);
   ]
   |> Alcotest.run "Picos"
