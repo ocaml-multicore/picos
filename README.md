@@ -332,8 +332,9 @@ flexibility in mind:
   triggers to it and anyone may complete a `Computation`. This makes
   `Computation` an omnidirectional communication primitive.
 
-Interestingly, and unintentionally, it turns out that `Computation` is almost
-expressive enough to implement the
+Interestingly, and unintentionally, it turns out that, given
+[the ability to complete two (or more) computations atomically](https://ocaml-multicore.github.io/picos/doc/picos/Picos/Computation/Tx/index.html),
+`Computation` is essentially expressive enough to implement the
 [event](https://ocaml.org/manual/latest/api/Event.html) abstraction of
 [Concurrent ML](https://en.wikipedia.org/wiki/Concurrent_ML). The same features
 that make `Computation` suitable for implementing more or less arbitrary dynamic
