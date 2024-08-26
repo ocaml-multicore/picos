@@ -27,7 +27,7 @@ let run_one ~budgetf ~n_adders () =
   let n_takers = 1 in
   let n_domains = n_adders + n_takers in
 
-  let n_msgs = 200 / n_takers * Util.iter_factor in
+  let n_msgs = 200 * Util.iter_factor in
 
   let t = Picos_mpscq.create ~padded:true () in
 
