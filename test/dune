@@ -158,6 +158,20 @@
   qcheck-stm.stm
   stm_run))
 
+(rule
+ (action
+  (progn
+   (copy ../lib/picos_mpmcq/picos_mpmcq.ml picos_mpmcq.ml))))
+
+(test
+ (name test_mpmcq_dscheck)
+ (modules test_mpmcq_dscheck picos_mpmcq)
+ (build_if
+  (>= %{ocaml_version} 5))
+ (libraries backoff multicore-magic-dscheck dscheck alcotest)
+ (flags
+  (:standard -open Multicore_magic_dscheck)))
+
 (test
  (name test_htbl)
  (modules test_htbl)

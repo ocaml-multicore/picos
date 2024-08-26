@@ -52,27 +52,24 @@ let rec push t value backoff = function
   | T (Tail tail_r as tail) -> begin
       match tail_r.move with
       | Used -> push_with t value backoff tail_r.counter (T tail)
-      | Snoc move_r as move ->
-          begin
-            match Atomic.get t.head with
-            | H (Head head_r as head) when head_r.counter < move_r.counter ->
-                let after = rev move in
-                if
-                  Atomic.fenceless_get t.head == H head
-                  && Atomic.compare_and_set t.head (H head) (H after)
-                then tail_r.move <- Used
-            | _ -> ()
-          end;
-          let new_tail = Atomic.fenceless_get t.tail in
-          if new_tail != T tail then push t value backoff new_tail
-          else push_with t value backoff tail_r.counter (T tail)
+      | Snoc move_r as move -> begin
+          match Atomic.get t.head with
+          | H (Head head_r as head) when head_r.counter < move_r.counter ->
+              let after = rev move in
+              if
+                Atomic.fenceless_get t.head == H head
+                && Atomic.compare_and_set t.head (H head) (H after)
+              then tail_r.move <- Used;
+              let new_tail = Atomic.fenceless_get t.tail in
+              if new_tail != T tail then push t value backoff new_tail
+              else push_with t value backoff tail_r.counter (T tail)
+          | _ -> push_with t value backoff tail_r.counter (T tail)
+        end
     end
 
 and push_with t value backoff counter prefix =
   let after = Snoc { counter = counter + 1; prefix; value } in
-  let new_tail = Atomic.fenceless_get t.tail in
-  if new_tail != prefix then push t value backoff new_tail
-  else if not (Atomic.compare_and_set t.tail prefix (T after)) then
+  if not (Atomic.compare_and_set t.tail prefix (T after)) then
     let backoff = Backoff.once backoff in
     push t value backoff (Atomic.fenceless_get t.tail)
 
@@ -141,7 +138,7 @@ let rec pop t backoff = function
         let backoff = Backoff.once backoff in
         pop t backoff (Atomic.fenceless_get t.head)
   | H (Head head_r as head) -> begin
-      match Atomic.fenceless_get t.tail with
+      match Atomic.get t.tail with
       | T (Snoc snoc_r as move) ->
           if head_r.counter = snoc_r.counter then
             if Atomic.compare_and_set t.tail (T move) snoc_r.prefix then
