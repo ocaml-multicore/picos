@@ -26,6 +26,7 @@
   picos.domain
   picos.finally
   picos.htbl
+  picos.mpmcq
   picos.mpscq
   picos.select
   picos.stdio

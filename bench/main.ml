@@ -13,6 +13,7 @@ let benchmarks =
     ("Picos Yield", Bench_yield.run_suite);
     ("Picos Cancel_after with Picos_select", Bench_cancel_after.run_suite);
     ("Ref with Picos_sync.Mutex", Bench_ref_mutex.run_suite);
+    ("Picos_mpmcq", Bench_mpmcq.run_suite);
     ("Picos_mpscq", Bench_mpscq.run_suite);
     ("Picos_htbl", Bench_htbl.run_suite);
     ("Picos_stdio", Bench_stdio.run_suite);
