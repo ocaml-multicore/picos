@@ -94,6 +94,10 @@
    (and
     (>= 0.4.0)
     :with-test))
+  (multicore-magic-dscheck
+   (and
+    (>= 2.3.0)
+    :with-test))
   ;; Documentation dependencies
   (sherlodoc
    (and
