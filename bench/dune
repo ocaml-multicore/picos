@@ -13,6 +13,7 @@
    (run %{test} -brief "Picos Yield")
    (run %{test} -brief "Picos Cancel_after with Picos_select")
    (run %{test} -brief "Ref with Picos_sync.Mutex")
+   (run %{test} -brief "Picos_mpmcq")
    (run %{test} -brief "Picos_mpscq")
    (run %{test} -brief "Picos_htbl")
    (run %{test} -brief "Picos_stdio")
