@@ -153,7 +153,8 @@ let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 10 * Util.iter_factor) () =
     Printf.sprintf "%s, %s" (format "adder" n_adders) (format "taker" n_takers)
   in
 
-  Times.record ~budgetf ~n_domains ~init ~wrap ~work ()
+  Times.record ~budgetf ~n_domains ~n_warmups:1 ~n_runs_min:1 ~init ~wrap ~work
+    ()
   |> Times.to_thruput_metrics ~n:n_msgs ~singular:"message" ~config
 
 let run_suite ~budgetf =
