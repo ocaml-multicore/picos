@@ -50,7 +50,8 @@ let run_one ~budgetf ~use_domains ~n_resources () =
       n_resources
       (if n_resources = 1 then "" else "s")
   in
-  Times.record ~budgetf ~n_domains ~init ~wrap ~work ()
+  Times.record ~budgetf ~n_domains ~n_warmups:1 ~n_runs_min:1 ~init ~wrap ~work
+    ()
   |> Times.to_thruput_metrics ~n:(n_ops * n_workers) ~singular:"acquired yield"
        ~config
 
