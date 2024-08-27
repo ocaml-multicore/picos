@@ -653,6 +653,9 @@ module Computation : sig
       the computation has not completed. *)
 
   exception Running
+  (** Exception raised by {!peek_exn} when it's used on a
+      still running computation. This should never be surfaced
+      to the user. *)
 
   val peek_exn : 'a t -> 'a
   (** [peek_exn computation] returns the result of the computation
