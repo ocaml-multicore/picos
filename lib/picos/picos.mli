@@ -653,17 +653,16 @@ module Computation : sig
       the computation has not completed. *)
 
   exception Running
-  (** Exception raised by {!peek_exn} when it's used on a
-      still running computation. This should never be surfaced
-      to the user. *)
+  (** Exception raised by {!peek_exn} when it's used on a still running
+      computation.  This should never be surfaced to the user. *)
 
   val peek_exn : 'a t -> 'a
-  (** [peek_exn computation] returns the result of the computation
-      or raises an exception. It is important to catch at
-      least the {!Running} exception as it's raised without a backtrace.
-      If the computation was cancelled with exception [exn] then
-      [exn] is re-raised with its original backtrace.
-      @raise Running is called if the computation has not completed. *)
+  (** [peek_exn computation] returns the result of the computation or raises an
+      exception.  It is important to catch the exception.  If the computation
+      was cancelled with exception [exn] then [exn] is re-raised with its
+      original backtrace.
+
+      @raise Running if the computation has not completed. *)
 
   (** {2 Interface for awaiting} *)
 
