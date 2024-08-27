@@ -1,12 +1,12 @@
 include Common
 
-let get exn =
+let[@inline always] get exn =
   let bt = Printexc.get_raw_backtrace () in
   { exn; bt }
 
 let empty_backtrace = Printexc.get_callstack 0
 
-let get_callstack n exn =
+let[@inline always] get_callstack n exn =
   let bt = if n <= 0 then empty_backtrace else Printexc.get_callstack n in
   { exn; bt }
 
