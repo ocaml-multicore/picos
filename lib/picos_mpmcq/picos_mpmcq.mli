@@ -31,6 +31,13 @@ val pop_exn : 'a t -> 'a
 
     @raise Empty in case the queue was empty. *)
 
+val length : 'a t -> int
+(** [length queue] returns the length or the number of values
+    in the [queue]. *)
+
+val is_empty : 'a t -> bool
+(** [is_empty queue] is equivalent to {{!length} [length queue = 0]}. *)
+
 (** {1 Examples}
 
     An example top-level session:
@@ -44,6 +51,9 @@ val pop_exn : 'a t -> 'a
 
       # Picos_mpmcq.push_head q 76
       - : unit = ()
+
+      # Picos_mpmcq.length q
+      - : int = 2
 
       # Picos_mpmcq.push q 101
       - : unit = ()

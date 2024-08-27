@@ -48,32 +48,91 @@ let rev = function
         prefix
 
 let rec push t value backoff = function
-  | T (Snoc snoc_r as snoc) -> push_with t value backoff snoc_r.counter (T snoc)
-  | T (Tail tail_r as tail) -> begin
+  | T (Snoc snoc_r) as prefix ->
+      let after = Snoc { counter = snoc_r.counter + 1; prefix; value } in
+      if not (Atomic.compare_and_set t.tail prefix (T after)) then
+        let backoff = Backoff.once backoff in
+        push t value backoff (Atomic.fenceless_get t.tail)
+  | T (Tail tail_r) as prefix -> begin
       match tail_r.move with
-      | Used -> push_with t value backoff tail_r.counter (T tail)
-      | Snoc move_r as move -> begin
-          match Atomic.get t.head with
-          | H (Head head_r as head) when head_r.counter < move_r.counter ->
-              let after = rev move in
-              if
-                Atomic.fenceless_get t.head == H head
-                && Atomic.compare_and_set t.head (H head) (H after)
-              then tail_r.move <- Used;
-              let new_tail = Atomic.fenceless_get t.tail in
-              if new_tail != T tail then push t value backoff new_tail
-              else push_with t value backoff tail_r.counter (T tail)
-          | _ -> push_with t value backoff tail_r.counter (T tail)
-        end
+      | Used ->
+          let after = Snoc { counter = tail_r.counter + 1; prefix; value } in
+          if not (Atomic.compare_and_set t.tail prefix (T after)) then
+            let backoff = Backoff.once backoff in
+            push t value backoff (Atomic.fenceless_get t.tail)
+      | Snoc move_r as move ->
+          begin
+            match Atomic.get t.head with
+            | H (Head head_r as head) when head_r.counter < move_r.counter ->
+                let after = rev move in
+                if
+                  Atomic.fenceless_get t.head == H head
+                  && Atomic.compare_and_set t.head (H head) (H after)
+                then tail_r.move <- Used
+            | _ -> tail_r.move <- Used
+          end;
+          push t value backoff (Atomic.get t.tail)
     end
 
-and push_with t value backoff counter prefix =
-  let after = Snoc { counter = counter + 1; prefix; value } in
-  if not (Atomic.compare_and_set t.tail prefix (T after)) then
-    let backoff = Backoff.once backoff in
-    push t value backoff (Atomic.fenceless_get t.tail)
+exception Empty
 
-let push t value = push t value Backoff.default (Atomic.fenceless_get t.tail)
+let rec pop t backoff = function
+  | H (Cons cons_r as cons) ->
+      if Atomic.compare_and_set t.head (H cons) cons_r.suffix then cons_r.value
+      else
+        let backoff = Backoff.once backoff in
+        pop t backoff (Atomic.fenceless_get t.head)
+  | H (Head head_r as head) -> begin
+      match Atomic.get t.tail with
+      | T (Snoc snoc_r as move) ->
+          if head_r.counter = snoc_r.counter then
+            if Atomic.compare_and_set t.tail (T move) snoc_r.prefix then
+              snoc_r.value
+            else pop t backoff (Atomic.fenceless_get t.head)
+          else
+            let (Tail tail_r as tail : (_, [ `Tail ]) tdt) =
+              Tail { counter = snoc_r.counter; move }
+            in
+            let new_head = Atomic.get t.head in
+            if new_head != H head then pop t backoff new_head
+            else if Atomic.compare_and_set t.tail (T move) (T tail) then
+              let (Cons cons_r) = rev move in
+              let after = cons_r.suffix in
+              let new_head = Atomic.get t.head in
+              if new_head != H head then pop t backoff new_head
+              else if Atomic.compare_and_set t.head (H head) after then begin
+                tail_r.move <- Used;
+                cons_r.value
+              end
+              else
+                let backoff = Backoff.once backoff in
+                pop t backoff (Atomic.fenceless_get t.head)
+            else pop t backoff (Atomic.fenceless_get t.head)
+      | T (Tail tail_r) -> begin
+          match tail_r.move with
+          | Used ->
+              let new_head = Atomic.get t.head in
+              if new_head != H head then pop t backoff new_head
+              else raise_notrace Empty
+          | Snoc move_r as move ->
+              if head_r.counter < move_r.counter then
+                let (Cons cons_r) = rev move in
+                let after = cons_r.suffix in
+                let new_head = Atomic.get t.head in
+                if new_head != H head then pop t backoff new_head
+                else if Atomic.compare_and_set t.head (H head) after then begin
+                  tail_r.move <- Used;
+                  cons_r.value
+                end
+                else
+                  let backoff = Backoff.once backoff in
+                  pop t backoff (Atomic.fenceless_get t.head)
+              else
+                let new_head = Atomic.get t.head in
+                if new_head != H head then pop t backoff new_head
+                else raise_notrace Empty
+        end
+    end
 
 let rec push_head t value backoff =
   match Atomic.get t.head with
@@ -121,63 +180,29 @@ let rec push_head t value backoff =
                       Atomic.fenceless_get t.head == H head
                       && Atomic.compare_and_set t.head (H head) (H after)
                     then tail_r.move <- Used
-                | _ -> ()
+                | _ -> tail_r.move <- Used
               end;
               push_head t value backoff
         end
     end
 
-let push_head t value = push_head t value Backoff.default
+let rec length t =
+  let head = Atomic.get t.head in
+  let tail = Atomic.fenceless_get t.tail in
+  if head != Atomic.get t.head then length t
+  else
+    let head_at =
+      match head with H (Cons r) -> r.counter | H (Head r) -> r.counter
+    in
+    let tail_at =
+      match tail with T (Snoc r) -> r.counter | T (Tail r) -> r.counter
+    in
+    tail_at - head_at + 1
 
-exception Empty
+let[@inline] is_empty t = length t == 0
+let[@inline] pop_exn t = pop t Backoff.default (Atomic.fenceless_get t.head)
 
-let rec pop t backoff = function
-  | H (Cons cons_r as cons) ->
-      if Atomic.compare_and_set t.head (H cons) cons_r.suffix then cons_r.value
-      else
-        let backoff = Backoff.once backoff in
-        pop t backoff (Atomic.fenceless_get t.head)
-  | H (Head head_r as head) -> begin
-      match Atomic.get t.tail with
-      | T (Snoc snoc_r as move) ->
-          if head_r.counter = snoc_r.counter then
-            if Atomic.compare_and_set t.tail (T move) snoc_r.prefix then
-              snoc_r.value
-            else pop t backoff (Atomic.fenceless_get t.head)
-          else
-            let tail = Tail { counter = snoc_r.counter; move } in
-            let new_head = Atomic.get t.head in
-            if new_head != H head then pop t backoff new_head
-            else if Atomic.compare_and_set t.tail (T move) (T tail) then
-              pop_moving t backoff head move tail
-            else pop t backoff (Atomic.fenceless_get t.head)
-      | T (Tail tail_r as tail) -> begin
-          match tail_r.move with
-          | Used -> pop_emptyish t backoff head
-          | Snoc _ as move -> pop_moving t backoff head move tail
-        end
-    end
+let[@inline] push t value =
+  push t value Backoff.default (Atomic.fenceless_get t.tail)
 
-and pop_moving t backoff (Head head_r as head : (_, [ `Head ]) tdt)
-    (Snoc move_r as move : (_, [ `Snoc ]) tdt)
-    (Tail tail_r : (_, [ `Tail ]) tdt) =
-  if head_r.counter < move_r.counter then
-    match rev move with
-    | Cons cons_r ->
-        let after = cons_r.suffix in
-        let new_head = Atomic.get t.head in
-        if new_head != H head then pop t backoff new_head
-        else if Atomic.compare_and_set t.head (H head) after then begin
-          tail_r.move <- Used;
-          cons_r.value
-        end
-        else
-          let backoff = Backoff.once backoff in
-          pop t backoff (Atomic.fenceless_get t.head)
-  else pop_emptyish t backoff head
-
-and pop_emptyish t backoff head =
-  let new_head = Atomic.get t.head in
-  if new_head == H head then raise_notrace Empty else pop t backoff new_head
-
-let pop_exn t = pop t Backoff.default (Atomic.fenceless_get t.head)
+let[@inline] push_head t value = push_head t value Backoff.default

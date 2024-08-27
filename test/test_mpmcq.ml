@@ -13,12 +13,13 @@ let () =
   match Queue.pop_exn q with _ -> assert false | exception Queue.Empty -> ()
 
 module Spec = struct
-  type cmd = Push of int | Push_head of int | Pop_opt
+  type cmd = Push of int | Push_head of int | Pop_opt | Length
 
   let show_cmd = function
     | Push x -> "Push " ^ string_of_int x
     | Push_head x -> "Push_head " ^ string_of_int x
     | Pop_opt -> "Pop_opt"
+    | Length -> "Length"
 
   module State = struct
     type t = int list * int list
@@ -29,6 +30,8 @@ module Spec = struct
 
     let drop ((h, t) as s) =
       match h with [] -> s | [ _ ] -> (List.rev t, []) | _ :: h -> (h, t)
+
+    let length (h, t) = List.length h + List.length t
   end
 
   type state = State.t
@@ -39,6 +42,7 @@ module Spec = struct
       Gen.int_range 1 1000 |> Gen.map (fun x -> Push x);
       Gen.int_range 1 1000 |> Gen.map (fun x -> Push_head x);
       Gen.return Pop_opt;
+      Gen.return Length;
     ]
     |> Gen.oneof |> make ~print:show_cmd
 
@@ -51,6 +55,7 @@ module Spec = struct
     | Push x -> State.push x s
     | Push_head x -> State.push_head x s
     | Pop_opt -> State.drop s
+    | Length -> s
 
   let precond _ _ = true
 
@@ -64,12 +69,14 @@ module Spec = struct
             match Queue.pop_exn d with
             | v -> Some v
             | exception Queue.Empty -> None )
+    | Length -> Res (int, Queue.length d)
 
   let postcond c (s : state) res =
     match (c, res) with
     | Push _x, Res ((Unit, _), ()) -> true
     | Push_head _x, Res ((Unit, _), ()) -> true
     | Pop_opt, Res ((Option Int, _), res) -> res = State.peek_opt s
+    | Length, Res ((Int, _), res) -> res = State.length s
     | _, _ -> false
 end
 
