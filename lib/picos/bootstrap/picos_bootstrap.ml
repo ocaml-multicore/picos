@@ -314,6 +314,16 @@ module Computation = struct
         if tx == Stopped then Exn_bt.raise exn_bt
     | S (Returned _) | S (Continue _) -> ()
 
+  exception Running
+
+  let peek_exn t =
+    match Atomic.get t with
+    | S (Canceled { exn_bt; tx; _ }) ->
+        if tx == Stopped then Exn_bt.raise exn_bt else raise_notrace Running
+    | S (Returned { value; tx; _ }) ->
+        if tx == Stopped then value else raise_notrace Running
+    | S (Continue _) -> raise_notrace Running
+
   let peek t =
     match Atomic.get t with
     | S (Canceled { exn_bt; tx; _ }) ->

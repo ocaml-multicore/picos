@@ -652,6 +652,18 @@ module Computation : sig
   (** [peek computation] returns the result of the computation or [None] in case
       the computation has not completed. *)
 
+  exception Running
+  (** Exception raised by {!peek_exn} when it's used on a still running
+      computation.  This should never be surfaced to the user. *)
+
+  val peek_exn : 'a t -> 'a
+  (** [peek_exn computation] returns the result of the computation or raises an
+      exception.  It is important to catch the exception.  If the computation
+      was cancelled with exception [exn] then [exn] is re-raised with its
+      original backtrace.
+
+      @raise Running if the computation has not completed. *)
+
   (** {2 Interface for awaiting} *)
 
   val try_attach : 'a t -> Trigger.t -> bool

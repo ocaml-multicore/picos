@@ -63,7 +63,7 @@ module Handler = struct
       Some
         (fun k ->
           match h.yield c with
-          | unit -> Effect.Deep.continue k unit
+          | () -> Effect.Deep.continue k ()
           | exception exn -> discontinue k exn)
     in
     let effc (type a) :
