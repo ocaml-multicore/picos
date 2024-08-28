@@ -1,30 +1,21 @@
 (** Basic single-threaded effects based {!Picos} compatible scheduler for OCaml
     5.
 
+    This scheduler uses a queue specifically optimized for a single-threaded
+    scheduler to implement a basic FIFO scheduler.  This scheduler also gives
+    priority to fibers woken up due to being canceled.
+
+    🐌 Due to FIFO scheduling this scheduler performs poorly on highly parallel
+    workloads.
+
+    ℹ️ See {!Picos_multififos} for a multi-threaded variation of this scheduler.
+
     ℹ️ This scheduler implementation is mostly meant as an example and for use in
     testing libraries implemented in {!Picos}.
 
     ⚠️ This scheduler uses {!Picos_select} internally.  If running multiple
     threads that each run this scheduler, {!Picos_select.configure} must be
-    called by the main thread before creating other threads.
-
-    Briefly:
-
-    - {{!Picos.Fiber.current} [current]} returns the current fiber.
-    - {{!Picos.Fiber.spawn} [spawn]} forks a new deep effect handler for each
-      fiber.
-    - {{!Picos.Fiber.yield} [yield]} pushes the current fiber to the back of the
-      internal queue and takes the next fiber to run from the head of the
-      internal queue.
-    - {{!Picos.Computation.cancel_after} [cancel_after]} uses a per-domain
-      {{!Picos_select} background thread} that runs a {!Unix.select} loop to
-      cancel computations.
-    - {{!Picos.Trigger.await} [await]} stores the current fiber to be resumed
-      through the trigger and takes next fiber to run from the head of the
-      internal queue.
-
-    This scheduler also gives priority to fibers woken up from
-    {{!Picos.Trigger.await} [await]} due to being canceled. *)
+    called by the main thread before creating other threads. *)
 
 open Picos
 

@@ -8,6 +8,7 @@
    test_scheduler.ml
    from
    (picos.fifos
+    picos.multififos
     picos.randos
     picos.lwt_unix
     picos.thread
