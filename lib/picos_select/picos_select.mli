@@ -124,18 +124,22 @@ val configure :
     thread on the main domain before any threads or domains besides the main are
     created or spawned. *)
 
-val handle_signal : int -> unit
-(** [handle_signal signum] should be called to notify this module of a signal
-    when {{!configure} configured} to not handle said signals. *)
-
 val check_configured : unit -> unit
 (** [check_configured ()] checks whether this module has already been
     {{!configure} configured} or not and, if not, calls {!configure} with
     default arguments.  In either case, calling [check_configured ()] will
-    (re)configure signal handling for the current thread.
+    (re)configure signal handling for the current thread and perform other
+    required initialization for the thread to use this module.
 
-    ℹ️ The intended use case for [check_configure ()] is at the point of
-    entry of schedulers and other facilities that use this module. *)
+    ⚠️ This should be called at the start of every thread using this module.
+
+    ℹ️ The intended use case for [check_configured ()] is at the point of entry
+    of schedulers and other facilities that use this module.  In other words,
+    application code should ideally not need to call this directly. *)
+
+val handle_signal : int -> unit
+(** [handle_signal signum] should be called to notify this module of a signal
+    when {{!configure} configured} to not handle said signals. *)
 
 (** {1 Examples}
 

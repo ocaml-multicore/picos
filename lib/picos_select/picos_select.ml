@@ -319,6 +319,9 @@ let configure ?(intr_sig = Sys.sigusr2) ?(handle_sigchld = true)
   reconfigure_signal_handlers ()
 
 let check_configured () =
+  (* [instantenous_domain_index] uses [Domain.at_exit] and we want to ensure it
+     is called as early as possible. *)
+  Multicore_magic.instantaneous_domain_index () |> ignore;
   if config.intr_sigs == [] then configure ()
   else reconfigure_signal_handlers ()
 
