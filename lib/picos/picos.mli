@@ -1122,6 +1122,10 @@ module Fiber : sig
 
   (** {2 Interface for schedulers} *)
 
+  val copy_fls : t -> t -> unit
+  (** [copy_fls fiber1 fiber2] copies the {!FLS} internal state of
+      [fiber1] into [fiber2]'s. *)
+
   val try_suspend :
     t -> Trigger.t -> 'x -> 'y -> (Trigger.t -> 'x -> 'y -> unit) -> bool
   (** [try_suspend fiber trigger x y resume] tries to suspend the [fiber] to

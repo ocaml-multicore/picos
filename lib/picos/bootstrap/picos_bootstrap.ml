@@ -381,6 +381,9 @@ module Fiber = struct
 
   let has_forbidden (Fiber r : t) = r.forbid
 
+  let copy_fls (Fiber f1 : t) (Fiber f2 : t) : unit =
+    f2.fls <- Array.copy f1.fls
+
   let is_canceled (Fiber r : t) =
     (not r.forbid)
     &&
