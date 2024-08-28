@@ -15,6 +15,7 @@
   backoff
   threads.posix
   psq
+  multicore-magic
   mtime
   mtime.clock.os))
 
