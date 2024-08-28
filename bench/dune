@@ -42,7 +42,7 @@
   (select
    bench_fib.ml
    from
-   (picos.randos -> bench_fib.ocaml5.ml)
+   (picos.randos picos.multififos -> bench_fib.ocaml5.ml)
    (-> bench_fib.ocaml4.ml))
   multicore-bench
   multicore-magic

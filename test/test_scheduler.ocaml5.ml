@@ -20,11 +20,17 @@ let () =
 let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true) ?fatal_exn_handler
     fiber main =
   let scheduler =
-    match Random.int 3 with 0 -> `Fifos | 1 -> `Randos | _ -> `Lwt
+    match Random.int 4 with
+    | 0 -> `Fifos
+    | 1 -> `Multififos
+    | 2 -> `Randos
+    | _ -> `Lwt
   in
+  let n_domains = Int.min max_domains (Domain.recommended_domain_count ()) in
   ignore
     (match scheduler with
     | `Fifos -> "fifos"
+    | `Multififos -> "multififos"
     | `Randos -> "randos"
     | `Lwt -> "lwt");
   match scheduler with
@@ -46,11 +52,10 @@ let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true) ?fatal_exn_handler
       end
       else run_fiber ~max_domains ~allow_lwt fiber main
   | `Randos ->
-      let n_domains =
-        Int.min max_domains (Domain.recommended_domain_count ())
-      in
       Picos_randos.run_fiber_on ?fatal_exn_handler ~n_domains fiber main
   | `Fifos -> Picos_fifos.run_fiber ?fatal_exn_handler fiber main
+  | `Multififos ->
+      Picos_multififos.run_fiber_on ?fatal_exn_handler ~n_domains fiber main
 
 let run ?max_domains ?allow_lwt ?fatal_exn_handler ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
