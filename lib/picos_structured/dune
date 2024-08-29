@@ -12,12 +12,13 @@
   (and
    (>= %{ocaml_version} 5.0.0)
    (= %{env:OPAM_REPO_CI=false} false)))
+ (package picos_stdio)
  (libraries
-  picos.exn_bt
+  exn_bt
   picos.fifos
   picos.finally
   picos.randos
-  picos.stdio
+  picos_stdio
   picos.structured
   picos.sync
   unix)

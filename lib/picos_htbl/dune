@@ -6,5 +6,6 @@
 (mdx
  (enabled_if
   (>= %{ocaml_version} 5.1.0))
+ (package picos)
  (libraries picos.htbl)
  (files picos_htbl.mli))

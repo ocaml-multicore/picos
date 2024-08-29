@@ -29,16 +29,16 @@
   picos.htbl
   picos.mpmcq
   picos.mpscq
-  picos.select
-  picos.stdio
+  picos_stdio.select
+  picos_stdio
   picos.structured
   picos.sync
   picos.thread
   (select
    scheduler.ml
    from
-   (picos.fifos -> scheduler.ocaml5.ml)
-   (picos.threaded -> scheduler.ocaml4.ml))
+   (picos_stdio.fifos -> scheduler.ocaml5.ml)
+   (picos_threaded -> scheduler.ocaml4.ml))
   (select
    bench_fib.ml
    from

@@ -8,7 +8,7 @@
   (select
    select.ml
    from
-   (picos.select -> select.some.ml)
+   (picos_stdio.select -> select.some.ml)
    (-> select.none.ml))
   multicore-magic
   picos.thread

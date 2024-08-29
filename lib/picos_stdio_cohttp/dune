@@ -1,8 +1,8 @@
 (library
  (name picos_stdio_cohttp)
- (public_name picos.stdio.cohttp)
+ (public_name picos_stdio_cohttp)
  (libraries
-  (re_export picos.stdio)
+  (re_export picos_stdio)
   (re_export cohttp)
   (re_export uri)
   fmt
@@ -19,8 +19,8 @@
   http
   picos.finally
   picos.randos
-  picos.stdio
-  picos.stdio.cohttp
+  picos_stdio
+  picos_stdio_cohttp
   picos.structured
   uri)
  (files picos_stdio_cohttp.mli))

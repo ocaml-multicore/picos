@@ -1,9 +1,9 @@
 (library
  (name picos_lwt_unix)
- (public_name picos.lwt_unix)
+ (public_name picos_lwt.unix)
  (optional)
  (libraries
-  (re_export picos.lwt)
+  (re_export picos_lwt)
   (re_export lwt)
   (re_export lwt.unix)
   picos.mpscq

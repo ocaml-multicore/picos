@@ -54,7 +54,7 @@ module Q =
 
 type return_on =
   | Return_on : {
-      file_descr : Picos_fd.t;
+      file_descr : Picos_stdio_fd.t;
       value : 'a;
       computation : 'a Computation.t;
       mutable alive : bool;
@@ -158,7 +158,7 @@ type fos = { n : int; unique_fds : Unix.file_descr list; ops : return_on list }
 
 let fos_empty = { n = 1; unique_fds = []; ops = [] }
 
-module Ht = Hashtbl.Make (Picos_fd.Resource)
+module Ht = Hashtbl.Make (Picos_stdio_fd.Resource)
 
 let rec process_fds ht unique_fds ops = function
   | [] ->
@@ -166,10 +166,10 @@ let rec process_fds ht unique_fds ops = function
       else { n = Ht.length ht; unique_fds; ops }
   | (Return_on r as op) :: ops_todo ->
       if Computation.is_running r.computation then begin
-        let file_descr = Picos_fd.unsafe_get r.file_descr in
+        let file_descr = Picos_stdio_fd.unsafe_get r.file_descr in
         match Ht.find ht file_descr with
         | `Return ->
-            Picos_fd.decr r.file_descr;
+            Picos_stdio_fd.decr r.file_descr;
             r.alive <- false;
             Computation.return r.computation r.value;
             process_fds ht unique_fds ops ops_todo
@@ -179,7 +179,7 @@ let rec process_fds ht unique_fds ops = function
             process_fds ht (file_descr :: unique_fds) (op :: ops) ops_todo
       end
       else begin
-        Picos_fd.decr r.file_descr;
+        Picos_stdio_fd.decr r.file_descr;
         process_fds ht unique_fds ops ops_todo
       end
 
@@ -416,10 +416,10 @@ let[@alert "-handler"] rec insert_fd s fds (Return_on r as op) =
       in
       wakeup s `Alive
     else insert_fd s fds op
-  else Picos_fd.decr r.file_descr
+  else Picos_stdio_fd.decr r.file_descr
 
 let return_on computation file_descr op value =
-  Picos_fd.incr file_descr;
+  Picos_stdio_fd.incr file_descr;
   let s = get () in
   insert_fd s
     (match op with `R -> s.new_rd | `W -> s.new_wr | `E -> s.new_ex)

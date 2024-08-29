@@ -34,7 +34,7 @@ val timeout : seconds:float -> unit Event.t
 
 (** {2 IO} *)
 
-val return_on : 'a Computation.t -> Picos_fd.t -> [ `R | `W | `E ] -> 'a -> unit
+val return_on : 'a Computation.t -> Picos_stdio_fd.t -> [ `R | `W | `E ] -> 'a -> unit
 (** [return_on computation fd op value] arranges for [computation] to be
     {{!Picos.Computation.return} returned} with given [value] when [fd] becomes
     available for [op].  Completion of the [computation] before the [fd] becomes
@@ -43,10 +43,10 @@ val return_on : 'a Computation.t -> Picos_fd.t -> [ `R | `W | `E ] -> 'a -> unit
     ℹ️ Using {!Unix.set_nonblock} and [return_on] you can implement direct-style
     transparently asynchronous IO on top of the {!Unix} module. *)
 
-val await_on : Picos_fd.t -> [ `R | `W | `E ] -> Picos_fd.t
+val await_on : Picos_stdio_fd.t -> [ `R | `W | `E ] -> Picos_stdio_fd.t
 (** [await_on fd op] awaits until [fd] becomes available for [op]. *)
 
-val on : Picos_fd.t -> [ `R | `W | `E ] -> unit Event.t
+val on : Picos_stdio_fd.t -> [ `R | `W | `E ] -> unit Event.t
 (** [on fd op] returns an {{!Picos_sync.Event} event} that can be committed to
     when [fd] becomes available for [op]. *)
 

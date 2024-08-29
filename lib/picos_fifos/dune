@@ -1,6 +1,6 @@
 (library
- (name picos_fifos)
- (public_name picos.fifos)
+ (name picos_stdio_fifos)
+ (public_name picos_stdio.fifos)
  (enabled_if
   (>= %{ocaml_version} 5.0.0))
  (libraries
@@ -8,7 +8,7 @@
   (select
    select.ml
    from
-   (picos.select -> select.some.ml)
+   (picos_stdio.select -> select.some.ml)
    (-> select.none.ml))
   multicore-magic
   picos.mpscq))

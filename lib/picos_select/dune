@@ -1,17 +1,17 @@
 (library
- (name picos_select)
- (public_name picos.select)
+ (name picos_stdio_select)
+ (public_name picos_stdio.select)
  (optional)
  (libraries
   (re_export picos)
   (re_export picos.exn_bt)
-  (re_export picos.fd)
+  (re_export picos_stdio.fd)
   (re_export picos.sync)
   (re_export unix)
   picos.domain
   picos.thread
   picos.htbl
-  picos_thread_atomic
+  picos.thread_atomic
   backoff
   threads.posix
   psq
@@ -22,14 +22,15 @@
 (mdx
  (enabled_if
   (>= %{ocaml_version} 5.1.0))
+ (package picos_stdio)
  (libraries
   picos
-  picos.exn_bt
+  exn_bt
   picos.finally
   picos.randos
-  picos.select
+  picos_stdio.select
   picos.stdio
   picos.structured
   picos.sync
   unix)
- (files picos_select.mli))
+ (files picos_stdio_select.mli))

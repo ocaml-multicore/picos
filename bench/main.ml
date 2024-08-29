@@ -1,4 +1,4 @@
-let () = Picos_select.configure ()
+let () = Picos_stdio_select.configure ()
 
 let benchmarks =
   [

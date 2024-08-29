@@ -3,18 +3,18 @@
  (modules test_scheduler)
  (libraries
   (re_export picos)
-  picos.select
+  picos_stdio.select
   (select
    test_scheduler.ml
    from
-   (picos.fifos
-    picos.multififos
+   (picos_stdio.fifos
+    picos_stdio.multififos
     picos.randos
-    picos.lwt_unix
+    picos_lwt.unix
     picos.thread
     ->
     test_scheduler.ocaml5.ml)
-   (picos.threaded lwt.unix -> test_scheduler.ocaml4.ml))))
+   (picos_threaded lwt.unix -> test_scheduler.ocaml4.ml))))
 
 (library
  (name test_util)
@@ -62,9 +62,10 @@
 (test
  (name test_lwt_unix)
  (modules test_lwt_unix)
+ (package picos_lwt)
  (build_if
   (>= %{ocaml_version} 5.0.0))
- (libraries picos.lwt_unix picos.structured alcotest))
+ (libraries picos_lwt.unix picos.structured alcotest))
 
 ;;
 
@@ -115,10 +116,11 @@
 (test
  (name test_stdio_with_lwt)
  (modules test_stdio_with_lwt)
+ (package picos_lwt)
  (libraries
   test_scheduler
   picos.stdio
-  picos.select
+  picos_stdio.select
   alcotest
   lwt
   lwt.unix
@@ -129,11 +131,12 @@
 (test
  (name test_select)
  (modules test_select)
+ (package picos_stdio)
  (libraries
   picos.finally
   picos.structured
-  picos.threaded
-  picos.select
+  picos_threaded
+  picos_stdio.select
   alcotest
   domain_shims))
 
@@ -142,6 +145,7 @@
 (test
  (name test_mpscq)
  (modules test_mpscq)
+ (package picos)
  (libraries
   picos.mpscq
   qcheck-core
@@ -223,6 +227,7 @@
 (test
  (name test_finally)
  (modules test_finally)
+ (package picos_stdio)
  (libraries picos picos.finally test_scheduler test_util alcotest))
 
 ;;
@@ -239,7 +244,7 @@
    %{lib-available:conduit-lwt-unix}
    %{lib-available:uri}))
  (libraries
-  picos.lwt_unix
+  picos_lwt.unix
   picos.structured
   cohttp
   cohttp-lwt
