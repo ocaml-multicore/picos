@@ -5,7 +5,6 @@
  (libraries
   (re_export picos)
   (re_export picos.exn_bt)
-  picos.domain
   (select
    select.ml
    from
