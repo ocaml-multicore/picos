@@ -34,7 +34,8 @@ val timeout : seconds:float -> unit Event.t
 
 (** {2 IO} *)
 
-val return_on : 'a Computation.t -> Picos_stdio_fd.t -> [ `R | `W | `E ] -> 'a -> unit
+val return_on :
+  'a Computation.t -> Picos_stdio_fd.t -> [ `R | `W | `E ] -> 'a -> unit
 (** [return_on computation fd op value] arranges for [computation] to be
     {{!Picos.Computation.return} returned} with given [value] when [fd] becomes
     available for [op].  Completion of the [computation] before the [fd] becomes

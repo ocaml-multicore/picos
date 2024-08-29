@@ -1,7 +1,8 @@
 open Picos
 module Picos_select = Picos_stdio_select
 
-let nonblock_fds = Picos_htbl.create ~hashed_type:(module Picos_stdio_fd.Resource) ()
+let nonblock_fds =
+  Picos_htbl.create ~hashed_type:(module Picos_stdio_fd.Resource) ()
 
 module Unix = struct
   include Unix
@@ -21,8 +22,8 @@ module Unix = struct
      block, so we do the same thing as with [EAGAIN]. *)
 
   let[@inline] intr_req fd =
-    if Sys.win32 || Picos_htbl.mem nonblock_fds (Picos_stdio_fd.unsafe_get fd) then
-      Picos_select.Intr.nothing
+    if Sys.win32 || Picos_htbl.mem nonblock_fds (Picos_stdio_fd.unsafe_get fd)
+    then Picos_select.Intr.nothing
     else Picos_select.Intr.req ~seconds:0.000_01 (* 10μs - TODO *)
 
   let rec again_0 fd fn op =
@@ -229,7 +230,9 @@ module Unix = struct
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/dup.html *)
   let dup2 ?cloexec src dst =
-    Unix.dup2 ?cloexec (Picos_stdio_fd.unsafe_get src) (Picos_stdio_fd.unsafe_get dst)
+    Unix.dup2 ?cloexec
+      (Picos_stdio_fd.unsafe_get src)
+      (Picos_stdio_fd.unsafe_get dst)
 
   let set_nonblock fd =
     Unix.set_nonblock (Picos_stdio_fd.unsafe_get fd);
@@ -240,10 +243,12 @@ module Unix = struct
     Picos_htbl.try_remove nonblock_fds (Picos_stdio_fd.unsafe_get fd) |> ignore
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/fcntl.html *)
-  let set_close_on_exec fd = Unix.set_close_on_exec (Picos_stdio_fd.unsafe_get fd)
+  let set_close_on_exec fd =
+    Unix.set_close_on_exec (Picos_stdio_fd.unsafe_get fd)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/fcntl.html *)
-  let clear_close_on_exec fd = Unix.clear_close_on_exec (Picos_stdio_fd.unsafe_get fd)
+  let clear_close_on_exec fd =
+    Unix.clear_close_on_exec (Picos_stdio_fd.unsafe_get fd)
 
   (* *)
 
@@ -434,7 +439,8 @@ module Unix = struct
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/socket.html *)
   let socket ?cloexec socket_domain socket_type protocol =
-    Picos_stdio_fd.create (Unix.socket ?cloexec socket_domain socket_type protocol)
+    Picos_stdio_fd.create
+      (Unix.socket ?cloexec socket_domain socket_type protocol)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/socketpair.html *)
   let socketpair ?cloexec socket_domain socket_type mystery =
@@ -453,7 +459,8 @@ module Unix = struct
   let connect fd sockaddr = progress_1 fd sockaddr Unix.connect `W "connect"
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/listen.html *)
-  let listen fd max_pending = Unix.listen (Picos_stdio_fd.unsafe_get fd) max_pending
+  let listen fd max_pending =
+    Unix.listen (Picos_stdio_fd.unsafe_get fd) max_pending
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/shutdown.html *)
   let shutdown fd shutdown_command =
@@ -494,7 +501,8 @@ module Unix = struct
   (* *)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/getsockopt.html *)
-  let getsockopt fd option = Unix.getsockopt (Picos_stdio_fd.unsafe_get fd) option
+  let getsockopt fd option =
+    Unix.getsockopt (Picos_stdio_fd.unsafe_get fd) option
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/setsockopt.html *)
   let setsockopt fd option bool =
@@ -544,8 +552,10 @@ module Unix = struct
   let tcdrain fd = Unix.tcdrain (Picos_stdio_fd.unsafe_get fd)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/tcflush.html *)
-  let tcflush fd flush_queue = Unix.tcflush (Picos_stdio_fd.unsafe_get fd) flush_queue
+  let tcflush fd flush_queue =
+    Unix.tcflush (Picos_stdio_fd.unsafe_get fd) flush_queue
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/tcflow.html *)
-  let tcflow fd flow_action = Unix.tcflow (Picos_stdio_fd.unsafe_get fd) flow_action
+  let tcflow fd flow_action =
+    Unix.tcflow (Picos_stdio_fd.unsafe_get fd) flow_action
 end
