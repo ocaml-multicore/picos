@@ -1,7 +1,8 @@
 open Picos_bootstrap
 
 module Trigger = struct
-  type _ Effect.t += Await : Trigger.t -> Exn_bt.t option Effect.t
+  type _ Effect.t +=
+    | Await : Trigger.t -> (exn * Printexc.raw_backtrace) option Effect.t
 
   let await t = if Trigger.is_initial t then Effect.perform (Await t) else None
 end
@@ -13,12 +14,12 @@ module Fiber = struct
   let continue t k v =
     match Fiber.canceled t with
     | None -> Effect.Deep.continue k v
-    | Some exn_bt -> Exn_bt.discontinue k exn_bt
+    | Some (exn, bt) -> Effect.Deep.discontinue_with_backtrace k exn bt
 
   let continue_with t k v h =
     match Fiber.canceled t with
     | None -> Effect.Shallow.continue_with k v h
-    | Some exn_bt -> Exn_bt.discontinue_with k exn_bt h
+    | Some (exn, bt) -> Effect.Shallow.discontinue_with_backtrace k exn bt h
 
   type _ Effect.t += Current : Fiber.t Effect.t
 
@@ -38,14 +39,15 @@ module Computation = struct
   type _ Effect.t +=
     | Cancel_after : {
         seconds : float;
-        exn_bt : Exn_bt.t;
+        exn : exn;
+        bt : Printexc.raw_backtrace;
         computation : 'a Computation.t;
       }
         -> unit Effect.t
 
-  let cancel_after computation ~seconds exn_bt =
+  let cancel_after computation ~seconds exn bt =
     Computation.check_non_negative seconds;
-    Effect.perform (Cancel_after { seconds; exn_bt; computation })
+    Effect.perform (Cancel_after { seconds; exn; bt; computation })
 end
 
 module Handler = struct
@@ -82,7 +84,7 @@ module Handler = struct
           Some
             (fun k ->
               match
-                h.cancel_after c r.computation ~seconds:r.seconds r.exn_bt
+                h.cancel_after c r.computation ~seconds:r.seconds r.exn r.bt
               with
               | unit -> Effect.Deep.continue k unit
               | exception exn -> discontinue k exn)

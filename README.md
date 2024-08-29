@@ -1,5 +1,4 @@
-[API reference](https://ocaml-multicore.github.io/picos/doc/picos/index.html)
-&middot;
+[API reference](https://ocaml-multicore.github.io/picos/doc/index.html) &middot;
 [Benchmarks](https://bench.ci.dev/ocaml-multicore/picos/branch/main?worker=pascal&image=bench.Dockerfile)
 &middot;
 [Stdlib Benchmarks](https://bench.ci.dev/ocaml-multicore/multicore-bench/branch/main?worker=pascal&image=bench.Dockerfile)
@@ -34,9 +33,8 @@ models such as
 by decoupling such elements from each other.
 
 Picos comes with a
-[reference manual](https://ocaml-multicore.github.io/picos/doc/picos/index.html)
-and many
-[sample libraries](https://ocaml-multicore.github.io/picos/doc/picos/index.html#libraries).
+[reference manual](https://ocaml-multicore.github.io/picos/doc/index.html) and
+many sample libraries.
 
 ⚠️ Please note that Picos is still considered experimental and unstable.
 
@@ -90,7 +88,7 @@ ability to cancel fibers in case of errors is crucial for the implementation of
 practical concurrent programming models.
 
 Consider the following characteristic
-[example](https://ocaml-multicore.github.io/picos/doc/picos/Picos_structured/index.html#understanding-cancelation):
+[example](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_structured/index.html#understanding-cancelation):
 
 ```ocaml skip
 Mutex.protect mutex begin fun () ->
@@ -155,25 +153,24 @@ Here is an extract from the signature of the
 <!--
 ```ocaml
 # open Picos
-# open Picos_finally
-# open Picos_structured
-# open Picos_sync
+# open Picos_std_finally
+# open Picos_std_structured
+# open Picos_std_sync
 ```
 -->
 
 ```ocaml skip
 type t
 val create : unit -> t
-val await : t -> Exn_bt.t option
+val await : t -> (exn * Printexc.raw_backtrace) option
 val signal : t -> unit
 val on_signal : (* for schedulers *)
 ```
 
 The idea is that a fiber may create a trigger, insert it into some shared data
 structure, and then call `await` to ask the scheduler to suspend the fiber until
-something signals the trigger. The `Exn_bt.t` type represents an exception with
-a backtrace. When `await` returns an exception with a backtrace it means that
-the fiber has been canceled.
+something signals the trigger. When `await` returns an exception with a
+backtrace it means that the fiber has been canceled.
 
 As an example, let's consider the implementation of an `Ivar` or incremental or
 single-assignment variable:
@@ -235,9 +232,9 @@ let rec read t =
     if Atomic.compare_and_set t before after then
       match Trigger.await trigger with
       | None -> read t
-      | Some exn_bt ->
+      | Some (exn, bt) ->
         cleanup t trigger; (* ! *)
-        Exn_bt.raise exn_bt
+        Printexc.raise_with_backtrace exn bt
     else
       read t
 ```
@@ -296,7 +293,7 @@ val try_attach : 'a t -> Trigger.t -> bool
 val detach : 'a t -> Trigger.t -> unit
 
 val try_return : 'a t -> 'a -> bool
-val try_cancel : 'a t -> Exn_bt.t -> bool
+val try_cancel : 'a t -> exn -> Printexc.raw_backtrace -> bool
 
 val check : 'a t -> unit
 val await : 'a t -> 'a
@@ -429,8 +426,8 @@ let fork t action =
       match action () with
       | () -> decr t
       | exception exn ->
-          let exn_bt = Exn_bt.get exn in
-          Computation.cancel t.inner exn_bt;
+          let bt = Printexc.get_raw_backtrace () in
+          Computation.cancel t.inner exn bt;
           decr t
     in
     let fiber =
@@ -476,10 +473,10 @@ let run body =
   with
   | () -> join t outer canceler fiber
   | exception exn ->
-      let exn_bt = Exn_bt.get exn in
-      Computation.cancel t.inner exn_bt;
+      let bt = Printexc.get_raw_backtrace () in
+      Computation.cancel t.inner exn bt;
       join t outer canceler fiber;
-      Exn_bt.raise exn_bt
+      Printexc.raise_with_backtrace exn bt
 ```
 
 The `Computation.attach_canceler` operation attaches a special trigger to
@@ -542,7 +539,7 @@ examples presented here.
 For example, a library provides an operation to run a block with a timeout on
 the current fiber. One could use it with `Ivar.read` to implement a read
 operation
-[with a timeout](https://ocaml-multicore.github.io/picos/doc/picos/Picos_structured/Control/index.html#val-terminate_after):
+[with a timeout](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_structured/Control/index.html#val-terminate_after):
 
 ```ocaml
 let read_in ~seconds ivar =
@@ -576,10 +573,11 @@ of five effects:
 
 ```ocaml version>=5.0.0
 type _ Effect.t +=
-  | Await : Trigger.t -> Exn_bt.t option Effect.t
+  | Await : Trigger.t -> (exn * Printexc.raw_backtrace) option Effect.t
   | Cancel_after : {
       seconds : float;
-      exn_bt : Exn_bt.t;
+      exn: exn;
+      bt : Printexc.raw_backtrace;
       computation : 'a Computation.t;
     }
       -> unit Effect.t
@@ -601,7 +599,7 @@ implemented against the Picos interface should not assume any particular
 scheduling.
 
 Picos actually comes with
-[a randomized multithreaded scheduler](https://ocaml-multicore.github.io/picos/doc/picos/Picos_randos/index.html),
+[a randomized multithreaded scheduler](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_randos/index.html),
 that, after handling any of the effects, picks the next ready fiber randomly. It
 has proven to be useful for testing that abstractions implemented in Picos do
 not make invalid scheduling assumptions.
@@ -616,16 +614,16 @@ specific schedulers.
 We have an experimental design and implementation of the core Picos interface as
 illustrated in the previous section. We have also created several _Picos
 compatible_
-[sample schedulers](https://ocaml-multicore.github.io/picos/doc/picos/index.html#sample-schedulers).
+[sample schedulers](https://ocaml-multicore.github.io/picos/doc/picos_std/index.html#schedulers).
 A scheduler, in this context, just multiplexes fibers to run on one or more
 system level threads. We have also created some sample higher-level
-[scheduler agnostic libraries](https://ocaml-multicore.github.io/picos/doc/picos/index.html#scheduler-agnostic-libraries)
+[scheduler agnostic libraries](https://ocaml-multicore.github.io/picos/doc/picos_std/index.html#scheduler-agnostic-libraries)
 _Implemented in Picos_. These libraries include
-[a library for resource management](https://ocaml-multicore.github.io/picos/doc/picos/Picos_finally/index.html),
-[a library for structured concurrency](https://ocaml-multicore.github.io/picos/doc/picos/Picos_structured/index.html),
-[a library of synchronization primitives](https://ocaml-multicore.github.io/picos/doc/picos/Picos_sync/index.html),
+[a library for resource management](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_finally/index.html),
+[a library for structured concurrency](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_structured/index.html),
+[a library of synchronization primitives](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_sync/index.html),
 and
-[an asynchronous I/O library](https://ocaml-multicore.github.io/picos/doc/picos/Picos_stdio/index.html).
+[an asynchronous I/O library](https://ocaml-multicore.github.io/picos/doc/picos_stdio/Picos_stdio/index.html).
 The synchronization library and the I/O library intentionally mimic libraries
 that come with the OCaml distribution. All of the libraries work with all of the
 schedulers and all of these _elements_ are interoperable and entirely opt-in.
@@ -638,7 +636,7 @@ library. A basic single threaded scheduler implementation requires only about
 couple of hundred LOC. The scheduler agnostic libraries are similarly small.
 
 Here is an
-[example](https://ocaml-multicore.github.io/picos/doc/picos/Picos_structured/index.html#a-simple-echo-server-and-clients)
+[example](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_structured/index.html#a-simple-echo-server-and-clients)
 of a concurrent echo server using the scheduler agnostic libraries provided as
 samples:
 
@@ -664,27 +662,27 @@ let run_server server_fd =
 ```
 
 The
-[`Unix`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_stdio/Unix/index.html)
+[`Unix`](https://ocaml-multicore.github.io/picos/doc/picos_stdio/Picos_stdio/Unix/index.html)
 module is provided by the I/O library. The operations on file descriptors on
 that module, such as `accept`, `read`, and `write`, use the Picos interface to
 suspend fibers allowing other fibers to run while waiting for I/O. The
-[`Flock`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_structured/Flock/index.html)
+[`Flock`](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_structured/Flock/index.html)
 module comes from the structured concurrency library. A call of
-[`join_after`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_structured/Flock/index.html#val-join_after)
+[`join_after`](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_structured/Flock/index.html#val-join_after)
 returns only after all the fibers
-[`fork`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_structured/Flock/index.html#val-fork)ed
+[`fork`](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_structured/Flock/index.html#val-fork)ed
 into the flock have terminated. If the main fiber of the flock is canceled, or
 any fiber within the flock raises an unhandled exception, all the fibers within
 the flock will be canceled and an exception will be raised on the main fiber of
 the flock. The
-[`let@`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_finally/index.html#val-let@),
-[`finally`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_finally/index.html#val-instantiate),
+[`let@`](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_finally/index.html#val-let@),
+[`finally`](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_finally/index.html#val-instantiate),
 and
-[`move`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_finally/index.html#val-move)
+[`move`](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_finally/index.html#val-move)
 operations come from the resource management library and allow dealing with
 resources in a leak-free manner. The responsibility to close the `client_fd`
 socket is
-[`move`](https://ocaml-multicore.github.io/picos/doc/picos/Picos_finally/index.html#val-move)d
+[`move`](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_finally/index.html#val-move)d
 from the main server fiber to a fiber forked to handle that client.
 
 We should emphasize that the above is just an example. The Picos interface
@@ -698,7 +696,7 @@ and with other concurrent abstractions.
 
 Finally, an interesting demonstration that Picos really fundamentally is an
 interface is
-[a prototype _Picos compatible_ direct style interface to Lwt](https://ocaml-multicore.github.io/picos/doc/picos/Picos_lwt/index.html).
+[a prototype _Picos compatible_ direct style interface to Lwt](https://ocaml-multicore.github.io/picos/doc/picos_lwt/Picos_lwt/index.html).
 The implementation uses shallow effect handlers and defers all scheduling
 decisions to Lwt. Running a program with the scheduler returns a Lwt promise.
 
@@ -778,9 +776,10 @@ concurrent programming models.
 
 It should be
 technically<sup>[\*](https://www.youtube.com/watch?v=hou0lU8WMgo)</sup> possible
-to
+for all the previously mentioned libraries, except
+[Miou](https://github.com/robur-coop/miou), to
 
-1. make all of the previously mentioned libraries
+1. be made
    [Picos compatible](https://ocaml-multicore.github.io/picos/doc/picos/index.html#picos-compatible),
    i.e. to handle the Picos effects, and
 2. have their elements
@@ -788,5 +787,5 @@ to
    i.e. to make them usable on other Picos-compatible schedulers.
 
 Please read
-[the reference manual](https://ocaml-multicore.github.io/picos/doc/picos/index.html)
+[the reference manual](https://ocaml-multicore.github.io/picos/doc/index.html)
 for further information.

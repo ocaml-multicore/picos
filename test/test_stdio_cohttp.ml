@@ -1,8 +1,8 @@
 open Cohttp
-open Picos_finally
+open Picos_std_finally
+open Picos_std_structured
 open Picos_stdio
 open Picos_stdio_cohttp
-open Picos_structured
 
 let is_opam_ci =
   match Sys.getenv "OPAM_REPO_CI" with

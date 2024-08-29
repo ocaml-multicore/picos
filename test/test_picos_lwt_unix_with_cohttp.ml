@@ -1,7 +1,9 @@
-open Picos_structured
+open Picos_std_structured
 open Cohttp
 open Cohttp_lwt
 open Cohttp_lwt_unix
+
+let port = 8000
 
 (** [Picos_lwt] gives us a direct-style [await] operation. *)
 let await = Picos_lwt.await
@@ -25,17 +27,24 @@ let main () =
     in
     let ctx = Conduit_lwt_unix.init ~src:"127.0.0.1" () |> await in
     let ctx = Client.custom_ctx ~ctx () in
-    Server.create ~ctx ~mode:(`TCP (`Port 8000)) (Server.make ~callback ())
+    Server.create ~ctx ~mode:(`TCP (`Port port)) (Server.make ~callback ())
     |> await
   in
 
   (* Then we GET a response from the server. *)
   let _resp, body =
-    await (Client.get (Uri.of_string "http://127.0.0.1:8000/hello-lwt"))
+    await
+      (Client.get
+         (Uri.of_string (Printf.sprintf "http://127.0.0.1:%d/hello-lwt" port)))
   in
   Printf.printf "%s\n%!" (await (Body.to_string body));
 
   (* Finally we terminate the server. *)
   Promise.terminate server
 
-let () = Lwt_main.run @@ Picos_lwt_unix.run main
+let () =
+  Lwt_main.run @@ Picos_lwt_unix.run
+  @@ fun () ->
+  try main ()
+  with Unix.Unix_error _ as exn ->
+    Printf.printf "%s\n%!" (Printexc.to_string exn)

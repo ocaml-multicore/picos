@@ -1,0 +1,9 @@
+{0 Lwt interface for Picos}
+
+This package provides an alternative direct style interface to programming with
+Lwt via {!Picos}.
+
+{!modules:
+  Picos_lwt
+  Picos_lwt_unix
+}

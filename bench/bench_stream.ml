@@ -1,5 +1,5 @@
 open Multicore_bench
-module Stream = Picos_sync.Stream
+module Stream = Picos_std_sync.Stream
 
 let run_one_domain ~budgetf ?(n_msgs = 50 * Util.iter_factor) () =
   let t = Stream.create ~padded:true () in

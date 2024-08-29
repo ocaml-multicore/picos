@@ -1,0 +1,4 @@
+(library
+ (name picos_std_event)
+ (public_name picos_std.event)
+ (libraries picos))

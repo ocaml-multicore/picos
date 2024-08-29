@@ -1,0 +1,34 @@
+(library
+ (name picos_stdio_select)
+ (public_name picos_stdio.select)
+ (optional)
+ (libraries
+  (re_export picos)
+  (re_export picos_std.event)
+  (re_export picos_stdio.fd)
+  (re_export unix)
+  backoff
+  mtime
+  mtime.clock.os
+  multicore-magic
+  picos.domain
+  picos.thread
+  picos_aux.htbl
+  picos_stdio_thread_atomic
+  psq
+  threads.posix))
+
+(mdx
+ (package picos_meta)
+ (enabled_if
+  (>= %{ocaml_version} 5.1.0))
+ (libraries
+  picos
+  picos_mux.random
+  picos_std.event
+  picos_std.finally
+  picos_std.structured
+  picos_stdio
+  picos_stdio.select
+  unix)
+ (files picos_stdio_select.mli))

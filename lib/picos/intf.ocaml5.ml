@@ -1,6 +1,5 @@
 module type Trigger = sig
   type t
-  type exn_bt
 
   (** Schedulers must handle the {!Await} effect to implement the behavior of
       {!await}.
@@ -27,12 +26,13 @@ module type Trigger = sig
       as a response to {!Await}.
 
       The scheduler is free to choose which ready fiber to resume next. *)
-  type _ Effect.t += private Await : t -> exn_bt option Effect.t
+  type _ Effect.t +=
+    private
+    | Await : t -> (exn * Printexc.raw_backtrace) option Effect.t
 end
 
 module type Computation = sig
   type _ t
-  type exn_bt
 
   (** Schedulers must handle the {!Cancel_after} effect to implement the
       behavior of {!cancel_after}.
@@ -56,7 +56,8 @@ module type Computation = sig
     private
     | Cancel_after : {
         seconds : float;  (** Guaranteed to be non-negative. *)
-        exn_bt : exn_bt;
+        exn : exn;
+        bt : Printexc.raw_backtrace;
         computation : 'a t;
       }
         -> unit Effect.t
@@ -65,15 +66,17 @@ end
 module type Fiber = sig
   type t
   type _ computation
-  type exn_bt
 
-  val resume : t -> (exn_bt option, 'r) Effect.Deep.continuation -> 'r
+  val resume :
+    t ->
+    ((exn * Printexc.raw_backtrace) option, 'r) Effect.Deep.continuation ->
+    'r
   (** [resume fiber k] is equivalent to
       {{!Fiber.canceled} [Effect.Deep.continue k (Fiber.canceled t)]}. *)
 
   val resume_with :
     t ->
-    (exn_bt option, 'b) Effect.Shallow.continuation ->
+    ((exn * Printexc.raw_backtrace) option, 'b) Effect.Shallow.continuation ->
     ('b, 'r) Effect.Shallow.handler ->
     'r
   (** [resume_with fiber k h] is equivalent to
@@ -84,7 +87,8 @@ module type Fiber = sig
       {[
         match Fiber.canceled fiber with
         | None -> Effect.Deep.continue k v
-        | Some exn_bt -> Exn_bt.discontinue k exn_bt
+        | Some (exn, bt) ->
+          Effect.Deep.discontinue_with_backtrace k exn bt
       ]} *)
 
   val continue_with :
@@ -97,7 +101,8 @@ module type Fiber = sig
       {[
         match Fiber.canceled fiber with
         | None -> Effect.Shallow.continue_with k v h
-        | Some exn_bt -> Exn_bt.discontinue_with k exn_bt h
+        | Some (exn, bt) ->
+          Effect.Shallow.discontinue_with_backtrace k exn bt h
       ]} *)
 
   (** Schedulers must handle the {!Current} effect to implement the behavior of

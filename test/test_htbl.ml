@@ -1,21 +1,21 @@
 open QCheck
 open STM
-module Htbl = Picos_htbl
+module Htbl = Picos_aux_htbl
 
 let () =
   (* Basics *)
   Random.self_init ();
-  let t = Picos_htbl.create () in
-  assert (Picos_htbl.try_add t "Basics" 101);
-  assert (Picos_htbl.try_add t "Answer" 42);
-  assert (101 = Picos_htbl.remove_exn t "Basics");
-  assert (not (Picos_htbl.try_remove t "Basics"));
-  assert (Picos_htbl.remove_all t |> List.of_seq = [ ("Answer", 42) ]);
-  assert (Picos_htbl.to_seq t |> List.of_seq = []);
+  let t = Htbl.create () in
+  assert (Htbl.try_add t "Basics" 101);
+  assert (Htbl.try_add t "Answer" 42);
+  assert (101 = Htbl.remove_exn t "Basics");
+  assert (not (Htbl.try_remove t "Basics"));
+  assert (Htbl.remove_all t |> List.of_seq = [ ("Answer", 42) ]);
+  assert (Htbl.to_seq t |> List.of_seq = []);
   [ "One"; "Two"; "Three" ]
-  |> List.iteri (fun v k -> assert (Picos_htbl.try_add t k v));
+  |> List.iteri (fun v k -> assert (Htbl.try_add t k v));
   assert (
-    Picos_htbl.to_seq t |> List.of_seq
+    Htbl.to_seq t |> List.of_seq
     |> List.sort (fun l r -> String.compare (fst l) (fst r))
     = [ ("One", 0); ("Three", 2); ("Two", 1) ])
 
@@ -93,4 +93,4 @@ module Spec = struct
     | _, _ -> false
 end
 
-let () = Stm_run.run ~name:"Picos_htbl" (module Spec) |> exit
+let () = Stm_run.run ~name:"Htbl" (module Spec) |> exit

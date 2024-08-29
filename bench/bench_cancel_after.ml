@@ -1,8 +1,8 @@
 open Multicore_bench
-open Picos_structured
+open Picos_std_structured
 open Picos
 
-let exit_exn_bt = Exn_bt.get_callstack 0 Exit
+let empty_bt = Printexc.get_callstack 0
 let seconds = 0.000_000_001 (* 1 ns *)
 
 let run_round_trip ~budgetf ~n_domains () =
@@ -19,7 +19,7 @@ let run_round_trip ~budgetf ~n_domains () =
         let rec loop n =
           if 0 < n then begin
             let computation = Computation.create ~mode:`LIFO () in
-            Computation.cancel_after computation ~seconds exit_exn_bt;
+            Computation.cancel_after computation ~seconds Exit empty_bt;
             Computation.wait computation;
             loop (n - 1)
           end
@@ -65,7 +65,7 @@ let run_async ~budgetf ~n_domains () =
           if 0 < n then begin
             let computation = Computation.create ~mode:`LIFO () in
             Queue.push computation queue;
-            Computation.cancel_after computation ~seconds exit_exn_bt;
+            Computation.cancel_after computation ~seconds Exit empty_bt;
             loop (n - 1)
           end
           else work ()

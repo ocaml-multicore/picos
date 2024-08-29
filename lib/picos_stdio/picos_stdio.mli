@@ -38,13 +38,13 @@ module Unix : sig
       Windows, scheduler friendly blocking only works properly with non-blocking
       file descriptors, i.e. sockets.
 
-      ⚠️ This module uses {!Picos_select} and you may need to
-      {{!Picos_select.configure} configure} it at start of your application.
+      ⚠️ This module uses {!Picos_stdio_select} and you may need to
+      {{!Picos_stdio_select.configure} configure} it at start of your application.
 
       Please consult the documentation of the {{!Deps.Unix} [Unix]} module that
       comes with OCaml. *)
 
-  type file_descr = Picos_fd.t
+  type file_descr = Picos_stdio_fd.t
   (** Opaque type alias for {{!Deps.Unix.file_descr} [Unix.file_descr]}.
 
       ⚠️ Please consider the reference counting of file descriptors as an
@@ -350,10 +350,10 @@ module Unix : sig
     float ->
     file_descr list * file_descr list * file_descr list
   (** [select rds wrs exs timeout] is like {!Deps.Unix.select}, but uses
-      {!Picos_select} to avoid blocking the thread.
+      {!Picos_stdio_select} to avoid blocking the thread.
 
       🐌 You may find composing multi file descriptor awaits via other means
-      with {!Picos_select} more flexible and efficient. *)
+      with {!Picos_stdio_select} more flexible and efficient. *)
 
   type lock_command = Unix.lock_command =
     | F_ULOCK
@@ -689,8 +689,8 @@ end
     First we open some modules for convenience:
 
     {[
-      open Picos_finally
-      open Picos_structured
+      open Picos_std_finally
+      open Picos_std_structured
       open Picos_stdio
     ]}
 
@@ -700,7 +700,7 @@ end
     pipes:
 
     {[
-      # Picos_randos.run_on ~n_domains:2 @@ fun () ->
+      # Picos_mux_random.run_on ~n_domains:2 @@ fun () ->
 
         let@ msg_i, msg_o =
           finally Unix.close_pair @@ fun () ->

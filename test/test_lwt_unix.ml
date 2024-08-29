@@ -1,4 +1,4 @@
-open Picos_structured
+open Picos_std_structured
 
 let basics () =
   Lwt_main.run @@ Picos_lwt_unix.run

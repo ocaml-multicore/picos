@@ -1,0 +1,15 @@
+(library
+ (name picos_std_sync)
+ (public_name picos_std.sync)
+ (libraries
+  (re_export picos_std.event)
+  picos
+  backoff
+  multicore-magic))
+
+(mdx
+ (package picos_meta)
+ (enabled_if
+  (>= %{ocaml_version} 5.0.0))
+ (libraries picos_mux.fifo picos_std.structured picos_std.sync)
+ (files picos_std_sync.mli))

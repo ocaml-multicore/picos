@@ -1,5 +1,3 @@
-module Exn_bt = Picos_exn_bt
-
 module Trigger = struct
   include Picos_bootstrap.Trigger
   include Picos_ocaml.Trigger
@@ -14,9 +12,9 @@ module Computation = struct
     if try_attach t trigger then begin
       match Trigger.await trigger with
       | None -> t
-      | Some exn_bt ->
+      | Some (exn, bt) ->
           detach t trigger;
-          Exn_bt.raise exn_bt
+          Printexc.raise_with_backtrace exn bt
     end
     else t
 
@@ -67,18 +65,18 @@ module Fiber = struct
 
   exception Done
 
-  let done_bt = Exn_bt.get_callstack 0 Done
+  let empty_bt = Printexc.get_callstack 0
 
   let sleep ~seconds =
     let sleep = Computation.create ~mode:`LIFO () in
-    Computation.cancel_after ~seconds sleep done_bt;
+    Computation.cancel_after ~seconds sleep Done empty_bt;
     let trigger = Trigger.create () in
     if Computation.try_attach sleep trigger then
       match Trigger.await trigger with
       | None -> ()
-      | Some exn_bt ->
+      | Some (exn, bt) ->
           Computation.finish sleep;
-          Exn_bt.raise exn_bt
+          Printexc.raise_with_backtrace exn bt
 end
 
 module Handler = struct

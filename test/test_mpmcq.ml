@@ -1,6 +1,6 @@
 open QCheck
 open STM
-module Queue = Picos_mpmcq
+module Queue = Picos_aux_mpmcq
 
 let () =
   let q = Queue.create () in
@@ -80,4 +80,4 @@ module Spec = struct
     | _, _ -> false
 end
 
-let () = Stm_run.run ~name:"Picos_mpmcq" (module Spec) |> exit
+let () = Stm_run.run ~name:"Mpmcq" (module Spec) |> exit

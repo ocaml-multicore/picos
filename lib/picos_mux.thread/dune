@@ -1,0 +1,12 @@
+(library
+ (name picos_mux_thread)
+ (public_name picos_mux.thread)
+ (optional)
+ (libraries
+  (re_export picos)
+  (select
+   select.ml
+   from
+   (picos_stdio.select -> select.some.ml)
+   (-> select.none.ml))
+  threads.posix))

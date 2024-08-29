@@ -1,0 +1,25 @@
+(library
+ (name picos_std_structured)
+ (public_name picos_std.structured)
+ (libraries
+  (re_export picos_std.event)
+  picos
+  backoff
+  multicore-magic))
+
+(mdx
+ (package picos_meta)
+ (enabled_if
+  (and
+   (>= %{ocaml_version} 5.0.0)
+   (= %{env:OPAM_REPO_CI=false} false)))
+ (libraries
+  picos_mux.random
+  picos_mux.fifo
+  picos_std.event
+  picos_std.finally
+  picos_std.structured
+  picos_std.sync
+  picos_stdio
+  unix)
+ (files picos_std_structured.mli))

@@ -4,7 +4,4 @@
  (wrapped false)
  (enabled_if
   (< %{ocaml_version} 5.0.0))
- (libraries
-  (re_export picos.exn_bt)
-  picos.thread
-  picos_bootstrap))
+ (libraries picos.thread picos_bootstrap))

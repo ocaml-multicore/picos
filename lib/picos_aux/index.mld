@@ -1,0 +1,13 @@
+{0 Auxiliary libraries for Picos}
+
+This package contains auxiliary libraries used in the implementation of other
+Picos libraries.
+
+{!modules:
+  Picos_aux_htbl
+  Picos_aux_mpmcq
+  Picos_aux_mpscq
+  Picos_aux_rc
+}
+
+{^ Some of these libraries might be moved to other packages in the future.}

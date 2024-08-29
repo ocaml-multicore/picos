@@ -1,4 +1,5 @@
 (test
+ (package picos_meta)
  (name main)
  (action
   (progn
@@ -23,27 +24,27 @@
    (run %{test} -brief "Bounded_q with Picos_sync")
    (run %{test} -brief "Memory usage")))
  (libraries
+  backoff
+  multicore-bench
+  multicore-magic
   picos
   picos.domain
-  picos.finally
-  picos.htbl
-  picos.mpmcq
-  picos.mpscq
-  picos.select
-  picos.stdio
-  picos.structured
-  picos.sync
   picos.thread
+  picos_aux.htbl
+  picos_aux.mpmcq
+  picos_aux.mpscq
+  picos_std.finally
+  picos_std.structured
+  picos_std.sync
+  picos_stdio
+  picos_stdio.select
   (select
    scheduler.ml
    from
-   (picos.fifos -> scheduler.ocaml5.ml)
-   (picos.threaded -> scheduler.ocaml4.ml))
+   (picos_mux.fifo -> scheduler.ocaml5.ml)
+   (picos_mux.thread -> scheduler.ocaml4.ml))
   (select
    bench_fib.ml
    from
-   (picos.randos picos.multififos -> bench_fib.ocaml5.ml)
-   (-> bench_fib.ocaml4.ml))
-  multicore-bench
-  multicore-magic
-  backoff))
+   (picos_mux.random picos_mux.multififo -> bench_fib.ocaml5.ml)
+   (-> bench_fib.ocaml4.ml))))

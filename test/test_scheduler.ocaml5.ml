@@ -4,7 +4,7 @@ let () = Random.self_init ()
 open Picos
 
 let () =
-  Picos_select.check_configured ();
+  Picos_stdio_select.check_configured ();
 
   let[@alert "-handler"] rec propagate () =
     let computation =
@@ -13,7 +13,7 @@ let () =
       Lwt_unix.handle_signal Sys.sigchld;
       propagate ()
     in
-    Picos_select.return_on_sigchld computation ()
+    Picos_stdio_select.return_on_sigchld computation ()
   in
   propagate ()
 
@@ -51,15 +51,17 @@ let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true) ?fatal_exn_handler
     | `Randos ->
         Some
           (fun () ->
-            Picos_randos.run_fiber_on ?fatal_exn_handler ~n_domains fiber main)
+            Picos_mux_random.run_fiber_on ?fatal_exn_handler ~n_domains fiber
+              main)
     | `Fifos ->
         Some
-          (fun () -> Picos_fifos.run_fiber ~quota ?fatal_exn_handler fiber main)
+          (fun () ->
+            Picos_mux_fifo.run_fiber ~quota ?fatal_exn_handler fiber main)
     | `Multififos ->
         Some
           (fun () ->
-            Picos_multififos.run_fiber_on ~quota ?fatal_exn_handler ~n_domains
-              fiber main)
+            Picos_mux_multififo.run_fiber_on ~quota ?fatal_exn_handler
+              ~n_domains fiber main)
   with
   | None -> run_fiber ~max_domains ~allow_lwt ?fatal_exn_handler fiber main
   | Some run -> begin

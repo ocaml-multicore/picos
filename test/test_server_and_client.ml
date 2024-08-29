@@ -1,7 +1,7 @@
-open Picos_finally
-open Picos_structured
+open Picos_std_finally
+open Picos_std_structured
 open Picos_stdio
-open Picos_sync
+open Picos_std_sync
 
 let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
 let use_nonblock = Sys.win32 || Random.bool ()

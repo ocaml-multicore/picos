@@ -1,7 +1,7 @@
 open Multicore_bench
 open Picos
-open Picos_sync
-open Picos_structured
+open Picos_std_structured
+open Picos_std_sync
 
 let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
 

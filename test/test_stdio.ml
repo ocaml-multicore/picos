@@ -1,6 +1,7 @@
-open Picos_finally
-open Picos_structured
+open Picos_std_finally
+open Picos_std_structured
 open Picos_stdio
+module Mpscq = Picos_aux_mpscq
 
 let test_system_unix () =
   Test_scheduler.run @@ fun () ->
@@ -76,7 +77,7 @@ let test_select () =
   Unix.set_nonblock syn_inn;
   Unix.set_nonblock syn_out;
 
-  let events = Picos_mpscq.create ~padded:true () in
+  let events = Mpscq.create ~padded:true () in
 
   begin
     Flock.join_after ~on_return:`Terminate @@ fun () ->
@@ -86,17 +87,17 @@ let test_select () =
         match Unix.select [ msg_inn1; msg_inn2 ] [] [] 0.2 with
         | inns, _, _ ->
             if List.exists (( == ) msg_inn1) inns then begin
-              Picos_mpscq.push events (Printf.sprintf "Inn1");
+              Mpscq.push events (Printf.sprintf "Inn1");
               assert (1 = Unix.read msg_inn1 (Bytes.create 1) 0 1);
               assert (1 = Unix.write_substring syn_out "!" 0 1)
             end;
             if List.exists (( == ) msg_inn2) inns then begin
-              Picos_mpscq.push events (Printf.sprintf "Inn2");
+              Mpscq.push events (Printf.sprintf "Inn2");
               assert (1 = Unix.read msg_inn2 (Bytes.create 1) 0 1);
               assert (1 = Unix.write_substring syn_out "!" 0 1)
             end;
             if [] == inns then begin
-              Picos_mpscq.push events (Printf.sprintf "Timeout");
+              Mpscq.push events (Printf.sprintf "Timeout");
               assert (1 = Unix.write_substring syn_out "!" 0 1)
             end
       done
@@ -112,7 +113,7 @@ let test_select () =
     assert (1 = Unix.read syn_inn (Bytes.create 1) 0 1)
   end;
 
-  let events = Picos_mpscq.pop_all events in
+  let events = Mpscq.pop_all events in
 
   assert (Seq.exists (( = ) "Timeout") events);
   assert (

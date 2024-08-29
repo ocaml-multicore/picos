@@ -13,11 +13,25 @@
 (source
  (github ocaml-multicore/picos))
 
-(homepage "https://github.com/ocaml-multicore/picos")
+(homepage https://github.com/ocaml-multicore/picos)
 
-(license "ISC")
+(license ISC)
 
 (using mdx 0.4)
+
+(package
+ (name picos_aux)
+ (synopsis "Auxiliary libraries for Picos")
+ (depends
+  (ocaml
+   (>= 4.14.0))
+  ;;
+  (backoff
+   (>= 0.1.0))
+  (multicore-magic
+   (>= 2.3.0))
+  ;;
+  ))
 
 (package
  (name picos)
@@ -27,54 +41,153 @@
  (depends
   (backoff
    (>= 0.1.0))
-  ;; For OCaml 4 compatible defaults that are not used on OCaml 5 by default
   (thread-local-storage
    (>= 0.2))
-  (mtime
-   (>= 2.0.0))
-  (psq
-   (>= 0.2.1))
-  ;; For mpsc queue
+  ;;
+  ))
+
+(package
+ (name picos_std)
+ (synopsis "Sample libraries for Picos")
+ (depends
+  (picos
+   (= :version))
+  ;;
+  (backoff
+   (>= 0.1.0))
   (multicore-magic
    (>= 2.3.0))
-  ;; For picos.lwt
-  (lwt
-   (>= 5.7.0))
-  ;; For picos.stdio.cohttp
+  ;;
+  ))
+
+(package
+ (name picos_stdio)
+ (synopsis "Asynchronous IO system for Picos")
+ (depends
+  (picos_aux
+   (= :version))
+  (picos_std
+   (= :version))
+  ;;
+  (backoff
+   (>= 0.1.0))
+  (mtime
+   (>= 2.0.0))
+  (multicore-magic
+   (>= 2.3.0))
+  (psq
+   (>= 0.2.1))
+  ;;
+  ))
+
+(package
+ (name picos_stdio_cohttp)
+ (synopsis "Cohttp running on Picos stdio")
+ (depends
+  (picos_stdio
+   (= :version))
+  ;;
   (cohttp
    (>= 6.0.0~beta2))
-  (uri
-   (>= 4.4.0))
   (fmt
    (>= 0.9.0))
-  ;; Test dependencies
-  (multicore-bench
-   (and
-    (>= 0.1.4)
-    :with-test))
+  (uri
+   (>= 4.4.0))
+  ;;
+  ))
+
+(package
+ (name picos_mux)
+ (synopsis "Sample schedulers for Picos")
+ (depends
+  (picos_aux
+   (= :version))
+  (picos_std
+   (= :version))
+  ;;
+  (backoff
+   (>= 0.1.0))
+  (multicore-magic
+   (>= 2.3.0))
+  ;;
+  )
+ (depopts
+  (picos_stdio
+   (= :version))
+  ;;
+  ))
+
+(package
+ (name picos_lwt)
+ (allow_empty)
+ (synopsis "Lwt interface for Picos")
+ (depends
+  (picos_aux
+   (= :version))
+  (picos_std
+   (= :version))
+  ;;
+  (lwt
+   (>= 5.7.0))
+  ;;
+  ))
+
+(package
+ (name picos_meta)
+ (allow_empty)
+ (synopsis "Integration tests for Picos packages")
+ (depends
+  (picos
+   (= :version))
+  (picos_aux
+   (= :version))
+  (picos_std
+   (= :version))
+  (picos_stdio
+   (= :version))
+  (picos_stdio_cohttp
+   (= :version))
+  (picos_mux
+   (= :version))
+  (picos_lwt
+   (= :version))
+  ;;
+  (dscheck
+   (>= 0.4.0))
+  (lwt
+   (>= 5.7.0))
+  (qcheck-core
+   (>= 0.21.2))
+  (qcheck-stm
+   (>= 0.3))
+  ;;
   (alcotest
    (and
     (>= 1.7.0)
     :with-test))
-  (qcheck-core
+  (backoff
    (and
-    (>= 0.21.2)
+    (>= 0.1.0)
     :with-test))
-  (qcheck-stm
+  (cohttp
    (and
-    (>= 0.3)
+    (>= 6.0.0~beta2)
     :with-test))
-  (qcheck-multicoretests-util
+  (cohttp-lwt-unix
    (and
-    (>= 0.3)
+    (>= 6.0.0~beta2)
+    (<> :os "win32")
     :with-test))
-  (mdx
+  (conduit-lwt-unix
    (and
-    (>= 2.4.0)
+    (>= 6.2.2)
+    (<> :os "win32")
     :with-test))
-  (ocaml-version
+  (conf-npm
    (and
-    (>= 3.6.4)
+    (<> :arch "x86_32")
+    (<> :arch "riscv64")
+    (<> :os "win32")
     :with-test))
   (domain_shims
    (and
@@ -84,41 +197,46 @@
    (and
     (>= 5.4.0)
     :with-test))
-  (conf-npm
+  (mdx
    (and
-    (<> :arch "x86_32")
-    (<> :arch "riscv64")
-    (<> :os "win32")
+    (>= 2.4.0)
     :with-test))
-  (dscheck
+  (multicore-bench
    (and
-    (>= 0.4.0)
+    (>= 0.1.4)
+    :with-test))
+  (multicore-magic
+   (and
+    (>= 2.3.0)
     :with-test))
   (multicore-magic-dscheck
    (and
     (>= 2.3.0)
     :with-test))
-  ;; Documentation dependencies
-  (sherlodoc
+  (ocaml-version
    (and
-    (>= 0.2)
-    :with-doc))
+    (>= 3.6.4)
+    :with-test))
+  (cohttp-lwt
+   (and
+    (>= 6.0.0~beta2)
+    :with-test))
+  (qcheck-multicoretests-util
+   (and
+    (>= 0.3)
+    :with-test))
+  (uri
+   (and
+    (>= 4.4.0)
+    :with-test))
+  ;;
   (odoc
    (and
     (>= 2.4.1)
     :with-doc))
-  (ocaml
-   (>= 4.14.0)))
- (depopts
-  (cohttp-lwt
+  (sherlodoc
    (and
-    (>= 5.3.0)
-    :with-test))
-  (cohttp-lwt-unix
-   (and
-    (>= 5.3.0)
-    :with-test))
-  (conduit-lwt-unix
-   (and
-    (>= 6.2.2)
-    :with-test))))
+    (>= 0.2)
+    :with-doc))
+  ;;
+  ))

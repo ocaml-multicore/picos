@@ -1,7 +1,5 @@
 let[@inline never] impossible () = failwith "impossible"
 
-module Exn_bt = Picos_exn_bt
-
 module Trigger = struct
   let[@inline never] error_awaiting () = invalid_arg "already awaiting"
 
@@ -75,7 +73,8 @@ module Computation = struct
 
   and ('a, _) st =
     | Canceled : {
-        exn_bt : Exn_bt.t;
+        exn : exn;
+        bt : Printexc.raw_backtrace;
         mutable tx : [ `Stopped | `Running ] tx;
       }
         -> ('a, [> `Canceled ]) st
@@ -179,9 +178,9 @@ module Computation = struct
         value =
       try_complete tx computation Backoff.default (Returned { value; tx })
 
-    let[@inline] try_cancel (Running _ as tx : [ `Running ] tx) computation
-        exn_bt =
-      try_complete tx computation Backoff.default (Canceled { exn_bt; tx })
+    let[@inline] try_cancel (Running _ as tx : [ `Running ] tx) computation exn
+        bt =
+      try_complete tx computation Backoff.default (Canceled { exn; bt; tx })
   end
 
   let empty_fifo = S (Continue { triggers = []; balance_and_mode = fifo_bit })
@@ -202,7 +201,8 @@ module Computation = struct
 
   let canceled t =
     match Atomic.get t with
-    | S (Canceled { exn_bt; tx }) -> if tx == Stopped then Some exn_bt else None
+    | S (Canceled { exn; bt; tx }) ->
+        if tx == Stopped then Some (exn, bt) else None
     | S (Returned _) | S (Continue _) -> None
 
   (** [gc] is called when balance becomes negative by both [try_attach] and
@@ -294,40 +294,41 @@ module Computation = struct
   let try_return t value = try_terminate t (make_returned value) Backoff.default
   let try_finish t = try_terminate t returned_unit Backoff.default
 
-  let try_cancel t exn_bt =
-    try_terminate t (S (Canceled { exn_bt; tx = Stopped })) Backoff.default
+  let try_cancel t exn bt =
+    try_terminate t (S (Canceled { exn; bt; tx = Stopped })) Backoff.default
 
   let return t value = try_return t value |> ignore
   let finish t = try_finish t |> ignore
-  let cancel t exn_bt = try_cancel t exn_bt |> ignore
+  let cancel t exn bt = try_cancel t exn bt |> ignore
 
   let try_capture t fn x =
     match fn x with
     | y -> try_return t y
-    | exception exn -> try_cancel t (Exn_bt.get exn)
+    | exception exn -> try_cancel t exn (Printexc.get_raw_backtrace ())
 
   let capture t fn x = try_capture t fn x |> ignore
 
   let check t =
     match Atomic.get t with
-    | S (Canceled { exn_bt; tx; _ }) ->
-        if tx == Stopped then Exn_bt.raise exn_bt
+    | S (Canceled { exn; bt; tx; _ }) ->
+        if tx == Stopped then Printexc.raise_with_backtrace exn bt
     | S (Returned _) | S (Continue _) -> ()
 
   exception Running
 
   let peek_exn t =
     match Atomic.get t with
-    | S (Canceled { exn_bt; tx; _ }) ->
-        if tx == Stopped then Exn_bt.raise exn_bt else raise_notrace Running
+    | S (Canceled { exn; bt; tx; _ }) ->
+        if tx == Stopped then Printexc.raise_with_backtrace exn bt
+        else raise_notrace Running
     | S (Returned { value; tx; _ }) ->
         if tx == Stopped then value else raise_notrace Running
     | S (Continue _) -> raise_notrace Running
 
   let peek t =
     match Atomic.get t with
-    | S (Canceled { exn_bt; tx; _ }) ->
-        if tx == Stopped then Some (Error exn_bt) else None
+    | S (Canceled { exn; bt; tx; _ }) ->
+        if tx == Stopped then Some (Error (exn, bt)) else None
     | S (Returned { value; tx; _ }) ->
         if tx == Stopped then Some (Ok value) else None
     | S (Continue _) -> None
@@ -347,8 +348,9 @@ module Computation = struct
     match Atomic.get t with
     | S (Returned { value; tx; _ }) ->
         if tx == Stopped then value else get_or block (block t)
-    | S (Canceled { exn_bt; tx; _ }) ->
-        if tx == Stopped then Exn_bt.raise exn_bt else get_or block (block t)
+    | S (Canceled { exn; bt; tx; _ }) ->
+        if tx == Stopped then Printexc.raise_with_backtrace exn bt
+        else get_or block (block t)
     | S (Continue _) -> get_or block (block t)
 
   let attach_canceler ~from ~into =
@@ -506,7 +508,13 @@ module Handler = struct
     spawn : 'c -> Fiber.t -> (Fiber.t -> unit) -> unit;
     yield : 'c -> unit;
     cancel_after :
-      'a. 'c -> 'a Computation.t -> seconds:float -> Exn_bt.t -> unit;
-    await : 'c -> Trigger.t -> Exn_bt.t option;
+      'a.
+      'c ->
+      'a Computation.t ->
+      seconds:float ->
+      exn ->
+      Printexc.raw_backtrace ->
+      unit;
+    await : 'c -> Trigger.t -> (exn * Printexc.raw_backtrace) option;
   }
 end

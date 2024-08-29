@@ -1,0 +1,11 @@
+(library
+ (name picos_aux_htbl)
+ (public_name picos_aux.htbl)
+ (libraries backoff multicore-magic))
+
+(mdx
+ (package picos_meta)
+ (enabled_if
+  (>= %{ocaml_version} 5.1.0))
+ (libraries picos_aux.htbl)
+ (files picos_aux_htbl.mli))

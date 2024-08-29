@@ -1,5 +1,5 @@
 open Multicore_bench
-open Picos_structured
+open Picos_std_structured
 
 let factor =
   Util.iter_factor

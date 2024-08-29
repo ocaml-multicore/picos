@@ -56,7 +56,7 @@ let test_computation_contract () =
        in
        let () =
          Atomic.spawn @@ fun () ->
-         if Computation.try_cancel computation (Exn_bt.get_callstack 1 Exit)
+         if Computation.try_cancel computation Exit (Printexc.get_callstack 1)
          then incr cancels
        in
        let triggers = Array.init 2 @@ fun _ -> Trigger.create () in
@@ -75,8 +75,7 @@ let test_computation_contract () =
        begin
          match Computation.peek computation with
          | Some (Ok 101) when !returns = 1 && !cancels = 0 -> true
-         | Some (Error { exn = Exit; _ }) when !returns = 0 && !cancels = 1 ->
-             true
+         | Some (Error (Exit, _)) when !returns = 0 && !cancels = 1 -> true
          | _ -> false
        end
        && !attached + !unattached = Array.length triggers

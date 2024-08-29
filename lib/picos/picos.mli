@@ -52,20 +52,21 @@
 
     - To be effective, cancelation should take effect as soon as possible.  In
       this case, cancelation should take effect even during the
-      {{!Picos_sync.Mutex.lock} [Mutex.lock]} inside
-      {{!Picos_sync.Mutex.protect} [Mutex.protect]} and the
-      {{!Picos_sync.Condition.wait} [Condition.wait]} operations when the fiber
-      might be in a suspended state awaiting for a signal to continue.
+      {{!Picos_std_sync.Mutex.lock} [Mutex.lock]} inside
+      {{!Picos_std_sync.Mutex.protect} [Mutex.protect]} and the
+      {{!Picos_std_sync.Condition.wait} [Condition.wait]} operations when the
+      fiber might be in a suspended state awaiting for a signal to continue.
     - To be safe, cancelation should not leave the program in an invalid state
       or cause the program to leak memory.  In this case, the ownership of the
       mutex must be transferred to the next fiber or be left unlocked and no
       references to unused objects must be left in the mutex or the condition
       variable.
 
-    Picos allows {{!Picos_sync.Mutex} [Mutex]} and {{!Picos_sync.Condition}
-    [Condition]} to be implemented such that cancelation may safely take effect
-    at or during calls to {{!Picos_sync.Mutex.lock} [Mutex.lock]} and
-    {{!Picos_sync.Condition.wait} [Condition.wait]}.
+    Picos allows {{!Picos_std_sync.Mutex} [Mutex]} and
+    {{!Picos_std_sync.Condition} [Condition]} to be implemented such that
+    cancelation may safely take effect at or during calls to
+    {{!Picos_std_sync.Mutex.lock} [Mutex.lock]} and
+    {{!Picos_std_sync.Condition.wait} [Condition.wait]}.
 
     {2 Cancelation in Picos}
 
@@ -113,32 +114,27 @@
       open Picos
     ]}
 
-    as well as the {!Picos_structured} library,
+    as well as the {!Picos_std_structured} library,
 
     {[
-      open Picos_structured
+      open Picos_std_structured
     ]}
 
     which we will be using for managing fibers in some of the examples, and
     define a simple scheduler on OCaml 4
 
     {@ocaml version<5.0.0[
-      let run main = Picos_threaded.run main
+      let run main = Picos_mux_thread.run main
     ]}
 
-    using {{!Picos_threaded} the basic thread based scheduler} and on OCaml 5
+    using {{!Picos_mux_thread} the basic thread based scheduler} and on OCaml 5
 
     {@ocaml version>=5.0.0[
-      let run main = Picos_randos.run_on ~n_domains:2 main
+      let run main = Picos_mux_random.run_on ~n_domains:2 main
     ]}
 
-    using {{!Picos_randos} the randomized effects based scheduler} that come
-    with Picos as samples.
-
-    {2 Auxiliary modules} *)
-
-module Exn_bt = Picos_exn_bt
-(** Exceptions with backtraces. *)
+    using {{!Picos_mux_random} the randomized effects based scheduler} that come
+    with Picos as samples. *)
 
 (** {2 Core modules} *)
 
@@ -165,9 +161,9 @@ module Trigger : sig
           | None ->
             (* We were resumed normally. *)
             ()
-          | Some exn_bt ->
+          | Some (exn, bt) ->
             (* We were canceled. *)
-            Exn_bt.raise exn_bt
+            Printexc.raise_with_backtrace exn bt
         end
       ]}
 
@@ -206,15 +202,15 @@ module Trigger : sig
       has not been signaled so when attaching a trigger to multiple computations
       there is no need to separately check with [is_signaled]. *)
 
-  val await : t -> Exn_bt.t option
+  val await : t -> (exn * Printexc.raw_backtrace) option
   (** [await trigger] waits for the trigger to be {!signal}ed.
 
       The return value is [None] in case the trigger has been signaled and the
       {{!Fiber} fiber} was resumed normally.  Otherwise the return value is
-      [Some exn_bt], which indicates that the fiber has been canceled and the
-      caller should {{!Exn_bt.raise} raise} the exception.  In either case
-      the caller is responsible for cleaning up.  Usually this means making sure
-      that no references to the trigger remain to avoid space leaks.
+      [Some (exn, bt)], which indicates that the fiber has been canceled and the
+      caller should raise the exception.  In either case the caller is
+      responsible for cleaning up.  Usually this means making sure that no
+      references to the trigger remain to avoid space leaks.
 
       ⚠️ As a rule of thumb, if you inserted the trigger to some data structure
       or {{!Computation.try_attach} attached} it to some computation, then you
@@ -325,7 +321,7 @@ module Trigger : sig
 
       @raise Invalid_argument if the trigger was in the awaiting state. *)
 
-  include Intf.Trigger with type t := t with type exn_bt := Exn_bt.t
+  include Intf.Trigger with type t := t
 
   (** {2 Design rationale}
 
@@ -389,7 +385,7 @@ module Trigger : sig
       atomically through code in this interface.  The key requirement left for
       the user is to make sure that the state of the shared data structure is
       updated correctly independently of what {!await} returns.  So, for
-      example, a mutex implementation must check, after getting [Some exn_bt],
+      example, a mutex implementation must check, after getting [Some (exn, bt)],
       what the state of the mutex is and how it should be updated. *)
 end
 
@@ -407,10 +403,10 @@ module Computation : sig
       {{!is_running} running to completed}.
 
       A hopefully enlightening analogy is that a computation is a kind of
-      single-shot atomic {{!Picos_sync.Event} event}.
+      single-shot atomic {{!Picos_std_event.Event} event}.
 
       Another hopefully helpful analogy is that a computation is basically like
-      a {{!Picos_structured.Promise} cancelable promise} and a basic
+      a {{!Picos_std_structured.Promise} cancelable promise} and a basic
       non-cancelable promise can be implemented trivially on top of a
       computation.
 
@@ -438,7 +434,7 @@ module Computation : sig
             Fiber.sleep ~seconds:1.0;
 
             Computation.cancel computation
-              (Exn_bt.get_callstack 0 Exit)
+              Exit (Printexc.get_callstack 0)
           in
 
           Flock.fork begin fun () ->
@@ -482,7 +478,7 @@ module Computation : sig
   type !'a t
   (** Represents a cancelable computation.  A computation is either {i running}
       or has been {i completed} either with a return value or with canceling
-      {{!Exn_bt} exception with a backtrace}.
+      exception with a backtrace.
 
       ℹ️ Once a computation becomes completed it no longer changes state.
 
@@ -578,11 +574,12 @@ module Computation : sig
         that transaction was aborted and it is as if none of the completions
         succesfully added to the transaction have taken place. *)
 
-    val try_cancel : t -> 'a computation -> Exn_bt.t -> bool
-    (** [try_cancel tx computation exn_bt] adds the completion of the
-        [computation] as having canceled with the given [exn_bt] to the
-        transaction.  Returns [true] in case the computation had not yet been
-        completed and the transaction was still alive.  Otherwise returns
+    val try_cancel :
+      t -> 'a computation -> exn -> Printexc.raw_backtrace -> bool
+    (** [try_cancel tx computation exn bt] adds the completion of the
+        computation as having canceled with the given exception and backtrace to
+        the transaction.  Returns [true] in case the computation had not yet
+        been completed and the transaction was still alive.  Otherwise returns
         [false] which means that transaction was aborted and it is as if none of
         the completions succesfully added to the transaction have taken
         place. *)
@@ -601,20 +598,21 @@ module Computation : sig
   (** An existential wrapper for computations. *)
   type packed = Packed : 'a t -> packed
 
-  val try_cancel : 'a t -> Exn_bt.t -> bool
-  (** [try_cancel computation exn_bt] attempts to mark the computation as
+  val try_cancel : 'a t -> exn -> Printexc.raw_backtrace -> bool
+  (** [try_cancel computation exn bt] attempts to mark the computation as
       canceled with the specified exception and backtrace and returns [true] on
       success.  Otherwise returns [false], which means that the computation had
       already been completed before. *)
 
-  val cancel : 'a t -> Exn_bt.t -> unit
-  (** [cancel computation exn_bt] is equivalent to
-      {{!try_cancel} [try_cancel computation exn_bt |> ignore]}. *)
+  val cancel : 'a t -> exn -> Printexc.raw_backtrace -> unit
+  (** [cancel computation exn bt] is equivalent to
+      {{!try_cancel} [try_cancel computation exn bt |> ignore]}. *)
 
   (** {2 Interface for timeouts} *)
 
-  val cancel_after : 'a t -> seconds:float -> Exn_bt.t -> unit
-  (** [cancel_after ~seconds computation exn_bt] arranges to {!cancel} the
+  val cancel_after :
+    'a t -> seconds:float -> exn -> Printexc.raw_backtrace -> unit
+  (** [cancel_after ~seconds computation exn bt] arranges to {!cancel} the
       computation after the specified time with the specified exception and
       backtrace.  Completion of the computation before the specified time
       effectively cancels the timeout.
@@ -639,16 +637,16 @@ module Computation : sig
   (** [is_canceled computation] determines whether the computation is in the
       canceled state. *)
 
-  val canceled : 'a t -> Exn_bt.t option
+  val canceled : 'a t -> (exn * Printexc.raw_backtrace) option
   (** [canceled computation] returns the exception that the computation has been
       canceled with or returns [None] in case the computation has not been
       canceled. *)
 
   val check : 'a t -> unit
   (** [check computation] is equivalent to
-      {{!canceled} [Option.iter Exn_bt.raise (canceled computation)]}. *)
+      {{!canceled} [Option.iter (fun (exn, bt) -> Printexc.raise_with_backtrace exn bt) (canceled computation)]}. *)
 
-  val peek : 'a t -> ('a, Exn_bt.t) result option
+  val peek : 'a t -> ('a, exn * Printexc.raw_backtrace) result option
   (** [peek computation] returns the result of the computation or [None] in case
       the computation has not completed. *)
 
@@ -724,7 +722,7 @@ module Computation : sig
 
   (** {2 Interface for schedulers} *)
 
-  include Intf.Computation with type 'a t := 'a t with type exn_bt := Exn_bt.t
+  include Intf.Computation with type 'a t := 'a t
 
   val with_action :
     ?mode:[ `FIFO | `LIFO ] ->
@@ -758,16 +756,16 @@ module Computation : sig
       case getting a notification is no longer necessary.  This allows the
       status change to be propagated omnidirectionally and is what makes
       computations able to support a variety of purposes such as the
-      implementation of {{!Picos_structured} structured concurrency}.
+      implementation of {{!Picos_std_structured} structured concurrency}.
 
       The computation concept can be seen as a kind of single-shot atomic
-      {{!Picos_sync.Event} event} that is a generalization of both a cancelation
-      context or token and of a {{!Picos_structured.Promise} promise}.  Unlike a
-      typical promise mechanism, a computation can be canceled.  Unlike a
-      typical cancelation mechanism, a computation can and should also be
-      completed in case it is not canceled.  This promotes proper scoping of
-      computations and resource cleanup at completion, which is how the design
-      evolved from a more traditional cancelation context design.
+      {{!Picos_std_event.Event} event} that is a generalization of both a
+      cancelation Context or token and of a {{!Picos_std_structured.Promise}
+      promise}.  Unlike a typical promise mechanism, a computation can be
+      canceled.  Unlike a typical cancelation mechanism, a computation can and
+      should also be completed in case it is not canceled.  This promotes proper
+      scoping of computations and resource cleanup at completion, which is how
+      the design evolved from a more traditional cancelation context design.
 
       Every fiber is {{!Fiber.get_computation} associated with a computation}.
       Being able to return a value through the computation means that no
@@ -909,7 +907,7 @@ module Fiber : sig
 
       ⚠️ It is only safe to call [is_canceled] from the fiber itself. *)
 
-  val canceled : t -> Exn_bt.t option
+  val canceled : t -> (exn * Printexc.raw_backtrace) option
   (** [canceled fiber] is equivalent to:
       {@ocaml skip[
         if Fiber.has_forbidden fiber then
@@ -1142,10 +1140,7 @@ module Fiber : sig
       ⚠️ The trigger must be in the signaled state! *)
 
   include
-    Intf.Fiber
-      with type t := t
-      with type 'a computation := 'a Computation.t
-      with type exn_bt := Exn_bt.t
+    Intf.Fiber with type t := t with type 'a computation := 'a Computation.t
 
   (** {2 Design rationale}
 
@@ -1183,9 +1178,15 @@ module Handler : sig
         (** See {!Picos.Fiber.spawn}. *)
     yield : 'c -> unit;  (** See {!Picos.Fiber.yield}. *)
     cancel_after :
-      'a. 'c -> 'a Computation.t -> seconds:float -> Exn_bt.t -> unit;
+      'a.
+      'c ->
+      'a Computation.t ->
+      seconds:float ->
+      exn ->
+      Printexc.raw_backtrace ->
+      unit;
         (** See {!Picos.Computation.cancel_after}. *)
-    await : 'c -> Trigger.t -> Exn_bt.t option;
+    await : 'c -> Trigger.t -> (exn * Printexc.raw_backtrace) option;
         (** See {!Picos.Trigger.await}. *)
   }
   (** A record of implementations of the primitive effects based operations of

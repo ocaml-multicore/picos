@@ -1,8 +1,8 @@
 open Picos
-open Picos_structured
-open Picos_sync
+open Picos_std_structured
+open Picos_std_sync
 
-let exit_exn_bt = Exn_bt.get_callstack 0 Exit
+let empty_bt = Printexc.get_callstack 0
 
 let test_returns () =
   let actual = Test_scheduler.run @@ fun () -> 42 in
@@ -46,13 +46,13 @@ let test_current () =
 let test_cancel_after_basic () =
   Test_scheduler.run @@ fun () ->
   let computation = Computation.create () in
-  Computation.cancel_after computation ~seconds:0.1 exit_exn_bt;
+  Computation.cancel_after computation ~seconds:0.1 Exit empty_bt;
   Computation.wait computation
 
 let test_cancel_after_long_timeout () =
   Test_scheduler.run @@ fun () ->
   let computation = Computation.create () in
-  match Computation.cancel_after computation ~seconds:10e10 exit_exn_bt with
+  match Computation.cancel_after computation ~seconds:10e10 Exit empty_bt with
   | () -> Computation.finish computation
   | exception Invalid_argument _ -> ()
 
@@ -75,8 +75,8 @@ let test_op_raises_when_canceled () =
         Flock.fork_as_promise @@ fun () ->
         wait ();
         match
-          Computation.cancel_after (Computation.create ()) ~seconds:1.0
-            (Exn_bt.get_callstack 0 Exit)
+          Computation.cancel_after (Computation.create ()) ~seconds:1.0 Exit
+            empty_bt
         with
         | () -> assert false
         | exception Control.Terminate -> ()
@@ -112,7 +112,7 @@ let test_fatal () =
     let computation = Computation.create () in
     let fiber = Fiber.create ~forbid:false computation in
     let fatal_exn_handler exn =
-      Computation.cancel computation (Exn_bt.get exn);
+      Computation.cancel computation exn (Printexc.get_raw_backtrace ());
       raise exn
     in
     Test_scheduler.run_fiber ~fatal_exn_handler ~max_domains:3 fiber @@ fun _ ->

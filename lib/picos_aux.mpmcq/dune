@@ -1,0 +1,9 @@
+(library
+ (name picos_aux_mpmcq)
+ (public_name picos_aux.mpmcq)
+ (libraries backoff multicore-magic))
+
+(mdx
+ (package picos_meta)
+ (libraries picos_aux.mpmcq)
+ (files picos_aux_mpmcq.mli))

@@ -1,21 +1,17 @@
 open Multicore_bench
+module Mpscq = Picos_aux_mpscq
 
 let run_one_domain ~budgetf ?(n_msgs = 50 * Util.iter_factor) () =
-  let t = Picos_mpscq.create ~padded:true () in
+  let t = Mpscq.create ~padded:true () in
 
   let op push =
-    if push then Picos_mpscq.push t 101
-    else
-      match Picos_mpscq.pop_exn t with
-      | _ -> ()
-      | exception Picos_mpscq.Empty -> ()
+    if push then Mpscq.push t 101
+    else match Mpscq.pop_exn t with _ -> () | exception Mpscq.Empty -> ()
   in
 
   let init _ =
     assert (
-      match Picos_mpscq.pop_exn t with
-      | _ -> false
-      | exception Picos_mpscq.Empty -> true);
+      match Mpscq.pop_exn t with _ -> false | exception Mpscq.Empty -> true);
     Util.generate_push_and_pop_sequence n_msgs
   in
   let work _ bits = Util.Bits.iter op bits in
@@ -29,15 +25,13 @@ let run_one ~budgetf ~n_adders () =
 
   let n_msgs = 200 * Util.iter_factor in
 
-  let t = Picos_mpscq.create ~padded:true () in
+  let t = Mpscq.create ~padded:true () in
 
   let n_msgs_to_add = Countdown.create ~n_domains:n_adders () in
 
   let init _ =
     assert (
-      match Picos_mpscq.pop_exn t with
-      | _ -> false
-      | exception Picos_mpscq.Empty -> true);
+      match Mpscq.pop_exn t with _ -> false | exception Mpscq.Empty -> true);
     Countdown.non_atomic_set n_msgs_to_add n_msgs
   in
   let work i () =
@@ -46,7 +40,7 @@ let run_one ~budgetf ~n_adders () =
         let n = Countdown.alloc n_msgs_to_add ~domain_index:i ~batch:1000 in
         if 0 < n then begin
           for i = 1 to n do
-            Picos_mpscq.push t i
+            Mpscq.push t i
           done;
           work ()
         end
@@ -55,9 +49,9 @@ let run_one ~budgetf ~n_adders () =
     else
       let rec loop n =
         if 0 < n then
-          match Picos_mpscq.pop_exn t with
+          match Mpscq.pop_exn t with
           | _ -> loop (n - 1)
-          | exception Picos_mpscq.Empty ->
+          | exception Mpscq.Empty ->
               Backoff.once Backoff.default |> ignore;
               loop n
       in

@@ -1,0 +1,11 @@
+(library
+ (name picos_lwt_unix)
+ (public_name picos_lwt.unix)
+ (optional)
+ (libraries
+  (re_export lwt)
+  (re_export lwt.unix)
+  (re_export picos_lwt)
+  picos.thread
+  picos_aux.mpscq
+  unix))

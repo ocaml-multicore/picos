@@ -1,0 +1,5 @@
+{0 Integration tests for Picos packages}
+
+This package contains integration (and other kinds of) tests for the core
+{!Picos} interface and other Picos libraries.  A separate package is used to
+allow the dependencies of and between different Picos packages to be simplified.
