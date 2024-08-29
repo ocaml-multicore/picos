@@ -1,12 +1,8 @@
 module Atomic = Dscheck.TracedAtomic
-module Q = Picos_mpmcq
+module Q = Picos_aux_mpmcq
 
 let popped_some q =
-  let b =
-    match Picos_mpmcq.pop_exn q with
-    | _ -> true
-    | exception Picos_mpmcq.Empty -> false
-  in
+  let b = match Q.pop_exn q with _ -> true | exception Q.Empty -> false in
   Atomic.check (fun () -> b)
 
 let test_multi_push_pop () =

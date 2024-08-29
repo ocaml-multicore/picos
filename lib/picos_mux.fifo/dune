@@ -1,0 +1,14 @@
+(library
+ (name picos_mux_fifo)
+ (public_name picos_mux.fifo)
+ (enabled_if
+  (>= %{ocaml_version} 5.0.0))
+ (libraries
+  (re_export picos)
+  (select
+   select.ml
+   from
+   (picos_stdio.select -> select.some.ml)
+   (-> select.none.ml))
+  multicore-magic
+  picos_aux.mpscq))

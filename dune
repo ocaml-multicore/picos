@@ -1,3 +1,4 @@
 (mdx
- (libraries picos picos.exn_bt picos.finally picos.structured picos.sync)
+ (package picos_meta)
+ (libraries picos picos_std.finally picos_std.structured picos_std.sync)
  (files README.md))

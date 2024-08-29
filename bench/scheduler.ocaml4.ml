@@ -1,1 +1,1 @@
-let run main = Picos_threaded.run main
+let run main = Picos_mux_thread.run main

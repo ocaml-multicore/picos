@@ -1,6 +1,7 @@
-module Exn_bt = Picos.Exn_bt
-open Picos_structured
-open Picos_sync
+open Picos_std_event
+open Picos_std_structured
+open Picos_std_sync
+module Mpscq = Picos_aux_mpscq
 
 (** Helper to check that computation is restored *)
 let check join_after ?callstack ?on_return scope =
@@ -181,9 +182,9 @@ let test_any_and_all_errors () =
   [ Run.all; Run.any ]
   |> List.iter @@ fun run_op ->
      Test_scheduler.run ~max_domains:6 @@ fun () ->
-     let raised = Picos_mpscq.create ~padded:true () in
+     let raised = Mpscq.create ~padded:true () in
      let raiser exn () =
-       Picos_mpscq.push raised exn;
+       Mpscq.push raised exn;
        raise exn
      in
      match
@@ -204,13 +205,13 @@ let test_any_and_all_errors () =
          let exn_bts =
            match exn with
            | Control.Errors exn_bts -> exn_bts
-           | exn -> [ Exn_bt.get exn ]
+           | exn ->
+               let bt = Printexc.get_raw_backtrace () in
+               [ (exn, bt) ]
          in
-         Picos_mpscq.pop_all raised
+         Mpscq.pop_all raised
          |> Seq.iter @@ fun exn ->
-            assert (
-              exn_bts
-              |> List.exists @@ fun (exn_bt : Exn_bt.t) -> exn == exn_bt.exn)
+            assert (exn_bts |> List.exists @@ fun (exn', _) -> exn == exn')
 
 let test_any_and_all_returns () =
   [ 0; 1; 2 ]

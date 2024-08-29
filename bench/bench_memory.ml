@@ -15,7 +15,7 @@ let run_suite ~budgetf:_ =
     [
       begin
         Scheduler.run @@ fun () ->
-        let open Picos_structured in
+        let open Picos_std_structured in
         Bundle.join_after ~on_return:`Terminate @@ fun bundle ->
         let n = 10_000 in
         let bytes =
@@ -36,7 +36,7 @@ let run_suite ~budgetf:_ =
       end;
       begin
         Scheduler.run @@ fun () ->
-        let open Picos_structured in
+        let open Picos_std_structured in
         Bundle.join_after ~on_return:`Terminate @@ fun bundle ->
         let n = 10_000 in
         let bytes =
@@ -57,7 +57,7 @@ let run_suite ~budgetf:_ =
       end;
       begin
         Scheduler.run @@ fun () ->
-        let open Picos_structured in
+        let open Picos_std_structured in
         Flock.join_after ~on_return:`Terminate @@ fun () ->
         let n = 10_000 in
         let bytes =
@@ -78,7 +78,7 @@ let run_suite ~budgetf:_ =
       end;
       begin
         Scheduler.run @@ fun () ->
-        let open Picos_structured in
+        let open Picos_std_structured in
         Flock.join_after ~on_return:`Terminate @@ fun () ->
         let n = 10_000 in
         let bytes =
@@ -100,7 +100,7 @@ let run_suite ~budgetf:_ =
       begin
         Scheduler.run @@ fun () ->
         let open Picos in
-        let open Picos_sync in
+        let open Picos_std_sync in
         let computation = Computation.create () in
         let (Packed main) = Fiber.get_computation (Fiber.current ()) in
         let _ = Computation.attach_canceler ~from:main ~into:computation in
@@ -121,7 +121,7 @@ let run_suite ~budgetf:_ =
           done;
           Fiber.yield ()
         in
-        Computation.cancel computation (Exn_bt.get_callstack 0 Exit);
+        Computation.cancel computation Exit (Printexc.get_callstack 0);
         Latch.decr latch;
         Latch.await latch;
         Metric.make ~metric:"memory used"

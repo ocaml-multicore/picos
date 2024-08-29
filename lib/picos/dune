@@ -2,7 +2,6 @@
  (name picos)
  (public_name picos)
  (libraries
-  (re_export picos.exn_bt)
   picos_bootstrap
   (select
    picos.ml
@@ -16,13 +15,19 @@
    (picos_ocaml5 -> intf.ocaml5.ml))))
 
 (mdx
+ (package picos_meta)
  (enabled_if
   (< %{ocaml_version} 5.0.0))
- (libraries picos picos.exn_bt picos.structured picos.threaded domain_shims)
+ (libraries picos picos_mux.thread picos_std.structured domain_shims)
  (files picos.mli))
 
 (mdx
+ (package picos_meta)
  (enabled_if
   (>= %{ocaml_version} 5.0.0))
- (libraries picos picos.exn_bt picos.structured picos.randos)
+ (libraries picos picos_mux.random picos_std.structured)
  (files picos.mli))
+
+(documentation
+ (package picos)
+ (mld_files index))

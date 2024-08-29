@@ -1,8 +1,10 @@
 open Picos
-open Picos_sync
-open Picos_structured
+open Picos_std_event
+open Picos_std_sync
+open Picos_std_structured
 
 let msgs = ref []
+let empty_bt = Printexc.get_callstack 0
 
 module Fiber = struct
   include Fiber
@@ -75,8 +77,6 @@ let test_mutex_and_condition_cancelation () =
   let step_5 = Atomic.make 0 in
 
   let steps = [| step_1; step_2; step_3; step_4; step_5 |] in
-
-  let exit_exn_bt = Exn_bt.get_callstack 0 Exit in
 
   let n = if 4 <= Domain.recommended_domain_count () - 2 then 4 else 2 in
 
@@ -151,7 +151,7 @@ let test_mutex_and_condition_cancelation () =
           let (Packed computation) =
             computations.(Random.State.bits state land (n - 1))
           in
-          Computation.cancel computation exit_exn_bt
+          Computation.cancel computation Exit empty_bt
         done)
     :: List.init n (fun i -> Domain.spawn (main i))
   in
@@ -230,7 +230,7 @@ let test_lazy_cancelation () =
     Option.iter Trigger.signal to_signal;
     match Trigger.await to_await with
     | None -> result
-    | Some exn_bt -> Exn_bt.raise exn_bt
+    | Some (exn, bt) -> Printexc.raise_with_backtrace exn bt
   in
   assert (
     let to_await = Trigger.create () in
@@ -242,7 +242,7 @@ let test_lazy_cancelation () =
       | exception Exit -> Atomic.set tried true
     in
     let computation = Computation.create () in
-    Computation.cancel computation (Exn_bt.get_callstack 0 Exit);
+    Computation.cancel computation Exit empty_bt;
     Fiber.spawn (Fiber.create ~forbid:false computation) main;
     while not (Atomic.get tried) do
       Fiber.yield ()
@@ -255,7 +255,7 @@ let test_lazy_cancelation () =
   let s = susp ~to_signal ~to_await 101 in
   let c = Fiber.start @@ fun () -> Lazy.force s in
   Trigger.await to_signal |> ignore;
-  Computation.cancel c (Exn_bt.get_callstack 0 Exit);
+  Computation.cancel c Exit empty_bt;
   match Lazy.force s with
   | _ -> assert false
   | exception Exit -> Trigger.signal to_await
@@ -271,7 +271,7 @@ let test_event_basics () =
     = 101);
   begin
     let c = Computation.create () in
-    Computation.cancel_after c ~seconds:0.1 (Exn_bt.get_callstack 0 Not_found);
+    Computation.cancel_after c ~seconds:0.1 Not_found empty_bt;
     match Event.sync (Event.from_computation c) with
     | () -> assert false
     | exception Not_found -> ()

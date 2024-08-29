@@ -1,11 +1,14 @@
 open Picos
+module Select = Picos_stdio_select
+module Fd = Picos_stdio_fd
+module Htbl = Picos_aux_htbl
 
-let nonblock_fds = Picos_htbl.create ~hashed_type:(module Picos_fd.Resource) ()
+let nonblock_fds = Htbl.create ~hashed_type:(module Fd.Resource) ()
 
 module Unix = struct
   include Unix
 
-  type file_descr = Picos_fd.t
+  type file_descr = Fd.t
 
   let is_oob flag = MSG_OOB == flag
   let is_nonblock flag = O_NONBLOCK == flag
@@ -20,73 +23,73 @@ module Unix = struct
      block, so we do the same thing as with [EAGAIN]. *)
 
   let[@inline] intr_req fd =
-    if Sys.win32 || Picos_htbl.mem nonblock_fds (Picos_fd.unsafe_get fd) then
-      Picos_select.Intr.nothing
-    else Picos_select.Intr.req ~seconds:0.000_01 (* 10μs - TODO *)
+    if Sys.win32 || Htbl.mem nonblock_fds (Fd.unsafe_get fd) then
+      Select.Intr.nothing
+    else Select.Intr.req ~seconds:0.000_01 (* 10μs - TODO *)
 
   let rec again_0 fd fn op =
     let intr = intr_req fd in
-    match fn (Picos_fd.unsafe_get fd) with
+    match fn (Fd.unsafe_get fd) with
     | result ->
-        Picos_select.Intr.clr intr;
+        Select.Intr.clr intr;
         result
     | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
-        Picos_select.Intr.clr intr;
-        again_0 (Picos_select.await_on fd op) fn op
+        Select.Intr.clr intr;
+        again_0 (Select.await_on fd op) fn op
     | exception exn ->
-        Picos_select.Intr.clr intr;
+        Select.Intr.clr intr;
         raise exn
 
   let rec again_cloexec_0 ?cloexec fd fn op =
     let intr = intr_req fd in
-    match fn ?cloexec (Picos_fd.unsafe_get fd) with
+    match fn ?cloexec (Fd.unsafe_get fd) with
     | result ->
-        Picos_select.Intr.clr intr;
+        Select.Intr.clr intr;
         result
     | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
-        Picos_select.Intr.clr intr;
-        again_cloexec_0 ?cloexec (Picos_select.await_on fd op) fn op
+        Select.Intr.clr intr;
+        again_cloexec_0 ?cloexec (Select.await_on fd op) fn op
     | exception exn ->
-        Picos_select.Intr.clr intr;
+        Select.Intr.clr intr;
         raise exn
 
   let rec again_3 fd x1 x2 x3 fn op =
     let intr = intr_req fd in
-    match fn (Picos_fd.unsafe_get fd) x1 x2 x3 with
+    match fn (Fd.unsafe_get fd) x1 x2 x3 with
     | result ->
-        Picos_select.Intr.clr intr;
+        Select.Intr.clr intr;
         result
     | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
-        Picos_select.Intr.clr intr;
-        again_3 (Picos_select.await_on fd op) x1 x2 x3 fn op
+        Select.Intr.clr intr;
+        again_3 (Select.await_on fd op) x1 x2 x3 fn op
     | exception exn ->
-        Picos_select.Intr.clr intr;
+        Select.Intr.clr intr;
         raise exn
 
   let rec again_4 fd x1 x2 x3 x4 fn op =
     let intr = intr_req fd in
-    match fn (Picos_fd.unsafe_get fd) x1 x2 x3 x4 with
+    match fn (Fd.unsafe_get fd) x1 x2 x3 x4 with
     | result ->
-        Picos_select.Intr.clr intr;
+        Select.Intr.clr intr;
         result
     | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
-        Picos_select.Intr.clr intr;
-        again_4 (Picos_select.await_on fd op) x1 x2 x3 x4 fn op
+        Select.Intr.clr intr;
+        again_4 (Select.await_on fd op) x1 x2 x3 x4 fn op
     | exception exn ->
-        Picos_select.Intr.clr intr;
+        Select.Intr.clr intr;
         raise exn
 
   let rec again_5 fd x1 x2 x3 x4 x5 fn op =
     let intr = intr_req fd in
-    match fn (Picos_fd.unsafe_get fd) x1 x2 x3 x4 x5 with
+    match fn (Fd.unsafe_get fd) x1 x2 x3 x4 x5 with
     | result ->
-        Picos_select.Intr.clr intr;
+        Select.Intr.clr intr;
         result
     | exception Unix.Unix_error ((EAGAIN | EINTR | EWOULDBLOCK), _, _) ->
-        Picos_select.Intr.clr intr;
-        again_5 (Picos_select.await_on fd op) x1 x2 x3 x4 x5 fn op
+        Select.Intr.clr intr;
+        again_5 (Select.await_on fd op) x1 x2 x3 x4 x5 fn op
     | exception exn ->
-        Picos_select.Intr.clr intr;
+        Select.Intr.clr intr;
         raise exn
 
   (* [EINPROGRESS] indicates that a socket operation is being performed
@@ -95,8 +98,8 @@ module Unix = struct
 
   let progress_1 fd x1 fn op name =
     let intr = intr_req fd in
-    match fn (Picos_fd.unsafe_get fd) x1 with
-    | () -> Picos_select.Intr.clr intr
+    match fn (Fd.unsafe_get fd) x1 with
+    | () -> Select.Intr.clr intr
     | exception
         Unix.Unix_error ((EAGAIN | EINPROGRESS | EINTR | EWOULDBLOCK), _, _) ->
       begin
@@ -109,26 +112,26 @@ module Unix = struct
 
            For [connect] both [EINPROGRESS] and [EINTR] mean that connection
            will be established asynchronously and we use [select] to wait. *)
-        Picos_select.Intr.clr intr;
-        let fd = Picos_select.await_on fd op in
-        match Unix.getsockopt_error (Picos_fd.unsafe_get fd) with
+        Select.Intr.clr intr;
+        let fd = Select.await_on fd op in
+        match Unix.getsockopt_error (Fd.unsafe_get fd) with
         | None -> ()
         | Some error -> raise (Unix.Unix_error (error, name, ""))
       end
     | exception exn ->
-        Picos_select.Intr.clr intr;
+        Select.Intr.clr intr;
         raise exn
 
-  let stdin = Picos_fd.create ~dispose:false Unix.stdin
-  and stdout = Picos_fd.create ~dispose:false Unix.stdout
-  and stderr = Picos_fd.create ~dispose:false Unix.stderr
+  let stdin = Fd.create ~dispose:false Unix.stdin
+  and stdout = Fd.create ~dispose:false Unix.stdout
+  and stderr = Fd.create ~dispose:false Unix.stderr
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/open.html *)
   let openfile path flags file_perm =
-    let fd = Picos_fd.create (Unix.openfile path flags file_perm) in
+    let fd = Fd.create (Unix.openfile path flags file_perm) in
     if List.exists is_nonblock flags then begin
       let if_not_added_fd_has_been_closed_outside =
-        Picos_htbl.try_add nonblock_fds (Picos_fd.unsafe_get fd) ()
+        Htbl.try_add nonblock_fds (Fd.unsafe_get fd) ()
       in
       assert if_not_added_fd_has_been_closed_outside
     end;
@@ -136,10 +139,8 @@ module Unix = struct
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/close.html *)
   let close fd =
-    let _ : bool =
-      Picos_htbl.try_remove nonblock_fds (Picos_fd.unsafe_get fd)
-    in
-    Picos_fd.decr ~close:true fd
+    let _ : bool = Htbl.try_remove nonblock_fds (Fd.unsafe_get fd) in
+    Fd.decr ~close:true fd
 
   let close_pair (fd1, fd2) =
     close fd1;
@@ -174,18 +175,18 @@ module Unix = struct
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/lseek.html *)
   let lseek fd amount seek_command =
-    Unix.lseek (Picos_fd.unsafe_get fd) amount seek_command
+    Unix.lseek (Fd.unsafe_get fd) amount seek_command
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/ftruncate.html *)
-  let ftruncate fd size = Unix.ftruncate (Picos_fd.unsafe_get fd) size
+  let ftruncate fd size = Unix.ftruncate (Fd.unsafe_get fd) size
 
   (* *)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/fstat.html *)
-  let fstat fd = Unix.fstat (Picos_fd.unsafe_get fd)
+  let fstat fd = Unix.fstat (Fd.unsafe_get fd)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/isatty.html *)
-  let isatty fd = Unix.isatty (Picos_fd.unsafe_get fd)
+  let isatty fd = Unix.isatty (Fd.unsafe_get fd)
 
   (* *)
 
@@ -194,14 +195,13 @@ module Unix = struct
 
     (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/lseek.html *)
     let lseek fd amount seek_command =
-      Unix.LargeFile.lseek (Picos_fd.unsafe_get fd) amount seek_command
+      Unix.LargeFile.lseek (Fd.unsafe_get fd) amount seek_command
 
     (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/ftruncate.html *)
-    let ftruncate fd size =
-      Unix.LargeFile.ftruncate (Picos_fd.unsafe_get fd) size
+    let ftruncate fd size = Unix.LargeFile.ftruncate (Fd.unsafe_get fd) size
 
     (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/fstat.html *)
-    let fstat fd = Unix.LargeFile.fstat (Picos_fd.unsafe_get fd)
+    let fstat fd = Unix.LargeFile.fstat (Fd.unsafe_get fd)
   end
 
   (* *)
@@ -210,60 +210,55 @@ module Unix = struct
 
      This can raise EAGAIN, but it probably should not be handled? *)
   let map_file fd ?pos kind layout shared dims =
-    Unix.map_file (Picos_fd.unsafe_get fd) ?pos kind layout shared dims
+    Unix.map_file (Fd.unsafe_get fd) ?pos kind layout shared dims
 
   (* *)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/fchmod.html *)
-  let fchmod fd file_perm = Unix.fchmod (Picos_fd.unsafe_get fd) file_perm
+  let fchmod fd file_perm = Unix.fchmod (Fd.unsafe_get fd) file_perm
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/fchown.html *)
-  let fchown fd uid gid = Unix.fchown (Picos_fd.unsafe_get fd) uid gid
+  let fchown fd uid gid = Unix.fchown (Fd.unsafe_get fd) uid gid
 
   (* *)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/dup.html *)
-  let dup ?cloexec fd =
-    Picos_fd.create (Unix.dup ?cloexec (Picos_fd.unsafe_get fd))
+  let dup ?cloexec fd = Fd.create (Unix.dup ?cloexec (Fd.unsafe_get fd))
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/dup.html *)
   let dup2 ?cloexec src dst =
-    Unix.dup2 ?cloexec (Picos_fd.unsafe_get src) (Picos_fd.unsafe_get dst)
+    Unix.dup2 ?cloexec (Fd.unsafe_get src) (Fd.unsafe_get dst)
 
   let set_nonblock fd =
-    Unix.set_nonblock (Picos_fd.unsafe_get fd);
-    Picos_htbl.try_add nonblock_fds (Picos_fd.unsafe_get fd) () |> ignore
+    Unix.set_nonblock (Fd.unsafe_get fd);
+    Htbl.try_add nonblock_fds (Fd.unsafe_get fd) () |> ignore
 
   let clear_nonblock fd =
-    Unix.clear_nonblock (Picos_fd.unsafe_get fd);
-    Picos_htbl.try_remove nonblock_fds (Picos_fd.unsafe_get fd) |> ignore
+    Unix.clear_nonblock (Fd.unsafe_get fd);
+    Htbl.try_remove nonblock_fds (Fd.unsafe_get fd) |> ignore
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/fcntl.html *)
-  let set_close_on_exec fd = Unix.set_close_on_exec (Picos_fd.unsafe_get fd)
+  let set_close_on_exec fd = Unix.set_close_on_exec (Fd.unsafe_get fd)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/fcntl.html *)
-  let clear_close_on_exec fd = Unix.clear_close_on_exec (Picos_fd.unsafe_get fd)
+  let clear_close_on_exec fd = Unix.clear_close_on_exec (Fd.unsafe_get fd)
 
   (* *)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/pipe.html *)
   let pipe ?cloexec () =
     let inn, out = Unix.pipe ?cloexec () in
-    (Picos_fd.create inn, Picos_fd.create out)
+    (Fd.create inn, Fd.create out)
 
   (* *)
 
   let create_process prog args stdin stdout stderr =
-    Unix.create_process prog args
-      (Picos_fd.unsafe_get stdin)
-      (Picos_fd.unsafe_get stdout)
-      (Picos_fd.unsafe_get stderr)
+    Unix.create_process prog args (Fd.unsafe_get stdin) (Fd.unsafe_get stdout)
+      (Fd.unsafe_get stderr)
 
   let create_process_env prog args env stdin stdout stderr =
-    Unix.create_process_env prog args env
-      (Picos_fd.unsafe_get stdin)
-      (Picos_fd.unsafe_get stdout)
-      (Picos_fd.unsafe_get stderr)
+    Unix.create_process_env prog args env (Fd.unsafe_get stdin)
+      (Fd.unsafe_get stdout) (Fd.unsafe_get stderr)
 
   (*let open_process_in _ = failwith "TODO"*)
   (*let open_process_out _ = failwith "TODO"*)
@@ -309,7 +304,7 @@ module Unix = struct
       Unix.waitpid (Wait_flag.to_flags bits) pid
     else
       let computation = Computation.create ~mode:`LIFO () in
-      Picos_select.return_on_sigchld computation ();
+      Select.return_on_sigchld computation ();
       match
         Unix.waitpid (Wait_flag.to_flags (bits lor Wait_flag.nohang_bit)) pid
       with
@@ -378,18 +373,18 @@ module Unix = struct
 
   exception Done
 
-  let done_bt = Exn_bt.get_callstack 0 Done
+  let empty_bt = Printexc.get_callstack 0
 
   let[@alert "-handler"] select rds wrs exs seconds =
     let overall = Computation.create ~mode:`LIFO () in
     let canceler =
       Trigger.from_action overall () @@ fun _ overall _ ->
-      Picos_select.cancel_after overall ~seconds:0.0 done_bt
+      Select.cancel_after overall ~seconds:0.0 Done empty_bt
     in
     let prepare op fd =
       let computation = Computation.create ~mode:`LIFO () in
       if Computation.try_attach computation canceler then
-        Picos_select.return_on computation fd op true;
+        Select.return_on computation fd op true;
       computation
     in
     let rdcs = List.map (prepare `R) rds in
@@ -405,7 +400,7 @@ module Unix = struct
     if not (Computation.try_attach overall finisher) then
       Trigger.signal finisher
     else if 0.0 <= seconds then
-      Picos_select.cancel_after overall ~seconds done_bt;
+      Select.cancel_after overall ~seconds Done empty_bt;
     match Computation.await overall with
     | () -> assert false
     | exception Done ->
@@ -420,30 +415,30 @@ module Unix = struct
           zip_filter Computation.await wrs wrcs,
           zip_filter Computation.await exs excs )
     | exception cancelation_exn ->
-        Computation.cancel overall done_bt;
+        Computation.cancel overall Done empty_bt;
         raise cancelation_exn
 
   (* *)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/lockf.html *)
   let lockf fd lock_command length =
-    Unix.lockf (Picos_fd.unsafe_get fd) lock_command length
+    Unix.lockf (Fd.unsafe_get fd) lock_command length
 
   (* *)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/socket.html *)
   let socket ?cloexec socket_domain socket_type protocol =
-    Picos_fd.create (Unix.socket ?cloexec socket_domain socket_type protocol)
+    Fd.create (Unix.socket ?cloexec socket_domain socket_type protocol)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/socketpair.html *)
   let socketpair ?cloexec socket_domain socket_type mystery =
     let fst, snd = Unix.socketpair ?cloexec socket_domain socket_type mystery in
-    (Picos_fd.create fst, Picos_fd.create snd)
+    (Fd.create fst, Fd.create snd)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/accept.html *)
   let accept ?cloexec fd =
     let fd, sockaddr = again_cloexec_0 ?cloexec fd Unix.accept `R in
-    (Picos_fd.create fd, sockaddr)
+    (Fd.create fd, sockaddr)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/bind.html *)
   let bind fd sockaddr = progress_1 fd sockaddr Unix.bind `W "bind"
@@ -452,17 +447,17 @@ module Unix = struct
   let connect fd sockaddr = progress_1 fd sockaddr Unix.connect `W "connect"
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/listen.html *)
-  let listen fd max_pending = Unix.listen (Picos_fd.unsafe_get fd) max_pending
+  let listen fd max_pending = Unix.listen (Fd.unsafe_get fd) max_pending
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/shutdown.html *)
   let shutdown fd shutdown_command =
-    Unix.shutdown (Picos_fd.unsafe_get fd) shutdown_command
+    Unix.shutdown (Fd.unsafe_get fd) shutdown_command
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/getsockname.html *)
-  let getsockname fd = Unix.getsockname (Picos_fd.unsafe_get fd)
+  let getsockname fd = Unix.getsockname (Fd.unsafe_get fd)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/getpeername.html *)
-  let getpeername fd = Unix.getpeername (Picos_fd.unsafe_get fd)
+  let getpeername fd = Unix.getpeername (Fd.unsafe_get fd)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/recv.html *)
   let recv fd bytes offset length flags =
@@ -493,32 +488,30 @@ module Unix = struct
   (* *)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/getsockopt.html *)
-  let getsockopt fd option = Unix.getsockopt (Picos_fd.unsafe_get fd) option
+  let getsockopt fd option = Unix.getsockopt (Fd.unsafe_get fd) option
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/setsockopt.html *)
-  let setsockopt fd option bool =
-    Unix.setsockopt (Picos_fd.unsafe_get fd) option bool
+  let setsockopt fd option bool = Unix.setsockopt (Fd.unsafe_get fd) option bool
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/getsockopt.html *)
-  let getsockopt_int fd option =
-    Unix.getsockopt_int (Picos_fd.unsafe_get fd) option
+  let getsockopt_int fd option = Unix.getsockopt_int (Fd.unsafe_get fd) option
 
   let setsockopt_int fd option int =
-    Unix.setsockopt_int (Picos_fd.unsafe_get fd) option int
+    Unix.setsockopt_int (Fd.unsafe_get fd) option int
 
   let getsockopt_optint fd option =
-    Unix.getsockopt_optint (Picos_fd.unsafe_get fd) option
+    Unix.getsockopt_optint (Fd.unsafe_get fd) option
 
   let setsockopt_optint fd option optint =
-    Unix.setsockopt_optint (Picos_fd.unsafe_get fd) option optint
+    Unix.setsockopt_optint (Fd.unsafe_get fd) option optint
 
   let getsockopt_float fd option =
-    Unix.getsockopt_float (Picos_fd.unsafe_get fd) option
+    Unix.getsockopt_float (Fd.unsafe_get fd) option
 
   let setsockopt_float fd option float =
-    Unix.setsockopt_float (Picos_fd.unsafe_get fd) option float
+    Unix.setsockopt_float (Fd.unsafe_get fd) option float
 
-  let getsockopt_error fd = Unix.getsockopt_error (Picos_fd.unsafe_get fd)
+  let getsockopt_error fd = Unix.getsockopt_error (Fd.unsafe_get fd)
 
   (* *)
 
@@ -529,22 +522,21 @@ module Unix = struct
   (* *)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/tcgetattr.html *)
-  let tcgetattr fd = Unix.tcgetattr (Picos_fd.unsafe_get fd)
+  let tcgetattr fd = Unix.tcgetattr (Fd.unsafe_get fd)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/tcsetattr.html *)
   let tcsetattr fd setattr_when terminal_io =
-    Unix.tcsetattr (Picos_fd.unsafe_get fd) setattr_when terminal_io
+    Unix.tcsetattr (Fd.unsafe_get fd) setattr_when terminal_io
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/tcsendbreak.html *)
-  let tcsendbreak fd duration =
-    Unix.tcsendbreak (Picos_fd.unsafe_get fd) duration
+  let tcsendbreak fd duration = Unix.tcsendbreak (Fd.unsafe_get fd) duration
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/tcdrain.html *)
-  let tcdrain fd = Unix.tcdrain (Picos_fd.unsafe_get fd)
+  let tcdrain fd = Unix.tcdrain (Fd.unsafe_get fd)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/tcflush.html *)
-  let tcflush fd flush_queue = Unix.tcflush (Picos_fd.unsafe_get fd) flush_queue
+  let tcflush fd flush_queue = Unix.tcflush (Fd.unsafe_get fd) flush_queue
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/tcflow.html *)
-  let tcflow fd flow_action = Unix.tcflow (Picos_fd.unsafe_get fd) flow_action
+  let tcflow fd flow_action = Unix.tcflow (Fd.unsafe_get fd) flow_action
 end

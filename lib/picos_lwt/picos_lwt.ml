@@ -5,6 +5,8 @@ include Intf
 let[@inline never] not_main_thread () =
   invalid_arg "not called from the main thread"
 
+let empty_bt = Printexc.get_callstack 0
+
 let await promise =
   match Lwt.state promise with
   | Sleep ->
@@ -17,7 +19,7 @@ let await promise =
             Computation.return computation value;
             Lwt.return_unit)
           (fun exn ->
-            Computation.cancel computation (Exn_bt.get_callstack 0 exn);
+            Computation.cancel computation exn empty_bt;
             Lwt.return_unit)
       in
       Lwt.async (fun () -> promise);
@@ -25,9 +27,9 @@ let await promise =
       if Computation.try_attach computation trigger then begin
         match Trigger.await trigger with
         | None -> Computation.await computation
-        | Some exn_bt ->
+        | Some (exn, bt) ->
             Lwt.cancel promise;
-            Exn_bt.raise exn_bt
+            Printexc.raise_with_backtrace exn bt
       end
       else Computation.await computation
   | Return value -> value
@@ -38,7 +40,7 @@ let[@alert "-handler"] rec go :
     Fiber.t ->
     (module System) ->
     (a, r) Effect.Shallow.continuation ->
-    (a, Exn_bt.t) Result.t ->
+    (a, exn * Printexc.raw_backtrace) Result.t ->
     r Lwt.t =
  fun fiber ((module System) as system) k v ->
   let effc (type a) :
@@ -68,7 +70,7 @@ let[@alert "-handler"] rec go :
                   Lwt.try_bind
                     (fun () -> System.sleep r.seconds)
                     (fun () ->
-                      Computation.cancel r.computation r.exn_bt;
+                      Computation.cancel r.computation r.exn r.bt;
                       Lwt.return_unit)
                     (function
                       | Lwt.Canceled -> Lwt.return_unit | exn -> Lwt.reraise exn)
@@ -98,7 +100,8 @@ let[@alert "-handler"] rec go :
   let handler = Effect.Shallow.{ retc = Lwt.return; exnc = Lwt.fail; effc } in
   match v with
   | Ok v -> Effect.Shallow.continue_with k v handler
-  | Error exn_bt -> Exn_bt.discontinue_with k exn_bt handler
+  | Error (exn, bt) ->
+      Effect.Shallow.discontinue_with_backtrace k exn bt handler
 
 let run_fiber system fiber main =
   if not (Picos_thread.is_main_thread ()) then not_main_thread ();

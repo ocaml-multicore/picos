@@ -1,5 +1,5 @@
 open Multicore_bench
-module Htbl = Picos_htbl
+module Htbl = Picos_aux_htbl
 
 module Key = struct
   type t = int

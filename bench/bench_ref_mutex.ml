@@ -1,5 +1,5 @@
 open Multicore_bench
-open Picos_sync
+open Picos_std_sync
 
 module Ref = struct
   type 'a t = 'a ref

@@ -1,4 +1,4 @@
-open Picos_finally
+open Picos_std_finally
 
 let test_move_is_lazy () =
   Test_scheduler.run @@ fun () ->

@@ -1,8 +1,0 @@
-(library
- (name picos_mpscq)
- (public_name picos.mpscq)
- (libraries backoff multicore-magic))
-
-(mdx
- (libraries picos.mpscq)
- (files picos_mpscq.mli))

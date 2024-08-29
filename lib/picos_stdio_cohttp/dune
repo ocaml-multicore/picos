@@ -1,15 +1,16 @@
 (library
  (name picos_stdio_cohttp)
- (public_name picos.stdio.cohttp)
+ (public_name picos_stdio_cohttp)
  (libraries
-  (re_export picos.stdio)
+  (re_export picos_stdio)
   (re_export cohttp)
   (re_export uri)
   fmt
-  picos.finally
-  picos.structured))
+  picos_std.finally
+  picos_std.structured))
 
 (mdx
+ (package picos_meta)
  (enabled_if
   (and
    (>= %{ocaml_version} 5.1.0)
@@ -17,10 +18,14 @@
  (libraries
   cohttp
   http
-  picos.finally
-  picos.randos
-  picos.stdio
-  picos.stdio.cohttp
-  picos.structured
+  picos_mux.random
+  picos_std.finally
+  picos_std.structured
+  picos_stdio
+  picos_stdio_cohttp
   uri)
  (files picos_stdio_cohttp.mli))
+
+(documentation
+ (package picos_stdio_cohttp)
+ (mld_files index))

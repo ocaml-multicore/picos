@@ -1,0 +1,17 @@
+{0 Sample libraries for Picos}
+
+This package contains sample scheduler agnostic libraries for {!Picos}.  Many of
+the modules are intentionally designed to mimic modules from the OCaml Stdlib.
+
+{!modules:
+  Picos_std_finally
+  Picos_std_event
+  Picos_std_structured
+  Picos_std_sync
+}
+
+{^ These libraries are both meant to serve as examples of what can be done and
+   to also provide practical means for programming with fibers.  Hopefully there
+   will be many more libraries implemented in Picos like these providing
+   different approaches, patterns, and idioms for structuring concurrent
+   programs.}

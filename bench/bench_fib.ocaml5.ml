@@ -17,14 +17,16 @@ let rec exp_fib i =
 
 let ratio = (1.0 +. Float.sqrt 5.0) *. 0.5
 
+module Randos = Picos_mux_random
+
 let run_one_randos ~budgetf ~n_domains ~n () =
   let context = ref (Obj.magic ()) in
 
-  let before _ = context := Picos_randos.context () in
+  let before _ = context := Randos.context () in
   let init _ = !context in
   let work i context =
-    if i <> 0 then Picos_randos.runner_on_this_thread context
-    else ignore @@ Picos_randos.run ~context @@ fun () -> exp_fib n
+    if i <> 0 then Randos.runner_on_this_thread context
+    else ignore @@ Randos.run ~context @@ fun () -> exp_fib n
   in
 
   let config =
@@ -37,14 +39,16 @@ let run_one_randos ~budgetf ~n_domains ~n () =
        ~n:(Float.to_int (Float.of_int (lin_fib n) *. ratio))
        ~singular:"spawn" ~config
 
+module Multififos = Picos_mux_multififo
+
 let run_one_multififos ~budgetf ~n_domains ~n () =
   let context = ref (Obj.magic ()) in
 
-  let before _ = context := Picos_multififos.context () in
+  let before _ = context := Multififos.context () in
   let init _ = !context in
   let work i context =
-    if i <> 0 then Picos_multififos.runner_on_this_thread context
-    else ignore @@ Picos_multififos.run ~context @@ fun () -> exp_fib n
+    if i <> 0 then Multififos.runner_on_this_thread context
+    else ignore @@ Multififos.run ~context @@ fun () -> exp_fib n
   in
 
   let config =

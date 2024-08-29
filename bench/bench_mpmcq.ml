@@ -1,21 +1,17 @@
 open Multicore_bench
+module Mpmcq = Picos_aux_mpmcq
 
 let run_one_domain ~budgetf ?(n_msgs = 50 * Util.iter_factor) () =
-  let t = Picos_mpmcq.create ~padded:true () in
+  let t = Mpmcq.create ~padded:true () in
 
   let op push =
-    if push then Picos_mpmcq.push t 101
-    else
-      match Picos_mpmcq.pop_exn t with
-      | _ -> ()
-      | exception Picos_mpmcq.Empty -> ()
+    if push then Mpmcq.push t 101
+    else match Mpmcq.pop_exn t with _ -> () | exception Mpmcq.Empty -> ()
   in
 
   let init _ =
     assert (
-      match Picos_mpmcq.pop_exn t with
-      | _ -> false
-      | exception Picos_mpmcq.Empty -> true);
+      match Mpmcq.pop_exn t with _ -> false | exception Mpmcq.Empty -> true);
     Util.generate_push_and_pop_sequence n_msgs
   in
   let work _ bits = Util.Bits.iter op bits in
@@ -28,16 +24,14 @@ let run_one ~budgetf ~n_adders ~n_takers () =
 
   let n_msgs = 50 * Util.iter_factor in
 
-  let t = Picos_mpmcq.create ~padded:true () in
+  let t = Mpmcq.create ~padded:true () in
 
   let n_msgs_to_add = Countdown.create ~n_domains:n_adders () in
   let n_msgs_to_take = Countdown.create ~n_domains:n_takers () in
 
   let init _ =
     assert (
-      match Picos_mpmcq.pop_exn t with
-      | _ -> false
-      | exception Picos_mpmcq.Empty -> true);
+      match Mpmcq.pop_exn t with _ -> false | exception Mpmcq.Empty -> true);
     Countdown.non_atomic_set n_msgs_to_add n_msgs;
     Countdown.non_atomic_set n_msgs_to_take n_msgs
   in
@@ -47,7 +41,7 @@ let run_one ~budgetf ~n_adders ~n_takers () =
         let n = Countdown.alloc n_msgs_to_add ~domain_index:i ~batch:1000 in
         if 0 < n then begin
           for i = 1 to n do
-            Picos_mpmcq.push t i
+            Mpmcq.push t i
           done;
           work ()
         end
@@ -60,9 +54,9 @@ let run_one ~budgetf ~n_adders ~n_takers () =
         if 0 < n then
           let rec loop n =
             if 0 < n then begin
-              match Picos_mpmcq.pop_exn t with
+              match Mpmcq.pop_exn t with
               | _ -> loop (n - 1)
-              | exception Picos_mpmcq.Empty ->
+              | exception Mpmcq.Empty ->
                   Backoff.once Backoff.default |> ignore;
                   loop n
             end

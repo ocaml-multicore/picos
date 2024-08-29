@@ -1,7 +1,7 @@
-open Picos_structured
-open Picos_finally
+open Picos_std_structured
+open Picos_std_finally
 
-let () = Picos_select.configure ()
+let () = Picos_stdio_select.configure ()
 
 let test_intr () =
   let@ inn, _out =
@@ -11,15 +11,16 @@ let test_intr () =
     @@ Unix.pipe ~cloexec:true
   in
   let main () =
-    Picos_threaded.run @@ fun () ->
+    Picos_mux_thread.run @@ fun () ->
     Flock.join_after @@ fun () ->
     for _ = 1 to 10 do
       Flock.fork @@ fun () ->
       for _ = 1 to 1_000 do
-        let req = Picos_select.Intr.req ~seconds:0.000_001 in
+        let req = Picos_stdio_select.Intr.req ~seconds:0.000_001 in
         match Unix.read inn (Bytes.create 1) 0 1 with
         | _ -> assert false
-        | exception Unix.Unix_error (EINTR, _, _) -> Picos_select.Intr.clr req
+        | exception Unix.Unix_error (EINTR, _, _) ->
+            Picos_stdio_select.Intr.clr req
       done
     done
   in

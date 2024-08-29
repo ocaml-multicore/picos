@@ -1,5 +1,5 @@
 open Picos
-open Picos_finally
+open Picos_std_finally
 
 let run_in_fiber main =
   let computation = Computation.create ~mode:`LIFO () in
@@ -52,12 +52,14 @@ let test_trigger_basics () =
     finally Domain.join @@ fun () ->
     Domain.spawn @@ fun () -> Trigger.signal trigger
   in
-  Trigger.await trigger |> Option.iter Exn_bt.raise
+  match Trigger.await trigger with
+  | None -> ()
+  | Some (exn, bt) -> Printexc.raise_with_backtrace exn bt
 
 let test_computation_basics () =
   Test_scheduler.run @@ fun () ->
   let computation = Computation.create () in
-  Computation.cancel computation (Exn_bt.get Exit);
+  Computation.cancel computation Exit (Printexc.get_callstack 2);
   Computation.wait computation;
   let computation = Computation.create () in
   let@ _ =
@@ -74,7 +76,7 @@ let test_computation_basics () =
     finally Domain.join @@ fun () ->
     Domain.spawn @@ fun () ->
     Unix.sleepf 0.01;
-    Computation.cancel computation (Exn_bt.get_callstack 2 Exit)
+    Computation.cancel computation Exit (Printexc.get_callstack 2)
   in
   Alcotest.check_raises "should be canceled" Exit @@ fun () ->
   let _ : int = Computation.await computation in
@@ -82,7 +84,7 @@ let test_computation_basics () =
 
 let test_computation_tx () =
   let module Tx = Computation.Tx in
-  let exit_bt = Exn_bt.get_callstack 0 Exit in
+  let empty_bt = Printexc.get_callstack 0 in
   let n_case_1 = ref 0 and n_case_2 = ref 0 in
   let n = 1_000 in
   let deadline = Unix.gettimeofday () +. 60.0 in
@@ -103,7 +105,8 @@ let test_computation_tx () =
           Computation.is_running a
           && not
                (let tx = Tx.create () in
-                Tx.try_return tx a 101 && Tx.try_cancel tx b exit_bt
+                Tx.try_return tx a 101
+                && Tx.try_cancel tx b Exit empty_bt
                 && Tx.try_commit tx)
         do
           backoff := Backoff.once !backoff
@@ -122,8 +125,9 @@ let test_computation_tx () =
           && not
                (let tx = Tx.create () in
                 not
-                  (Tx.try_return tx b 42 && Tx.try_cancel tx a exit_bt
-                 && Tx.try_commit tx))
+                  (Tx.try_return tx b 42
+                  && Tx.try_cancel tx a Exit empty_bt
+                  && Tx.try_commit tx))
         do
           backoff := Backoff.once !backoff
         done
@@ -137,10 +141,10 @@ let test_computation_tx () =
     done;
     if
       Computation.peek a = Some (Ok 101)
-      && Computation.peek b = Some (Error exit_bt)
+      && Computation.peek b = Some (Error (Exit, empty_bt))
     then incr n_case_1
     else if
-      Computation.peek a = Some (Error exit_bt)
+      Computation.peek a = Some (Error (Exit, empty_bt))
       && Computation.peek b = Some (Ok 42)
     then incr n_case_2
     else assert false
@@ -168,7 +172,7 @@ let test_cancel () =
     Fiber.spawn (Fiber.create ~forbid:false computation) main;
     result
   in
-  Computation.cancel computation (Exn_bt.get_callstack 0 Exit)
+  Computation.cancel computation Exit (Printexc.get_callstack 0)
 
 let test_cancel_after () =
   Alcotest.check_raises "should be canceled" Not_found @@ fun () ->
@@ -183,8 +187,8 @@ let test_cancel_after () =
       ()
   in
   Fiber.spawn (Fiber.create ~forbid:false computation) main;
-  Computation.cancel_after computation ~seconds:0.01
-    (Exn_bt.get_callstack 0 Not_found);
+  Computation.cancel_after computation ~seconds:0.01 Not_found
+    (Printexc.get_callstack 0);
   Computation.await computation
 
 let test_computation_completion_signals_triggers_in_order () =

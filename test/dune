@@ -1,50 +1,55 @@
 (library
+ (package picos_meta)
  (name test_scheduler)
  (modules test_scheduler)
  (libraries
   (re_export picos)
-  picos.select
+  picos_stdio.select
   (select
    test_scheduler.ml
    from
-   (picos.fifos
-    picos.multififos
-    picos.randos
-    picos.lwt_unix
-    picos.thread
+   (picos.thread
+    picos_lwt.unix
+    picos_mux.random
+    picos_mux.fifo
+    picos_mux.multififo
     ->
     test_scheduler.ocaml5.ml)
-   (picos.threaded lwt.unix -> test_scheduler.ocaml4.ml))))
+   (picos_mux.thread lwt.unix -> test_scheduler.ocaml4.ml))))
 
 (library
+ (package picos_meta)
  (name test_util)
  (modules test_util))
 
 ;;
 
 (test
+ (package picos_meta)
  (name test_picos)
  (modules test_picos)
  (libraries
-  test_scheduler
-  picos.finally
-  backoff
   alcotest
-  unix
+  backoff
+  domain_shims
+  picos_std.finally
+  test_scheduler
   threads.posix
-  domain_shims))
+  unix))
 
 ;;
 
 (test
+ (package picos_meta)
  (name test_sync)
  (modules test_sync)
  (libraries
-  picos.structured
-  picos.sync
-  test_scheduler
   alcotest
   domain_shims
+  picos_std.event
+  picos_std.structured
+  picos_std.sync
+  test_scheduler
   unix)
  (action
   (progn
@@ -60,113 +65,129 @@
 ;;
 
 (test
+ (package picos_meta)
  (name test_lwt_unix)
  (modules test_lwt_unix)
  (build_if
   (>= %{ocaml_version} 5.0.0))
- (libraries picos.lwt_unix picos.structured alcotest))
+ (libraries picos_lwt.unix picos_std.structured alcotest))
 
 ;;
 
 (rule
+ (package picos_meta)
  (action
   (progn
    (copy ../lib/picos/bootstrap/picos_bootstrap.ml picos_bootstrap.ml))))
 
 (test
+ (package picos_meta)
  (name test_picos_dscheck)
  (modules test_picos_dscheck picos_bootstrap)
  (build_if
   (>= %{ocaml_version} 5))
- (libraries picos.exn_bt backoff traced_atomic dscheck alcotest))
+ (libraries picos backoff traced_atomic dscheck alcotest))
 
 ;;
 
 (test
+ (package picos_meta)
  (name test_server_and_client)
  (modules test_server_and_client)
  (libraries
-  test_scheduler
-  picos.finally
-  picos.stdio
-  picos.structured
-  picos.sync))
+  picos_std.finally
+  picos_std.structured
+  picos_std.sync
+  picos_stdio
+  test_scheduler))
 
 ;;
 
 (test
+ (package picos_meta)
  (name test_stdio)
  (modules test_stdio)
  (libraries
-  test_scheduler
-  picos.finally
-  picos.mpscq
-  picos.stdio
-  picos.structured
-  alcotest))
+  alcotest
+  picos_aux.mpscq
+  picos_std.finally
+  picos_std.structured
+  picos_stdio
+  test_scheduler))
 
 (test
+ (package picos_meta)
  (name test_stdio_cohttp)
  (modules test_stdio_cohttp)
- (libraries picos.finally picos.stdio.cohttp picos.structured test_scheduler))
+ (libraries
+  picos_std.finally
+  picos_std.structured
+  picos_stdio_cohttp
+  test_scheduler))
 
 ;;
 
 (test
+ (package picos_meta)
  (name test_stdio_with_lwt)
  (modules test_stdio_with_lwt)
  (libraries
-  test_scheduler
-  picos.stdio
-  picos.select
   alcotest
   lwt
   lwt.unix
+  picos_stdio
+  picos_stdio.select
+  test_scheduler
   threads.posix))
 
 ;;
 
 (test
+ (package picos_meta)
  (name test_select)
  (modules test_select)
  (libraries
-  picos.finally
-  picos.structured
-  picos.threaded
-  picos.select
   alcotest
-  domain_shims))
+  domain_shims
+  picos_mux.thread
+  picos_std.finally
+  picos_std.structured
+  picos_stdio.select))
 
 ;;
 
 (test
+ (package picos_meta)
  (name test_mpscq)
  (modules test_mpscq)
  (libraries
-  picos.mpscq
+  picos_aux.mpscq
   qcheck-core
   qcheck-multicoretests-util
   qcheck-stm.stm
   stm_run))
 
 (test
+ (package picos_meta)
  (name test_mpmcq)
  (modules test_mpmcq)
  (libraries
-  picos.mpmcq
+  picos_aux.mpmcq
   qcheck-core
   qcheck-multicoretests-util
   qcheck-stm.stm
   stm_run))
 
 (rule
+ (package picos_meta)
  (action
   (progn
-   (copy ../lib/picos_mpmcq/picos_mpmcq.ml picos_mpmcq.ml))))
+   (copy ../lib/picos_aux.mpmcq/picos_aux_mpmcq.ml picos_aux_mpmcq.ml))))
 
 (test
+ (package picos_meta)
  (name test_mpmcq_dscheck)
- (modules test_mpmcq_dscheck picos_mpmcq)
+ (modules test_mpmcq_dscheck picos_aux_mpmcq)
  (build_if
   (>= %{ocaml_version} 5))
  (libraries backoff multicore-magic-dscheck dscheck alcotest)
@@ -174,10 +195,11 @@
   (:standard -open Multicore_magic_dscheck)))
 
 (test
+ (package picos_meta)
  (name test_htbl)
  (modules test_htbl)
  (libraries
-  picos.htbl
+  picos_aux.htbl
   qcheck-core
   qcheck-multicoretests-util
   qcheck-stm.stm
@@ -186,6 +208,7 @@
 ;;
 
 (test
+ (package picos_meta)
  (name test_js_of_ocaml)
  (modules test_js_of_ocaml)
  (modes js)
@@ -200,49 +223,56 @@
 ;;
 
 (test
+ (package picos_meta)
  (name test_schedulers)
  (modules test_schedulers)
- (libraries picos picos.structured test_scheduler test_util alcotest))
+ (libraries
+  alcotest
+  picos
+  picos_std.structured
+  picos_std.sync
+  test_scheduler
+  test_util))
 
 ;;
 
 (test
+ (package picos_meta)
  (name test_structured)
  (modules test_structured)
  (libraries
+  alcotest
   picos
-  picos.mpscq
-  picos.structured
-  picos.sync
+  picos_aux.mpscq
+  picos_std.structured
+  picos_std.sync
   test_scheduler
-  test_util
-  alcotest))
+  test_util))
 
 ;;
 
 (test
+ (package picos_meta)
  (name test_finally)
  (modules test_finally)
- (libraries picos picos.finally test_scheduler test_util alcotest))
+ (libraries alcotest picos picos_std.finally test_scheduler test_util))
 
 ;;
 
 (test
+ (package picos_meta)
  (name test_picos_lwt_unix_with_cohttp)
  (modules test_picos_lwt_unix_with_cohttp)
  (build_if
   (and
    (>= %{ocaml_version} 5)
-   %{lib-available:cohttp-lwt-unix}
-   %{lib-available:cohttp-lwt}
-   %{lib-available:cohttp}
-   %{lib-available:conduit-lwt-unix}
-   %{lib-available:uri}))
+   %{lib-available:conduit-lwt-unix}))
  (libraries
-  picos.lwt_unix
-  picos.structured
   cohttp
   cohttp-lwt
   cohttp-lwt-unix
   conduit-lwt-unix
+  picos_lwt.unix
+  picos_std.structured
+  unix
   uri))

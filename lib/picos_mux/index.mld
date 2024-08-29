@@ -1,0 +1,13 @@
+{0 Sample schedulers for Picos}
+
+This package contains schedulers provided as samples for {!Picos}.
+
+{!modules:
+  Picos_mux_fifo
+  Picos_mux_multififo
+  Picos_mux_random
+  Picos_mux_thread
+}
+
+{^ You may find these useful for both understanding the core Picos interface and
+   for testing your own libraries implemented in Picos.}

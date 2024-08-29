@@ -1,9 +1,13 @@
 (library
  (name picos_lwt)
- (public_name picos.lwt)
+ (public_name picos_lwt)
  (enabled_if
   (>= %{ocaml_version} 5.0.0))
  (libraries
   (re_export picos)
   (re_export lwt)
   picos.thread))
+
+(documentation
+ (package picos_lwt)
+ (mld_files index))

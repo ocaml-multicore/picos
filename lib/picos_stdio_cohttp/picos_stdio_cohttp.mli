@@ -42,10 +42,10 @@ end
 
     {[
       open Cohttp
-      open Picos_finally
+      open Picos_std_finally
+      open Picos_std_structured
       open Picos_stdio
       open Picos_stdio_cohttp
-      open Picos_structured
     ]}
 
     {2 A server and client}
@@ -106,7 +106,7 @@ end
     Now we are ready to put everything together:
 
     {[
-      # Picos_randos.run_on ~n_domains:2 @@ fun () ->
+      # Picos_mux_random.run_on ~n_domains:2 @@ fun () ->
 
         let@ server_socket =
           finally Unix.close @@ fun () ->
@@ -141,6 +141,6 @@ end
     We first create the [server_socket] and obtain the [server_port] and
     ultimately the [server_uri] from it — typically one can avoid this
     complexity and use a fixed port.  We then create a
-    {{!Picos_structured.Flock} flock} for running the server as a concurrent
+    {{!Picos_std_structured.Flock} flock} for running the server as a concurrent
     fiber, which we arrange to terminate at the end of the scope.  Finally we
     act as the client to get a greeting from the server. *)

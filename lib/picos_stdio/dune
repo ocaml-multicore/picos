@@ -1,22 +1,27 @@
 (library
  (name picos_stdio)
- (public_name picos.stdio)
+ (public_name picos_stdio)
  (root_module Deps)
  (libraries
   (re_export unix)
-  (re_export picos.fd)
-  picos.htbl
-  picos.select))
+  (re_export picos_stdio_fd)
+  (re_export picos)
+  picos_aux.htbl
+  picos_stdio.select))
 
 (mdx
+ (package picos_meta)
  (enabled_if
   (>= %{ocaml_version} 5.1.0))
  (libraries
   picos
-  picos.exn_bt
-  picos.finally
-  picos.randos
-  picos.stdio
-  picos.structured
+  picos_mux.random
+  picos_std.finally
+  picos_std.structured
+  picos_stdio
   unix)
  (files picos_stdio.mli))
+
+(documentation
+ (package picos_stdio)
+ (mld_files index))
