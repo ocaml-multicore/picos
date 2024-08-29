@@ -207,7 +207,7 @@ let rec process_timeouts s =
         *. (1. /. 1_000_000_000.)
 
 let rec select_thread s timeout rd wr ex =
-  if s.state == `Alive then (
+  if s.state == `Alive then begin
     let rd_fds, wr_fds, ex_fds =
       if Atomic.compare_and_set s.phase Continue Select then begin
         try
@@ -239,7 +239,8 @@ let rec select_thread s timeout rd wr ex =
         if timeout < 0.0 || idle <= timeout then idle else timeout
       end
     in
-    select_thread s timeout rd wr ex)
+    select_thread s timeout rd wr ex
+  end
 
 let select_thread s =
   if Picos_domain.is_main_domain () then
