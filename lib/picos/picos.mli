@@ -137,7 +137,7 @@
 
     {2 Auxiliary modules} *)
 
-module Exn_bt = Picos_exn_bt
+module Exn_bt = Exn_bt
 (** Exceptions with backtraces. *)
 
 (** {2 Core modules} *)

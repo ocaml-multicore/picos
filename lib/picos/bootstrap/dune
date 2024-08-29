@@ -2,5 +2,5 @@
  (name picos_bootstrap)
  (package picos)
  (libraries
-  (re_export picos.exn_bt)
+  (re_export exn_bt)
   backoff))

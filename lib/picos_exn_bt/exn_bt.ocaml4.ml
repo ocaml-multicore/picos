@@ -1,7 +1,5 @@
 include Common
 
-(* We always inline [get] and [get_callstack] to get correct callstacks. *)
-
 let[@inline always] get exn =
   let bt = Printexc.get_raw_backtrace () in
   { exn; bt }

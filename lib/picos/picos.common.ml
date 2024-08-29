@@ -1,4 +1,4 @@
-module Exn_bt = Picos_exn_bt
+module Exn_bt = Picos_bootstrap.Exn_bt
 
 module Trigger = struct
   include Picos_bootstrap.Trigger

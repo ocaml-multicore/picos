@@ -1,6 +1,6 @@
 let[@inline never] impossible () = failwith "impossible"
 
-module Exn_bt = Picos_exn_bt
+module Exn_bt = Exn_bt
 
 module Trigger = struct
   let[@inline never] error_awaiting () = invalid_arg "already awaiting"

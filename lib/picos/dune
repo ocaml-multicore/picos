@@ -2,7 +2,7 @@
  (name picos)
  (public_name picos)
  (libraries
-  (re_export picos.exn_bt)
+  (re_export exn_bt)
   picos_bootstrap
   (select
    picos.ml

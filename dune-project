@@ -20,11 +20,16 @@
 (using mdx 0.4)
 
 (package
+  (name exn_bt)
+  (synopsis "Bundle an exception with its backtrace"))
+
+(package
  (name picos)
  (synopsis "Pico scheduler interface")
  (description
   "A systems programming interface between effects based schedulers and concurrent abstractions.")
  (depends
+  exn_bt
   (backoff
    (>= 0.1.0))
   ;; For OCaml 4 compatible defaults that are not used on OCaml 5 by default
