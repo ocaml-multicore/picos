@@ -309,6 +309,12 @@ module Event : sig
   (** Represents a function that requests a concurrent service to update a
       {{!Picos.Computation} computation}.
 
+      ℹ️ The computation passed to a request may be completed by some other event
+      at any point.  All primitive requests should be implemented carefully to
+      take that into account.  If the computation is completed by some other
+      event, then the request should be considered as canceled, take no effect,
+      and not leak any resources.
+
       ⚠️ Raising an exception from a [request] function will result in raising
       that exception out of the {!sync}.  This may result in dropping the result
       of an event that committed just after the exception was raised.  This
