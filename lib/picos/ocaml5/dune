@@ -5,5 +5,5 @@
  (enabled_if
   (>= %{ocaml_version} 5.0.0))
  (libraries
-  (re_export picos.exn_bt)
+  (re_export exn_bt)
   picos_bootstrap))
