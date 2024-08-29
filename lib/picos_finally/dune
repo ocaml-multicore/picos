@@ -4,10 +4,11 @@
  (libraries picos))
 
 (mdx
+ (package picos_stdio)
  (libraries
-  picos.exn_bt
+  exn_bt
   picos.finally
-  picos.stdio
+  picos_stdio
   picos.structured
   picos.sync
   unix)

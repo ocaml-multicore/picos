@@ -15,7 +15,7 @@
  (package picos_stdio)
  (libraries
   exn_bt
-  picos.fifos
+  picos_stdio.fifos
   picos.finally
   picos.randos
   picos_stdio

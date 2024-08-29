@@ -6,5 +6,6 @@
 (mdx
  (enabled_if
   (>= %{ocaml_version} 5.0.0))
- (libraries picos.exn_bt picos.fifos picos.structured picos.sync)
+ (package picos_stdio)
+ (libraries exn_bt picos_stdio.fifos picos.structured picos.sync)
  (files picos_sync.mli))

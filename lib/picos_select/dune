@@ -4,7 +4,7 @@
  (optional)
  (libraries
   (re_export picos)
-  (re_export picos.exn_bt)
+  (re_export exn_bt)
   (re_export picos_stdio.fd)
   (re_export picos.sync)
   (re_export unix)
@@ -29,7 +29,7 @@
   picos.finally
   picos.randos
   picos_stdio.select
-  picos.stdio
+  picos_stdio
   picos.structured
   picos.sync
   unix)

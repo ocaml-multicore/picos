@@ -86,10 +86,11 @@
 (test
  (name test_server_and_client)
  (modules test_server_and_client)
+ (package picos_stdio)
  (libraries
   test_scheduler
   picos.finally
-  picos.stdio
+  picos_stdio
   picos.structured
   picos.sync))
 
@@ -98,18 +99,20 @@
 (test
  (name test_stdio)
  (modules test_stdio)
+ (package picos_stdio)
  (libraries
   test_scheduler
   picos.finally
   picos.mpscq
-  picos.stdio
+  picos_stdio
   picos.structured
   alcotest))
 
 (test
  (name test_stdio_cohttp)
  (modules test_stdio_cohttp)
- (libraries picos.finally picos.stdio.cohttp picos.structured test_scheduler))
+ (package picos_stdio_cohttp)
+ (libraries picos.finally picos_stdio_cohttp picos.structured test_scheduler))
 
 ;;
 
@@ -119,7 +122,7 @@
  (package picos_lwt)
  (libraries
   test_scheduler
-  picos.stdio
+  picos_stdio
   picos_stdio.select
   alcotest
   lwt
