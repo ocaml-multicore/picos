@@ -19,7 +19,8 @@ let test_intr () =
         let req = Picos_stdio_select.Intr.req ~seconds:0.000_001 in
         match Unix.read inn (Bytes.create 1) 0 1 with
         | _ -> assert false
-        | exception Unix.Unix_error (EINTR, _, _) -> Picos_stdio_select.Intr.clr req
+        | exception Unix.Unix_error (EINTR, _, _) ->
+            Picos_stdio_select.Intr.clr req
       done
     done
   in

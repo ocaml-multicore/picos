@@ -111,8 +111,6 @@
   (backoff
    (>= 0.1.0))
   ;; For OCaml 4 compatible defaults that are not used on OCaml 5 by default
-  (thread-local-storage
-   (>= 0.2))
   (mtime
    (>= 2.0.0))
   (psq
@@ -120,16 +118,6 @@
   ;; For mpsc queue
   (multicore-magic
    (>= 2.3.0))
-  ;; For picos.lwt
-  (lwt
-   (>= 5.7.0))
-  ;; For picos.stdio.cohttp
-  (cohttp
-   (>= 6.0.0~beta2))
-  (uri
-   (>= 4.4.0))
-  (fmt
-   (>= 0.9.0))
   ;; Test dependencies
   (multicore-bench
    (and
@@ -163,16 +151,6 @@
    (and
     (>= 0.1.0)
     :with-test))
-  (js_of_ocaml
-   (and
-    (>= 5.4.0)
-    :with-test))
-  (conf-npm
-   (and
-    (<> :arch "x86_32")
-    (<> :arch "riscv64")
-    (<> :os "win32")
-    :with-test))
   (dscheck
    (and
     (>= 0.4.0)
@@ -191,20 +169,7 @@
     (>= 2.4.1)
     :with-doc))
   (ocaml
-   (>= 4.14.0)))
- (depopts
-  (cohttp-lwt
-   (and
-    (>= 5.3.0)
-    :with-test))
-  (cohttp-lwt-unix
-   (and
-    (>= 5.3.0)
-    :with-test))
-  (conduit-lwt-unix
-   (and
-    (>= 6.2.2)
-    :with-test))))
+   (>= 4.14.0))))
 
 (package
  (name picos_lwt)
@@ -213,28 +178,9 @@
   "A systems programming interface between effects based schedulers and concurrent abstractions.")
  (depends
   exn_bt
-  (backoff
-   (>= 0.1.0))
-  ;; For OCaml 4 compatible defaults that are not used on OCaml 5 by default
-  (thread-local-storage
-   (>= 0.2))
-  (mtime
-   (>= 2.0.0))
-  (psq
-   (>= 0.2.1))
-  ;; For mpsc queue
-  (multicore-magic
-   (>= 2.3.0))
-  ;; For picos.lwt
+  (picos (= :version))
   (lwt
    (>= 5.7.0))
-  ;; For picos.stdio.cohttp
-  (cohttp
-   (>= 6.0.0~beta2))
-  (uri
-   (>= 4.4.0))
-  (fmt
-   (>= 0.9.0))
   ;; Test dependencies
   (multicore-bench
    (and
@@ -296,20 +242,7 @@
     (>= 2.4.1)
     :with-doc))
   (ocaml
-   (>= 4.14.0)))
- (depopts
-  (cohttp-lwt
-   (and
-    (>= 5.3.0)
-    :with-test))
-  (cohttp-lwt-unix
-   (and
-    (>= 5.3.0)
-    :with-test))
-  (conduit-lwt-unix
-   (and
-    (>= 6.2.2)
-    :with-test))))
+   (>= 4.14.0))))
 
 
 (package
@@ -318,6 +251,7 @@
  (depends
    (picos (= :version))
    (picos_stdio (= :version))
+   (picos_lwt (= :version))
   (cohttp
    (>= 6.0.0~beta2))
   (uri
@@ -356,16 +290,6 @@
   (domain_shims
    (and
     (>= 0.1.0)
-    :with-test))
-  (js_of_ocaml
-   (and
-    (>= 5.4.0)
-    :with-test))
-  (conf-npm
-   (and
-    (<> :arch "x86_32")
-    (<> :arch "riscv64")
-    (<> :os "win32")
     :with-test))
   (dscheck
    (and
