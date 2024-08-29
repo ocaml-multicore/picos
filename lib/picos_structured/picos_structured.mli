@@ -561,7 +561,7 @@ end
     considered an error in this library.  Running the program
 
     {[
-      # Picos_fifos.run many_errors
+      # Picos_stdio_fifos.run many_errors
       Exception: Errors[Stdlib.Exit; Not_found]
     ]}
 

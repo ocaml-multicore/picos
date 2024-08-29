@@ -200,19 +200,19 @@ val handle_signal : int -> unit
           Flock.fork begin fun () ->
             while true do
               Event.select [
-                Picos_select.on msg_inn1 `R
+                Picos_stdio_select.on msg_inn1 `R
                   |> Event.map begin fun () ->
                     print_endline "Inn1";
                     read1 msg_inn1;
                     write1 syn_out
                   end;
-                Picos_select.on msg_inn2 `R
+                Picos_stdio_select.on msg_inn2 `R
                   |> Event.map begin fun () ->
                     print_endline "Inn2";
                     read1 msg_inn2;
                     write1 syn_out;
                   end;
-                Picos_select.timeout
+                Picos_stdio_select.timeout
                     ~seconds:60.0
                   |> Event.map begin fun () ->
                     print_endline "Timeout";

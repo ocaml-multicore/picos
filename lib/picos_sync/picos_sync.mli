@@ -230,7 +230,7 @@ module Event : sig
       offer or request that might be accepted or succeed, but is cancelable if
       some other event happens first.
 
-      See the {!Picos_select} library for an example.
+      See the {!Picos_stdio_select} library for an example.
 
       ℹ️ This module intentionally mimics the
       {{:https://ocaml.org/manual/5.2/api/Event.html} [Event]} module provided
@@ -559,10 +559,10 @@ end
     ]}
 
     The above is definitely not the fastest nor the most scalable bounded queue,
-    but we can now demonstrate it with the cooperative {!Picos_fifos} scheduler:
+    but we can now demonstrate it with the cooperative {!Picos_stdio_fifos} scheduler:
 
     {[
-      # Picos_fifos.run @@ fun () ->
+      # Picos_stdio_fifos.run @@ fun () ->
 
         let bq =
           Bounded_q.create ~capacity:3
