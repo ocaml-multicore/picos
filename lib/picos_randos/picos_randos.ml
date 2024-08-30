@@ -36,7 +36,7 @@ type ready =
 
 type t = {
   ready : ready Collection.t;
-  num_waiters_non_zero : bool ref;
+  mutable num_waiters_non_zero : bool;
   num_alive_fibers : int Atomic.t;
   resume :
     Trigger.t ->
@@ -64,8 +64,7 @@ let get () =
       Picos_thread.TLS.set fiber_key p;
       p
 
-let rec next p t =
-  match Collection.pop_exn t.ready with
+let exec p t = function
   | Spawn (fiber, main) ->
       p := Fiber.Maybe.of_fiber fiber;
       Effect.Deep.match_with main fiber t.handler
@@ -84,6 +83,16 @@ let rec next p t =
   | Resume (fiber, k) ->
       p := Fiber.Maybe.of_fiber fiber;
       Fiber.resume fiber k
+
+let rec next p t =
+  match Collection.pop_exn t.ready with
+  | ready ->
+      if t.num_waiters_non_zero && not (Collection.is_empty t.ready) then begin
+        Mutex.lock t.mutex;
+        Mutex.unlock t.mutex;
+        Condition.signal t.condition
+      end;
+      exec p t ready
   | exception Not_found ->
       p := Fiber.Maybe.nothing;
       if Atomic.get t.num_alive_fibers <> 0 then begin
@@ -92,18 +101,18 @@ let rec next p t =
         then begin
           let n = !(t.num_waiters) + 1 in
           t.num_waiters := n;
-          if n = 1 then t.num_waiters_non_zero := true;
+          if n = 1 then t.num_waiters_non_zero <- true;
           match Condition.wait t.condition t.mutex with
           | () ->
               let n = !(t.num_waiters) - 1 in
               t.num_waiters := n;
-              if n = 0 then t.num_waiters_non_zero := false;
+              if n = 0 then t.num_waiters_non_zero <- false;
               Mutex.unlock t.mutex;
               next p t
           | exception async_exn ->
               let n = !(t.num_waiters) - 1 in
               t.num_waiters := n;
-              if n = 0 then t.num_waiters_non_zero := false;
+              if n = 0 then t.num_waiters_non_zero <- false;
               Mutex.unlock t.mutex;
               raise async_exn
         end
@@ -139,7 +148,7 @@ let context ?fatal_exn_handler () =
   let rec t =
     {
       ready = Collection.create ();
-      num_waiters_non_zero = ref false |> Multicore_magic.copy_as_padded;
+      num_waiters_non_zero = false;
       num_alive_fibers = Atomic.make 1 |> Multicore_magic.copy_as_padded;
       resume;
       num_waiters = ref 0 |> Multicore_magic.copy_as_padded;
@@ -158,7 +167,7 @@ let context ?fatal_exn_handler () =
     let non_zero =
       match Mutex.lock t.mutex with
       | () ->
-          let non_zero = !(t.num_waiters_non_zero) in
+          let non_zero = t.num_waiters_non_zero in
           Mutex.unlock t.mutex;
           non_zero
       | exception Sys_error _ -> false
@@ -197,7 +206,11 @@ let context ?fatal_exn_handler () =
         else begin
           Atomic.incr t.num_alive_fibers;
           Collection.push t.ready (Spawn (r.fiber, r.main));
-          if !(t.num_waiters_non_zero) then Condition.signal t.condition;
+          if t.num_waiters_non_zero then begin
+            Mutex.lock t.mutex;
+            Mutex.unlock t.mutex;
+            Condition.signal t.condition
+          end;
           t.return
         end
     | Fiber.Yield -> t.yield
@@ -240,7 +253,7 @@ let runner_on_this_thread t =
   next (get ()) t
 
 let rec await t =
-  if !(t.num_waiters_non_zero) then begin
+  if t.num_waiters_non_zero then begin
     match Condition.wait t.condition t.mutex with
     | () -> await t
     | exception async_exn ->
