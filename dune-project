@@ -165,6 +165,7 @@
  (synopsis "Asynchronous IO system for picos")
  (depends
   exn_bt
+  base-unix
   (picos
    (= :version))
   (backoff
