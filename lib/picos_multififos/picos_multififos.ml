@@ -11,7 +11,7 @@ type ready =
   | Return of Fiber.Maybe.t * (unit, unit) Effect.Deep.continuation
 
 type t = {
-  num_waiters_non_zero : bool ref;
+  mutable num_waiters_non_zero : bool;
   num_waiters : int ref;
   num_started : int Atomic.t;
   mutex : Mutex.t;
@@ -96,7 +96,14 @@ let exec ready (Per_thread p : per_thread) t =
 
 let rec next (Per_thread p as pt : per_thread) =
   match Picos_mpmcq.pop_exn p.ready with
-  | ready -> exec ready pt p.context
+  | ready ->
+      let t = p.context in
+      if t.num_waiters_non_zero && Picos_mpmcq.length p.ready != 0 then begin
+        Mutex.lock t.mutex;
+        Mutex.unlock t.mutex;
+        Condition.signal t.condition
+      end;
+      exec ready pt t
   | exception Picos_mpmcq.Empty ->
       p.fiber <- Fiber.Maybe.nothing;
       let t = p.context in
@@ -117,18 +124,18 @@ and wait (Per_thread p as pt : per_thread) t =
     if Picos_mpmcq.is_empty p.ready && any_fibers_alive t then begin
       let n = !(t.num_waiters) + 1 in
       t.num_waiters := n;
-      if n = 1 then t.num_waiters_non_zero := true;
+      if n = 1 then t.num_waiters_non_zero <- true;
       match Condition.wait t.condition t.mutex with
       | () ->
           let n = !(t.num_waiters) - 1 in
           t.num_waiters := n;
-          if n = 0 then t.num_waiters_non_zero := false;
+          if n = 0 then t.num_waiters_non_zero <- false;
           Mutex.unlock t.mutex;
           next pt
       | exception async_exn ->
           let n = !(t.num_waiters) - 1 in
           t.num_waiters := n;
-          if n = 0 then t.num_waiters_non_zero := false;
+          if n = 0 then t.num_waiters_non_zero <- false;
           Mutex.unlock t.mutex;
           raise async_exn
     end
@@ -185,7 +192,7 @@ let per_thread context =
         let non_zero =
           match Mutex.lock t.mutex with
           | () ->
-              let non_zero = !(t.num_waiters_non_zero) in
+              let non_zero = t.num_waiters_non_zero in
               Mutex.unlock t.mutex;
               non_zero
           | exception Sys_error _ -> false
@@ -280,7 +287,11 @@ let[@alert "-handler"] effc :
            of [num_started] will happen before increment of [num_stopped]. *)
         Picos_mpmcq.push p.ready (Spawn (r.fiber, r.main));
         let t = p.context in
-        if !(t.num_waiters_non_zero) then Condition.signal t.condition;
+        if t.num_waiters_non_zero then begin
+          Mutex.lock t.mutex;
+          Mutex.unlock t.mutex;
+          Condition.signal t.condition
+        end;
         p.return
       end
   | Fiber.Yield -> yield
@@ -337,12 +348,11 @@ let context ?quota ?fatal_exn_handler () =
   Select.check_configured ();
   let mutex = Mutex.create ()
   and condition = Condition.create ()
-  and num_waiters_non_zero = ref false |> Multicore_magic.copy_as_padded
   and num_waiters = ref 0 |> Multicore_magic.copy_as_padded
   and num_started = Atomic.make 0 |> Multicore_magic.copy_as_padded in
   let rec context =
     {
-      num_waiters_non_zero;
+      num_waiters_non_zero = false;
       num_waiters;
       num_started;
       mutex;
