@@ -10,6 +10,12 @@ homepage: "https://github.com/ocaml-multicore/picos"
 bug-reports: "https://github.com/ocaml-multicore/picos/issues"
 depends: [
   "dune" {>= "3.14"}
+  "uri" {>= "4.4.0" & with-test}
+  "conduit-lwt-unix" {>= "6.2.3" & with-test}
+  "cohttp-lwt-unix" {>= "6.0.0~beta2" & with-test}
+  "cohttp-lwt" {>= "6.0.0~beta2" & with-test}
+  "cohttp" {>= "6.0.0~beta2" & with-test}
+  "backoff" {>= "0.1.0" & with-test}
   "exn_bt"
   "picos" {= version}
   "lwt" {>= "5.7.0"}

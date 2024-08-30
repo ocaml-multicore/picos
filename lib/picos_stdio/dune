@@ -5,6 +5,7 @@
  (libraries
   (re_export unix)
   (re_export picos_stdio_fd)
+  (re_export picos)
   picos.htbl
   picos_stdio.select))
 
