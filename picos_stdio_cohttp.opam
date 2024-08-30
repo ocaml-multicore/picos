@@ -30,7 +30,6 @@ depends: [
 depopts: [
   "cohttp-lwt" {>= "5.3.0" & with-test}
   "cohttp-lwt-unix" {>= "5.3.0" & with-test}
-  "picos_lwt" {= version & with-doc}
   "conduit-lwt-unix" {>= "6.2.2" & with-test}
 ]
 build: [

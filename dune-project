@@ -249,9 +249,9 @@
  (name picos_stdio_cohttp)
  (synopsis "Cohttp running on Picos_stdio")
  (depends
-   (picos (= :version))
-   (picos_stdio (= :version))
-   (picos_lwt (= :version))
+  (picos (= :version))
+  (picos_stdio (= :version))
+  (picos_lwt (= :version))
   (cohttp
    (>= 6.0.0~beta2))
   (uri
@@ -317,7 +317,6 @@
    (and
     (>= 5.3.0)
     :with-test))
-  (picos_lwt (and (= :version) :with-doc))
   (conduit-lwt-unix
    (and
     (>= 6.2.2)
