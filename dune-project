@@ -20,8 +20,36 @@
 (using mdx 0.4)
 
 (package
-  (name exn_bt)
-  (synopsis "Bundle an exception with its backtrace"))
+ (name exn_bt)
+ (synopsis "Bundle an exception with its backtrace")
+ ;; Test dependencies
+ (depends
+  (alcotest
+   (and
+    (>= 1.7.0)
+    :with-test))
+  (picos_stdio (and (= :version) :with-test))
+  (mdx
+   (and
+    (>= 2.4.0)
+    :with-test))
+  (ocaml-version
+   (and
+    (>= 3.6.4)
+    :with-test))
+  ;; Documentation dependencies
+  (sherlodoc
+   (and
+    (>= 0.2)
+    :with-doc))
+  (odoc
+   (and
+    (>= 2.4.1)
+    :with-doc))
+  (lwt
+   (and (>= 5.7.0) :with-test))
+  (ocaml
+   (>= 4.08.0))))
 
 (package
  (name picos)
@@ -89,6 +117,8 @@
    (and
     (>= 2.3.0)
     :with-test))
+  (lwt
+   (and (>= 5.7.0) :with-test))
   ;; Documentation dependencies
   (sherlodoc
    (and
@@ -139,6 +169,8 @@
    (and
     (>= 0.3)
     :with-test))
+  (lwt
+   (and (>= 5.7.0) :with-test))
   (mdx
    (and
     (>= 2.4.0)

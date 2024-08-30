@@ -14,6 +14,7 @@
   (and
    (>= %{ocaml_version} 5.1.0)
    (= %{env:OPAM_REPO_CI=false} false)))
+ (package picos_stdio_cohttp)
  (libraries
   cohttp
   http

@@ -1,5 +1,6 @@
 (test
  (name main)
+ (package picos_stdio)
  (action
   (progn
    (run %{test} -brief "Picos Computation")

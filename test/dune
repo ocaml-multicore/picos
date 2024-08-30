@@ -25,6 +25,7 @@
 (test
  (name test_picos)
  (modules test_picos)
+ (package picos)
  (libraries
   test_scheduler
   picos.finally
@@ -196,6 +197,7 @@
  (name test_js_of_ocaml)
  (modules test_js_of_ocaml)
  (modes js)
+ (package picos)
  (js_of_ocaml
   (flags --enable=effects))
  (build_if
@@ -216,6 +218,7 @@
 (test
  (name test_structured)
  (modules test_structured)
+ (package picos)
  (libraries
   picos
   picos.mpscq
@@ -230,7 +233,7 @@
 (test
  (name test_finally)
  (modules test_finally)
- (package picos_stdio)
+ (package picos)
  (libraries picos picos.finally test_scheduler test_util alcotest))
 
 ;;
@@ -238,6 +241,7 @@
 (test
  (name test_picos_lwt_unix_with_cohttp)
  (modules test_picos_lwt_unix_with_cohttp)
+ (package picos_lwt)
  (build_if
   (and
    (>= %{ocaml_version} 5)

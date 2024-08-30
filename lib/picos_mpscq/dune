@@ -5,4 +5,5 @@
 
 (mdx
  (libraries picos.mpscq)
+ (package picos)
  (files picos_mpscq.mli))

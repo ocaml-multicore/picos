@@ -19,6 +19,7 @@ depends: [
   "qcheck-core" {>= "0.21.2" & with-test}
   "qcheck-stm" {>= "0.3" & with-test}
   "qcheck-multicoretests-util" {>= "0.3" & with-test}
+  "lwt" {>= "5.7.0" & with-test}
   "mdx" {>= "2.4.0" & with-test}
   "ocaml-version" {>= "3.6.4" & with-test}
   "domain_shims" {>= "0.1.0" & with-test}

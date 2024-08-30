@@ -27,6 +27,7 @@ depends: [
     {arch != "x86_32" & arch != "riscv64" & os != "win32" & with-test}
   "dscheck" {>= "0.4.0" & with-test}
   "multicore-magic-dscheck" {>= "2.3.0" & with-test}
+  "lwt" {>= "5.7.0" & with-test}
   "sherlodoc" {>= "0.2" & with-doc}
   "odoc" {>= "2.4.1" & with-doc}
   "ocaml" {>= "4.14.0"}
