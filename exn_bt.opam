@@ -9,20 +9,8 @@ homepage: "https://github.com/ocaml-multicore/picos"
 bug-reports: "https://github.com/ocaml-multicore/picos/issues"
 depends: [
   "dune" {>= "3.14"}
-  "qcheck-stm" {>= "0.3" & with-test}
-  "qcheck-multicoretests-util" {>= "0.3" & with-test}
-  "qcheck-core" {>= "0.21.3" & with-test}
-  "multicore-magic-dscheck" {>= "2.3.0" & with-test}
-  "dscheck" {>= "0.5.0" & with-test}
-  "domain_shims" {>= "0.1.0" & with-test}
-  "backoff" {>= "0.1.0" & with-test}
-  "alcotest" {>= "1.7.0" & with-test}
-  "picos_stdio" {= version & with-test}
-  "mdx" {>= "2.4.0" & with-test}
-  "ocaml-version" {>= "3.6.4" & with-test}
   "sherlodoc" {>= "0.2" & with-doc}
   "odoc" {>= "2.4.1" & with-doc}
-  "lwt" {>= "5.7.0" & with-test}
   "ocaml" {>= "4.08.0"}
 ]
 build: [

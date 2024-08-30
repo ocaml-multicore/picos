@@ -25,50 +25,6 @@
  (name exn_bt)
  (synopsis "Bundle an exception with its backtrace")
  (depends
-  (qcheck-stm
-   (and
-    (>= 0.3)
-    :with-test))
-  (qcheck-multicoretests-util
-   (and
-    (>= 0.3)
-    :with-test))
-  (qcheck-core
-   (and
-    (>= 0.21.3)
-    :with-test))
-  (multicore-magic-dscheck
-   (and
-    (>= 2.3.0)
-    :with-test))
-  (dscheck
-   (and
-    (>= 0.5.0)
-    :with-test))
-  (domain_shims
-   (and
-    (>= 0.1.0)
-    :with-test))
-  (backoff
-   (and
-    (>= 0.1.0)
-    :with-test))
-  (alcotest
-   (and
-    (>= 1.7.0)
-    :with-test))
-  (picos_stdio
-   (and
-    (= :version)
-    :with-test))
-  (mdx
-   (and
-    (>= 2.4.0)
-    :with-test))
-  (ocaml-version
-   (and
-    (>= 3.6.4)
-    :with-test))
   (sherlodoc
    (and
     (>= 0.2)
@@ -77,10 +33,6 @@
    (and
     (>= 2.4.1)
     :with-doc))
-  (lwt
-   (and
-    (>= 5.7.0)
-    :with-test))
   (ocaml
    (>= 4.08.0))))
 
@@ -97,59 +49,9 @@
    (>= 0.2))
   (multicore-magic
    (>= 2.3.0))
-  (multicore-bench
-   (and
-    (>= 0.1.4)
-    :with-test))
-  (alcotest
-   (and
-    (>= 1.7.0)
-    :with-test))
-  (qcheck-core
-   (and
-    (>= 0.21.2)
-    :with-test))
-  (qcheck-stm
-   (and
-    (>= 0.3)
-    :with-test))
-  (qcheck-multicoretests-util
-   (and
-    (>= 0.3)
-    :with-test))
   (mdx
    (and
     (>= 2.4.0)
-    :with-test))
-  (ocaml-version
-   (and
-    (>= 3.6.4)
-    :with-test))
-  (domain_shims
-   (and
-    (>= 0.1.0)
-    :with-test))
-  (js_of_ocaml
-   (and
-    (>= 5.4.0)
-    :with-test))
-  (conf-npm
-   (and
-    (<> :arch x86_32)
-    (<> :arch riscv64)
-    (<> :os win32)
-    :with-test))
-  (dscheck
-   (and
-    (>= 0.4.0)
-    :with-test))
-  (multicore-magic-dscheck
-   (and
-    (>= 2.3.0)
-    :with-test))
-  (lwt
-   (and
-    (>= 5.7.0)
     :with-test))
   (sherlodoc
    (and
@@ -166,8 +68,8 @@
  (name picos_stdio)
  (synopsis "Asynchronous IO system for picos")
  (depends
-  exn_bt
   base-unix
+  exn_bt
   (picos
    (= :version))
   (backoff

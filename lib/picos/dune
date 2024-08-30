@@ -18,13 +18,13 @@
 (mdx
  (enabled_if
   (< %{ocaml_version} 5.0.0))
- (package picos)
+ (package picos_stdio)
  (libraries picos exn_bt picos.structured picos_threaded domain_shims)
  (files picos.mli))
 
 (mdx
  (enabled_if
   (>= %{ocaml_version} 5.0.0))
- (package picos)
+ (package picos_stdio)
  (libraries picos exn_bt picos.structured picos.randos)
  (files picos.mli))

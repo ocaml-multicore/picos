@@ -9,8 +9,8 @@ homepage: "https://github.com/ocaml-multicore/picos"
 bug-reports: "https://github.com/ocaml-multicore/picos/issues"
 depends: [
   "dune" {>= "3.14"}
-  "exn_bt"
   "base-unix"
+  "exn_bt"
   "picos" {= version}
   "backoff" {>= "0.1.0"}
   "mtime" {>= "2.0.0"}

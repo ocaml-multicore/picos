@@ -1,6 +1,7 @@
 (library
  (name test_scheduler)
  (modules test_scheduler)
+ (package picos_stdio)
  (libraries
   (re_export picos)
   picos_stdio.select
@@ -25,7 +26,7 @@
 (test
  (name test_picos)
  (modules test_picos)
- (package picos)
+ (package picos_stdio)
  (libraries
   test_scheduler
   picos.finally
@@ -149,7 +150,7 @@
 (test
  (name test_mpscq)
  (modules test_mpscq)
- (package picos)
+ (package picos_stdio)
  (libraries
   picos.mpscq
   qcheck-core
@@ -197,7 +198,7 @@
  (name test_js_of_ocaml)
  (modules test_js_of_ocaml)
  (modes js)
- (package picos)
+ (package picos_stdio)
  (js_of_ocaml
   (flags --enable=effects))
  (build_if
@@ -218,7 +219,7 @@
 (test
  (name test_structured)
  (modules test_structured)
- (package picos)
+ (package picos_stdio)
  (libraries
   picos
   picos.mpscq
@@ -233,7 +234,7 @@
 (test
  (name test_finally)
  (modules test_finally)
- (package picos)
+ (package picos_stdio)
  (libraries picos picos.finally test_scheduler test_util alcotest))
 
 ;;
