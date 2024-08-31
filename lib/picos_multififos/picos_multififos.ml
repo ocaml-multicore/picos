@@ -53,7 +53,9 @@ let[@inline] get_per_thread () : per_thread =
   | Per_thread _ as pt -> pt
 
 let get_thread t i : per_thread =
-  match t.threads.(i) with Nothing -> not_worker () | Per_thread _ as pt -> pt
+  match Array.unsafe_get t.threads i with
+  | Nothing -> not_worker ()
+  | Per_thread _ as pt -> pt
 
 let any_fibers_alive t =
   (* We read the number of stopped fibers first. *)
@@ -73,6 +75,14 @@ let any_fibers_alive t =
   done;
   (* Is the difference positive? *)
   0 < !started - !stopped
+
+let rec any_fibers_ready t i =
+  0 <= i
+  &&
+  let (Per_thread p) = get_thread t i in
+  Picos_mpmcq.length p.ready != 0 || any_fibers_ready t (i - 1)
+
+let any_fibers_ready t = any_fibers_ready t (t.threads_num - 1)
 
 let next_index t i =
   let i = i + 1 in
@@ -118,10 +128,10 @@ and try_steal (Per_thread p as pt : per_thread) t i =
   end
   else wait pt t
 
-and wait (Per_thread p as pt : per_thread) t =
+and wait (pt : per_thread) t =
   if any_fibers_alive t then begin
     Mutex.lock t.mutex;
-    if Picos_mpmcq.is_empty p.ready && any_fibers_alive t then begin
+    if (not (any_fibers_ready t)) && any_fibers_alive t then begin
       let n = !(t.num_waiters) + 1 in
       t.num_waiters := n;
       if n = 1 then t.num_waiters_non_zero <- true;
