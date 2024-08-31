@@ -338,6 +338,8 @@ module Run : sig
       {{!Control.Terminate} [Terminate]}, which is not counted as an error,
       after which the remaining fibers will be canceled.
 
+      ⚠️ One of actions may be run on the current fiber.
+
       ⚠️ It is not guaranteed that any of the actions in the list are called.  In
       particular, after any action raises an unhandled exception or after the
       main fiber is canceled, the actions that have not yet started may be
@@ -356,6 +358,8 @@ module Run : sig
       them completes or raises an unhandled exception other than
       {{!Control.Terminate} [Terminate]}, which is not counted as an error,
       after which the rest of the started fibers will be canceled.
+
+      ⚠️ One of actions may be run on the current fiber.
 
       ⚠️ It is not guaranteed that any of the actions in the list are called.  In
       particular, after the first action returns successfully or after any
