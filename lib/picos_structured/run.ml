@@ -16,9 +16,14 @@ let wrap_any t main _ =
 
 let rec spawn (Bundle r as t : Bundle.t) wrap = function
   | [] -> ()
+  | [ main ] ->
+      Bundle.unsafe_incr t;
+      let unused_fake_fiber = Obj.magic () in
+      wrap t main unused_fake_fiber
   | main :: mains ->
       Bundle.unsafe_incr t;
       let fiber = Fiber.create_packed ~forbid:false r.bundle in
+      (* Note that [Fiber.spawn] checks the cancelation status of the bundle. *)
       Fiber.spawn fiber (wrap t main);
       spawn t wrap mains
 
