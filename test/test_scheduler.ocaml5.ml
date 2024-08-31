@@ -27,35 +27,53 @@ let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true) ?fatal_exn_handler
     | _ -> `Lwt
   in
   let n_domains = Int.min max_domains (Domain.recommended_domain_count ()) in
-  ignore
-    (match scheduler with
-    | `Fifos -> "fifos"
-    | `Multififos -> "multififos"
-    | `Randos -> "randos"
-    | `Lwt -> "lwt");
-  match scheduler with
-  | `Lwt ->
-      if Picos_thread.is_main_thread () && allow_lwt then begin
-        let old_hook = !Lwt.async_exception_hook in
-        begin
-          match fatal_exn_handler with
-          | None -> ()
-          | Some hook -> Lwt.async_exception_hook := hook
-        end;
-        match Lwt_main.run (Picos_lwt_unix.run_fiber fiber main) with
-        | result ->
-            Lwt.async_exception_hook := old_hook;
-            result
-        | exception exn ->
-            Lwt.async_exception_hook := old_hook;
-            raise exn
-      end
-      else run_fiber ~max_domains ~allow_lwt fiber main
-  | `Randos ->
-      Picos_randos.run_fiber_on ?fatal_exn_handler ~n_domains fiber main
-  | `Fifos -> Picos_fifos.run_fiber ?fatal_exn_handler fiber main
-  | `Multififos ->
-      Picos_multififos.run_fiber_on ?fatal_exn_handler ~n_domains fiber main
+  let quota = 1 + Random.int 100 in
+  match
+    match scheduler with
+    | `Lwt ->
+        if Picos_thread.is_main_thread () && allow_lwt then
+          Some
+            (fun () ->
+              let old_hook = !Lwt.async_exception_hook in
+              begin
+                match fatal_exn_handler with
+                | None -> ()
+                | Some hook -> Lwt.async_exception_hook := hook
+              end;
+              match Lwt_main.run (Picos_lwt_unix.run_fiber fiber main) with
+              | result ->
+                  Lwt.async_exception_hook := old_hook;
+                  result
+              | exception exn ->
+                  Lwt.async_exception_hook := old_hook;
+                  raise exn)
+        else None
+    | `Randos ->
+        Some
+          (fun () ->
+            Picos_randos.run_fiber_on ?fatal_exn_handler ~n_domains fiber main)
+    | `Fifos ->
+        Some
+          (fun () -> Picos_fifos.run_fiber ~quota ?fatal_exn_handler fiber main)
+    | `Multififos ->
+        Some
+          (fun () ->
+            Picos_multififos.run_fiber_on ~quota ?fatal_exn_handler ~n_domains
+              fiber main)
+  with
+  | None -> run_fiber ~max_domains ~allow_lwt ?fatal_exn_handler fiber main
+  | Some run -> begin
+      try run ()
+      with exn ->
+        Printf.printf "Test_scheduler: %s ~quota:%d ~n_domains:%d\n%!"
+          (match scheduler with
+          | `Fifos -> "fifos"
+          | `Multififos -> "multififos"
+          | `Randos -> "randos"
+          | `Lwt -> "lwt")
+          quota n_domains;
+        raise exn
+    end
 
 let run ?max_domains ?allow_lwt ?fatal_exn_handler ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
