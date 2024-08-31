@@ -291,28 +291,40 @@ let run ?context ?(forbid = false) main =
   run_fiber ?context fiber main;
   Computation.await computation
 
-let rec run_fiber_on n fiber main context =
+let rec run_fiber_on n fiber main runner_main context =
   if n <= 1 then run_fiber ~context fiber main
   else
     let runner =
-      try Domain.spawn @@ fun () -> runner_on_this_thread context
+      try Domain.spawn runner_main
       with exn ->
         let bt = Printexc.get_raw_backtrace () in
         run ~context Fun.id;
         Printexc.raise_with_backtrace exn bt
     in
-    match run_fiber_on (n - 1) fiber main context with
+    match run_fiber_on (n - 1) fiber main runner_main context with
     | result ->
-        Domain.join runner;
+        Option.iter Exn_bt.raise (Domain.join runner);
         result
     | exception exn ->
         let bt = Printexc.get_raw_backtrace () in
-        Domain.join runner;
+        Option.iter Exn_bt.raise (Domain.join runner);
         Printexc.raise_with_backtrace exn bt
 
 let run_fiber_on ?fatal_exn_handler ~n_domains fiber main =
   if n_domains < 1 then invalid_arg "n_domains must be positive";
-  run_fiber_on n_domains fiber main (context ?fatal_exn_handler ())
+  let context = context ?fatal_exn_handler () in
+  let runner_main =
+    if n_domains = 1 then fun () -> None
+    else
+      let bt_status = Printexc.backtrace_status () in
+      fun () ->
+        Printexc.record_backtrace bt_status;
+        match runner_on_this_thread context with
+        | () -> None
+        | exception exn -> Some (Exn_bt.get exn)
+  in
+
+  run_fiber_on n_domains fiber main runner_main context
 
 let run_on ?fatal_exn_handler ~n_domains ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
