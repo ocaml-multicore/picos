@@ -1,3 +1,69 @@
+## 0.5.0
+
+- Major additions, changes, bug fixes, improvements, and restructuring
+  (@polytypic, @c-cube)
+
+  - Additions:
+
+    - Minimalistic Cohttp implementation
+    - Implicitly propagated `Flock` of fibers for structured concurrency
+    - Option to terminate `Bundle` and `Flock` on return
+    - `Event` abstraction
+    - Synchronization and communication primitives:
+      - Incremental variable or `Ivar`
+      - Countdown `Latch`
+      - `Semaphore`
+      - `Stream` of events
+    - Multi-producer, multi-consumer lock-free queue optimized for schedulers
+    - Multithreaded (work-stealing) FIFO scheduler
+    - Support `quota` for FIFO based schedulers
+    - Transactional interface for atomically completing multiple `Computation`s
+
+  - Changes:
+
+    - Redesigned resource management based on `('r -> 'a) -> 'a` functions
+    - Redesigned `spawn` interface allowing `FLS` entries to be populated before
+      spawn
+    - Introduced concept of fatal errors, which must terminate the scheduler or
+      the whole program
+    - Simplified `FLS` interface
+
+  - Improvements:
+
+    - Signficantly reduced per fiber memory usage of various sample schedulers
+
+  - Picos has now been split into multiple packages and libraries:
+
+    - pkg: `picos`
+      - lib: `picos`
+      - lib: `picos.domain`
+      - lib: `picos.thread`
+    - pkg: `picos_aux`
+      - lib: `picos_aux.htbl`
+      - lib: `picos_aux.mpmcq`
+      - lib: `picos_aux.mpscq`
+      - lib: `picos_aux.rc`
+    - pkg: `picos_lwt`
+      - lib: `picos_lwt`
+      - lib: `picos_lwt.unix`
+    - pkg: `picos_meta` (integration tests)
+    - pkg: `picos_mux`
+      - lib: `picos_mux.fifo`
+      - lib: `picos_mux.multififo`
+      - lib: `picos_mux.random`
+      - lib: `picos_mux.thread`
+    - pkg: `picos_std`
+      - lib: `picos_std.event`
+      - lib: `picos_std.finally`
+      - lib: `picos_std.structured`
+      - lib: `picos_std.sync`
+    - pkg: `picos_stdio`
+      - lib: `picos_stdio`
+      - lib: `picos_stdio.fd`
+      - lib: `picos_stdio.select`
+    - pkg: `picos_stdio_cohttp`
+      - lib: `picos_stdio_cohttp`
+
 ## 0.4.0
 
 - Renamed `Picos_mpsc_queue` to `Picos_mpscq`. (@polytypic)
