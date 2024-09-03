@@ -3,6 +3,11 @@ open Cohttp
 open Cohttp_lwt
 open Cohttp_lwt_unix
 
+let is_opam_ci =
+  match Sys.getenv "OPAM_REPO_CI" with
+  | _ -> true
+  | exception Not_found -> false
+
 let port = 8000
 
 (** [Picos_lwt] gives us a direct-style [await] operation. *)
@@ -45,6 +50,6 @@ let main () =
 let () =
   Lwt_main.run @@ Picos_lwt_unix.run
   @@ fun () ->
-  try main ()
-  with Unix.Unix_error _ as exn ->
-    Printf.printf "%s\n%!" (Printexc.to_string exn)
+  try main () with
+  | exn when is_opam_ci -> Printf.printf "%s\n%!" (Printexc.to_string exn)
+  | Unix.Unix_error _ as exn -> Printf.printf "%s\n%!" (Printexc.to_string exn)
