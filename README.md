@@ -614,10 +614,10 @@ specific schedulers.
 We have an experimental design and implementation of the core Picos interface as
 illustrated in the previous section. We have also created several _Picos
 compatible_
-[sample schedulers](https://ocaml-multicore.github.io/picos/doc/picos_std/index.html#schedulers).
+[sample schedulers](https://ocaml-multicore.github.io/picos/doc/picos_mux/index.html).
 A scheduler, in this context, just multiplexes fibers to run on one or more
 system level threads. We have also created some sample higher-level
-[scheduler agnostic libraries](https://ocaml-multicore.github.io/picos/doc/picos_std/index.html#scheduler-agnostic-libraries)
+[scheduler agnostic libraries](https://ocaml-multicore.github.io/picos/doc/picos_std/index.html)
 _Implemented in Picos_. These libraries include
 [a library for resource management](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_finally/index.html),
 [a library for structured concurrency](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_structured/index.html),
