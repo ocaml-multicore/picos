@@ -1,6 +1,6 @@
+open Picos_io
 open Picos_std_finally
 open Picos_std_structured
-open Picos_stdio
 
 (* *)
 

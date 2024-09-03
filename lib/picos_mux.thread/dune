@@ -7,6 +7,6 @@
   (select
    select.ml
    from
-   (picos_stdio.select -> select.some.ml)
+   (picos_io.select -> select.some.ml)
    (-> select.none.ml))
   threads.posix))

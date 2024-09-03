@@ -7,7 +7,7 @@ module Event : sig
       offer or request that might be accepted or succeed, but is cancelable if
       some other event happens first.
 
-      See the {!Picos_stdio_select} library for an example.
+      See the {!Picos_io_select} library for an example.
 
       ℹ️ This module intentionally mimics the
       {{:https://ocaml.org/manual/5.2/api/Event.html} [Event]} module provided

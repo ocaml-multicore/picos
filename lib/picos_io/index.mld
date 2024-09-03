@@ -3,9 +3,9 @@
 This package provides an asynchronous IO system for {!Picos}.
 
 {!modules:
-  Picos_stdio
-  Picos_stdio_select
-  Picos_stdio_fd
+  Picos_io
+  Picos_io_select
+  Picos_io_fd
 }
 
 {^ The IO libraries in this package are currently built only on top of the

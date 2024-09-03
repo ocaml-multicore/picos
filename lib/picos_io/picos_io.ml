@@ -1,6 +1,6 @@
 open Picos
-module Select = Picos_stdio_select
-module Fd = Picos_stdio_fd
+module Select = Picos_io_select
+module Fd = Picos_io_fd
 module Htbl = Picos_aux_htbl
 
 let nonblock_fds = Htbl.create ~hashed_type:(module Fd.Resource) ()

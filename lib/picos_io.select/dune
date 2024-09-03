@@ -1,11 +1,11 @@
 (library
- (name picos_stdio_select)
- (public_name picos_stdio.select)
+ (name picos_io_select)
+ (public_name picos_io.select)
  (optional)
  (libraries
   (re_export picos)
+  (re_export picos_io.fd)
   (re_export picos_std.event)
-  (re_export picos_stdio.fd)
   (re_export unix)
   backoff
   mtime
@@ -14,7 +14,7 @@
   picos.domain
   picos.thread
   picos_aux.htbl
-  picos_stdio_thread_atomic
+  picos_io_thread_atomic
   psq
   threads.posix))
 
@@ -24,11 +24,11 @@
   (>= %{ocaml_version} 5.1.0))
  (libraries
   picos
+  picos_io
+  picos_io.select
   picos_mux.random
   picos_std.event
   picos_std.finally
   picos_std.structured
-  picos_stdio
-  picos_stdio.select
   unix)
- (files picos_stdio_select.mli))
+ (files picos_io_select.mli))

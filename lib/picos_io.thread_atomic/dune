@@ -1,0 +1,3 @@
+(library
+ (name picos_io_thread_atomic)
+ (package picos_io))

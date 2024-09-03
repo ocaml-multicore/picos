@@ -12,8 +12,8 @@ depends: [
   "picos" {= version}
   "picos_aux" {= version}
   "picos_std" {= version}
-  "picos_stdio" {= version}
-  "picos_stdio_cohttp" {= version}
+  "picos_io" {= version}
+  "picos_io_cohttp" {= version}
   "picos_mux" {= version}
   "picos_lwt" {= version}
   "dscheck" {>= "0.4.0"}

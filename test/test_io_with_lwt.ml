@@ -1,4 +1,4 @@
-open Picos_stdio
+open Picos_io
 
 let test_system_unix () =
   let sleep = Lwt_unix.system "sleep 2" in
@@ -19,4 +19,4 @@ let () =
       if Sys.win32 then []
       else [ Alcotest.test_case "system" `Quick test_system_unix ] );
   ]
-  |> Alcotest.run "Picos_stdio_with_lwt"
+  |> Alcotest.run "Picos_io_with_lwt"

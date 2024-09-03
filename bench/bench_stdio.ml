@@ -1,5 +1,5 @@
 open Multicore_bench
-open Picos_stdio
+open Picos_io
 
 let run_one ~budgetf ~block_or_nonblock ~n_domains () =
   let block_size = 4096 in

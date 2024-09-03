@@ -36,7 +36,7 @@ val timeout : seconds:float -> unit Event.t
 (** {2 IO} *)
 
 val return_on :
-  'a Computation.t -> Picos_stdio_fd.t -> [ `R | `W | `E ] -> 'a -> unit
+  'a Computation.t -> Picos_io_fd.t -> [ `R | `W | `E ] -> 'a -> unit
 (** [return_on computation fd op value] arranges for [computation] to be
     {{!Picos.Computation.return} returned} with given [value] when [fd] becomes
     available for [op].  Completion of the [computation] before the [fd] becomes
@@ -45,10 +45,10 @@ val return_on :
     ℹ️ Using {!Unix.set_nonblock} and [return_on] you can implement direct-style
     transparently asynchronous IO on top of the {!Unix} module. *)
 
-val await_on : Picos_stdio_fd.t -> [ `R | `W | `E ] -> Picos_stdio_fd.t
+val await_on : Picos_io_fd.t -> [ `R | `W | `E ] -> Picos_io_fd.t
 (** [await_on fd op] awaits until [fd] becomes available for [op]. *)
 
-val on : Picos_stdio_fd.t -> [ `R | `W | `E ] -> unit Event.t
+val on : Picos_io_fd.t -> [ `R | `W | `E ] -> unit Event.t
 (** [on fd op] returns an {{!Picos_std_event.Event} event} that can be committed
     to when [fd] becomes available for [op]. *)
 
@@ -149,10 +149,10 @@ val handle_signal : int -> unit
 
     {[
       open Picos
+      open Picos_io
       open Picos_std_event
       open Picos_std_finally
       open Picos_std_structured
-      open Picos_stdio
     ]}
 
     {2 One of many}
@@ -201,19 +201,19 @@ val handle_signal : int -> unit
           Flock.fork begin fun () ->
             while true do
               Event.select [
-                Picos_stdio_select.on msg_inn1 `R
+                Picos_io_select.on msg_inn1 `R
                   |> Event.map begin fun () ->
                     print_endline "Inn1";
                     read1 msg_inn1;
                     write1 syn_out
                   end;
-                Picos_stdio_select.on msg_inn2 `R
+                Picos_io_select.on msg_inn2 `R
                   |> Event.map begin fun () ->
                     print_endline "Inn2";
                     read1 msg_inn2;
                     write1 syn_out;
                   end;
-                Picos_stdio_select.timeout
+                Picos_io_select.timeout
                     ~seconds:60.0
                   |> Event.map begin fun () ->
                     print_endline "Timeout";

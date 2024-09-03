@@ -16,7 +16,7 @@ depends: [
   "odoc" {with-doc}
 ]
 depopts: [
-  "picos_stdio" {= version}
+  "picos_io" {= version}
 ]
 build: [
   ["dune" "subst"] {dev}

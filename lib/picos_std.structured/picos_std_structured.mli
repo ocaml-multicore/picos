@@ -6,11 +6,11 @@
     For the {{!examples} examples} we open some modules:
 
     {[
+      open Picos_io
       open Picos_std_event
       open Picos_std_finally
       open Picos_std_structured
       open Picos_std_sync
-      open Picos_stdio
     ]} *)
 
 open Picos_std_event
@@ -95,8 +95,8 @@ module Control : sig
           | exception Control.Terminate -> None
       ]}
 
-      or one could try to {{!Picos_stdio.Unix.connect} [connect]} a socket with
-      a timeout
+      or one could try to {{!Picos_io.Unix.connect} [connect]} a socket with a
+      timeout
 
       {[
         let try_connect_in ~seconds socket sockaddr =
@@ -108,7 +108,7 @@ module Control : sig
           | exception Control.Terminate -> false
       ]}
 
-      using the {!Picos_stdio.Unix} module.
+      using the {!Picos_io.Unix} module.
 
       The optional [callstack] argument specifies the number of callstack
       entries to capture with the {{!Control.Terminate} [Terminate]} exception.
@@ -474,8 +474,8 @@ end
     First of all, note that above the {{!Picos_std_sync.Mutex} [Mutex]},
     {{!Picos_std_sync.Condition} [Condition]}, and {{!Picos_std_sync.Semaphore}
     [Semaphore]} modules come from the {!Picos_std_sync} library and the
-    {{!Picos_stdio.Unix} [Unix]} module comes from the {!Picos_stdio} library.
-    They do not come from the standard OCaml libraries.
+    {{!Picos_io.Unix} [Unix]} module comes from the {!Picos_io} library.  They
+    do not come from the standard OCaml libraries.
 
     The above program creates a {{!Flock} flock} of fibers and {{!Flock.fork}
     forks} several fibers to the flock that all block in various ways.  In
@@ -497,8 +497,8 @@ end
       incremental variable is never filled,
     - {{!Picos_std_sync.Stream.read} [Stream.read]} never returns, because the
       stream is never pushed to,
-    - {{!Picos_stdio.Unix.read} [Unix.read]} never returns, because the socket
-      is never written to, and the
+    - {{!Picos_io.Unix.read} [Unix.read]} never returns, because the socket is
+      never written to, and the
     - {!Control.sleep} call would return only after about a month.
 
     Fibers forked to a flock can be canceled in various ways.  In the above

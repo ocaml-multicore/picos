@@ -33,11 +33,11 @@
   picos_aux.htbl
   picos_aux.mpmcq
   picos_aux.mpscq
+  picos_io
+  picos_io.select
   picos_std.finally
   picos_std.structured
   picos_std.sync
-  picos_stdio
-  picos_stdio.select
   (select
    scheduler.ml
    from
