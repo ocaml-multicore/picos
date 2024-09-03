@@ -126,6 +126,14 @@ it is perhaps illuminating to explicitly mention some of those:
 Let's build an incredible ecosystem of interoperable concurrent programming
 libraries and frameworks!
 
+{1 Libraries}
+
+{!modules:
+  Picos
+  Picos_domain
+  Picos_thread
+}
+
 {1 Conventions}
 
 Many operation in the Picos libraries use
