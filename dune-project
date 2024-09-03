@@ -15,6 +15,8 @@
 
 (homepage https://github.com/ocaml-multicore/picos)
 
+(version dev)
+
 (license ISC)
 
 (using mdx 0.4)
