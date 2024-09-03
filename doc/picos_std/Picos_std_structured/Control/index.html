@@ -7,13 +7,13 @@ let search_urls = ['../../db.js','../../../sherlodoc.js'];
       Ivar.read ivar
   with
   | value -&gt; Some value
-  | exception Control.Terminate -&gt; None</code></pre><p>or one could try to <span class="xref-unresolved" title="Picos_stdio.Unix.connect"><code>connect</code></span> a socket with a timeout</p><pre class="language-ocaml"><code>let try_connect_in ~seconds socket sockaddr =
+  | exception Control.Terminate -&gt; None</code></pre><p>or one could try to <span class="xref-unresolved" title="Picos_io.Unix.connect"><code>connect</code></span> a socket with a timeout</p><pre class="language-ocaml"><code>let try_connect_in ~seconds socket sockaddr =
   match
     Control.terminate_after ~seconds @@ fun () -&gt;
       Unix.connect socket sockaddr
   with
   | () -&gt; true
-  | exception Control.Terminate -&gt; false</code></pre><p>using the <code>Picos_stdio.Unix</code> module.</p><p>The optional <code>callstack</code> argument specifies the number of callstack entries to capture with the <a href="#exception-Terminate" title="Control.Terminate"><code>Terminate</code></a> exception. The default is <code>0</code>.</p><p>As an example, <code>terminate_after</code> could be implemented using <a href="../Bundle/index.html"><code>Bundle</code></a> as follows:</p><pre class="language-ocaml"><code>let terminate_after ?callstack ~seconds thunk =
+  | exception Control.Terminate -&gt; false</code></pre><p>using the <code>Picos_io.Unix</code> module.</p><p>The optional <code>callstack</code> argument specifies the number of callstack entries to capture with the <a href="#exception-Terminate" title="Control.Terminate"><code>Terminate</code></a> exception. The default is <code>0</code>.</p><p>As an example, <code>terminate_after</code> could be implemented using <a href="../Bundle/index.html"><code>Bundle</code></a> as follows:</p><pre class="language-ocaml"><code>let terminate_after ?callstack ~seconds thunk =
   Bundle.join_after @@ fun bundle -&gt;
   Bundle.terminate_after ?callstack ~seconds bundle;
   thunk ()</code></pre></div></div></div></body></html>
