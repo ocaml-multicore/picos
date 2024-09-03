@@ -92,6 +92,13 @@ let next_index t i =
   let i = i + 1 in
   if i < t.threads_num then i else 0
 
+let[@inline] relaxed_wakeup t ~known_not_empty ready =
+  if t.num_waiters_non_zero && (known_not_empty || Mpmcq.length ready != 0) then begin
+    Mutex.lock t.mutex;
+    Mutex.unlock t.mutex;
+    Condition.signal t.condition
+  end
+
 let exec ready (Per_thread p : per_thread) t =
   p.remaining_quota <- t.quota;
   match ready with
@@ -112,11 +119,7 @@ let rec next (Per_thread p as pt : per_thread) =
   match Mpmcq.pop_exn p.ready with
   | ready ->
       let t = p.context in
-      if t.num_waiters_non_zero && Mpmcq.length p.ready != 0 then begin
-        Mutex.lock t.mutex;
-        Mutex.unlock t.mutex;
-        Condition.signal t.condition
-      end;
+      relaxed_wakeup t ~known_not_empty:false p.ready;
       exec ready pt t
   | exception Mpmcq.Empty ->
       p.fiber <- Fiber.Maybe.nothing;
@@ -127,7 +130,9 @@ and try_steal (Per_thread p as pt : per_thread) t i =
   if p.index <> i then begin
     let (Per_thread other_p) = get_thread t i in
     match Mpmcq.pop_exn other_p.ready with
-    | ready -> exec ready pt t
+    | ready ->
+        relaxed_wakeup t ~known_not_empty:false other_p.ready;
+        exec ready pt t
     | exception Mpmcq.Empty -> try_steal pt t (next_index t i)
   end
   else wait pt t
@@ -135,10 +140,10 @@ and try_steal (Per_thread p as pt : per_thread) t i =
 and wait (pt : per_thread) t =
   if any_fibers_alive t then begin
     Mutex.lock t.mutex;
+    let n = !(t.num_waiters) + 1 in
+    t.num_waiters := n;
+    if n = 1 then t.num_waiters_non_zero <- true;
     if (not (any_fibers_ready t)) && any_fibers_alive t then begin
-      let n = !(t.num_waiters) + 1 in
-      t.num_waiters := n;
-      if n = 1 then t.num_waiters_non_zero <- true;
       match Condition.wait t.condition t.mutex with
       | () ->
           let n = !(t.num_waiters) - 1 in
@@ -154,6 +159,9 @@ and wait (pt : per_thread) t =
           raise async_exn
     end
     else begin
+      let n = !(t.num_waiters) - 1 in
+      t.num_waiters := n;
+      if n = 0 then t.num_waiters_non_zero <- false;
       Mutex.unlock t.mutex;
       next pt
     end
@@ -193,11 +201,12 @@ let per_thread context =
     let (Per_thread p_original) = pt in
     match Picos_thread.TLS.get_exn per_thread_key with
     | Per_thread p_current when p_original.context == p_current.context ->
-        (* We are running on a thread of this scheduler - no wakup needed. *)
+        (* We are running on a thread of this scheduler *)
         if Fiber.unsuspend fiber trigger then Mpmcq.push p_current.ready resume
-        else Mpmcq.push_head p_current.ready resume
+        else Mpmcq.push_head p_current.ready resume;
+        relaxed_wakeup p_current.context ~known_not_empty:true p_current.ready
     | _ | (exception Picos_thread.TLS.Not_set) ->
-        (* We are running on a foreign thread - wake up may be needed. *)
+        (* We are running on a foreign thread *)
         if Fiber.unsuspend fiber trigger then Mpmcq.push p_original.ready resume
         else Mpmcq.push_head p_original.ready resume;
         let t = p_original.context in
@@ -299,11 +308,7 @@ let[@alert "-handler"] effc :
            of [num_started] will happen before increment of [num_stopped]. *)
         Mpmcq.push p.ready (Spawn (r.fiber, r.main));
         let t = p.context in
-        if t.num_waiters_non_zero then begin
-          Mutex.lock t.mutex;
-          Mutex.unlock t.mutex;
-          Condition.signal t.condition
-        end;
+        relaxed_wakeup t ~known_not_empty:true p.ready;
         p.return
       end
   | Fiber.Yield -> yield

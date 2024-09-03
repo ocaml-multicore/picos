@@ -69,6 +69,16 @@ let get () =
       Picos_thread.TLS.set fiber_key p;
       p
 
+let[@inline] relaxed_wakeup t ~known_not_empty =
+  if
+    t.num_waiters_non_zero
+    && (known_not_empty || not (Collection.is_empty t.ready))
+  then begin
+    Mutex.lock t.mutex;
+    Mutex.unlock t.mutex;
+    Condition.signal t.condition
+  end
+
 let exec p t = function
   | Spawn (fiber, main) ->
       p := Fiber.Maybe.of_fiber fiber;
@@ -92,21 +102,17 @@ let exec p t = function
 let rec next p t =
   match Collection.pop_exn t.ready with
   | ready ->
-      if t.num_waiters_non_zero && not (Collection.is_empty t.ready) then begin
-        Mutex.lock t.mutex;
-        Mutex.unlock t.mutex;
-        Condition.signal t.condition
-      end;
+      relaxed_wakeup t ~known_not_empty:false;
       exec p t ready
   | exception Not_found ->
       p := Fiber.Maybe.nothing;
       if Atomic.get t.num_alive_fibers <> 0 then begin
         Mutex.lock t.mutex;
+        let n = !(t.num_waiters) + 1 in
+        t.num_waiters := n;
+        if n = 1 then t.num_waiters_non_zero <- true;
         if Collection.is_empty t.ready && Atomic.get t.num_alive_fibers <> 0
         then begin
-          let n = !(t.num_waiters) + 1 in
-          t.num_waiters := n;
-          if n = 1 then t.num_waiters_non_zero <- true;
           match Condition.wait t.condition t.mutex with
           | () ->
               let n = !(t.num_waiters) - 1 in
@@ -122,6 +128,9 @@ let rec next p t =
               raise async_exn
         end
         else begin
+          let n = !(t.num_waiters) - 1 in
+          t.num_waiters := n;
+          if n = 0 then t.num_waiters_non_zero <- false;
           Mutex.unlock t.mutex;
           next p t
         end
@@ -211,11 +220,7 @@ let context ?fatal_exn_handler () =
         else begin
           Atomic.incr t.num_alive_fibers;
           Collection.push t.ready (Spawn (r.fiber, r.main));
-          if t.num_waiters_non_zero then begin
-            Mutex.lock t.mutex;
-            Mutex.unlock t.mutex;
-            Condition.signal t.condition
-          end;
+          relaxed_wakeup t ~known_not_empty:true;
           t.return
         end
     | Fiber.Yield -> t.yield
