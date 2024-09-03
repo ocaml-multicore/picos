@@ -1,0 +1,8 @@
+{0 Cohttp running on Picos IO}
+
+This package provides a minimalistic {{:https://github.com/mirage/ocaml-cohttp/}
+Cohttp} implementation for {!Picos} using {!Picos_io}.
+
+{!modules:
+  Picos_io_cohttp
+}

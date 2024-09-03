@@ -1,8 +1,8 @@
 open Cohttp
+open Picos_io
+open Picos_io_cohttp
 open Picos_std_finally
 open Picos_std_structured
-open Picos_stdio
-open Picos_stdio_cohttp
 
 let is_opam_ci =
   match Sys.getenv "OPAM_REPO_CI" with
@@ -44,7 +44,7 @@ let main () =
         match Unix.getsockname server_socket with
         | ADDR_UNIX _ -> failwith "impossible"
         | ADDR_INET (addr, port) ->
-            Printf.sprintf "http://%s:%d/hello-stdio-cohttp"
+            Printf.sprintf "http://%s:%d/hello-io-cohttp"
               (Unix.string_of_inet_addr addr)
               port
       in

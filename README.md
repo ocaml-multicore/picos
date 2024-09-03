@@ -623,7 +623,7 @@ _Implemented in Picos_. These libraries include
 [a library for structured concurrency](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_structured/index.html),
 [a library of synchronization primitives](https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_sync/index.html),
 and
-[an asynchronous I/O library](https://ocaml-multicore.github.io/picos/doc/picos_stdio/Picos_stdio/index.html).
+[an asynchronous I/O library](https://ocaml-multicore.github.io/picos/doc/picos_io/Picos_io/index.html).
 The synchronization library and the I/O library intentionally mimic libraries
 that come with the OCaml distribution. All of the libraries work with all of the
 schedulers and all of these _elements_ are interoperable and entirely opt-in.
@@ -662,7 +662,7 @@ let run_server server_fd =
 ```
 
 The
-[`Unix`](https://ocaml-multicore.github.io/picos/doc/picos_stdio/Picos_stdio/Unix/index.html)
+[`Unix`](https://ocaml-multicore.github.io/picos/doc/picos_io/Picos_io/Unix/index.html)
 module is provided by the I/O library. The operations on file descriptors on
 that module, such as `accept`, `read`, and `write`, use the Picos interface to
 suspend fibers allowing other fibers to run while waiting for I/O. The

@@ -4,7 +4,7 @@
  (modules test_scheduler)
  (libraries
   (re_export picos)
-  picos_stdio.select
+  picos_io.select
   (select
    test_scheduler.ml
    from
@@ -95,48 +95,48 @@
  (name test_server_and_client)
  (modules test_server_and_client)
  (libraries
+  picos_io
   picos_std.finally
   picos_std.structured
   picos_std.sync
-  picos_stdio
   test_scheduler))
 
 ;;
 
 (test
  (package picos_meta)
- (name test_stdio)
- (modules test_stdio)
+ (name test_io)
+ (modules test_io)
  (libraries
   alcotest
   picos_aux.mpscq
+  picos_io
   picos_std.finally
   picos_std.structured
-  picos_stdio
   test_scheduler))
 
 (test
  (package picos_meta)
- (name test_stdio_cohttp)
- (modules test_stdio_cohttp)
+ (name test_io_cohttp)
+ (modules test_io_cohttp)
  (libraries
+  picos_io_cohttp
   picos_std.finally
   picos_std.structured
-  picos_stdio_cohttp
   test_scheduler))
 
 ;;
 
 (test
  (package picos_meta)
- (name test_stdio_with_lwt)
- (modules test_stdio_with_lwt)
+ (name test_io_with_lwt)
+ (modules test_io_with_lwt)
  (libraries
   alcotest
   lwt
   lwt.unix
-  picos_stdio
-  picos_stdio.select
+  picos_io
+  picos_io.select
   test_scheduler
   threads.posix))
 
@@ -149,10 +149,10 @@
  (libraries
   alcotest
   domain_shims
+  picos_io.select
   picos_mux.thread
   picos_std.finally
-  picos_std.structured
-  picos_stdio.select))
+  picos_std.structured))
 
 ;;
 

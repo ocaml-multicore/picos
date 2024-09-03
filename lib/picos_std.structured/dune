@@ -14,12 +14,12 @@
    (>= %{ocaml_version} 5.0.0)
    (= %{env:OPAM_REPO_CI=false} false)))
  (libraries
-  picos_mux.random
+  picos_io
   picos_mux.fifo
+  picos_mux.random
   picos_std.event
   picos_std.finally
   picos_std.structured
   picos_std.sync
-  picos_stdio
   unix)
  (files picos_std_structured.mli))

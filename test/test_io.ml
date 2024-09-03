@@ -1,6 +1,6 @@
+open Picos_io
 open Picos_std_finally
 open Picos_std_structured
-open Picos_stdio
 module Mpscq = Picos_aux_mpscq
 
 let test_system_unix () =
@@ -16,9 +16,9 @@ let test_openfile_and_read () =
   Test_scheduler.run @@ fun () ->
   let@ fd =
     finally Unix.close @@ fun () ->
-    try Unix.openfile "test_stdio.ml" [ O_RDONLY ] 0o400
+    try Unix.openfile "test_io.ml" [ O_RDONLY ] 0o400
     with Unix.Unix_error (ENOENT, _, _) ->
-      Unix.openfile "test/test_stdio.ml" [ O_RDONLY ] 0o400
+      Unix.openfile "test/test_io.ml" [ O_RDONLY ] 0o400
   in
   let n = 10 in
   let bytes = Bytes.create n in
@@ -138,4 +138,4 @@ let () =
       in
       common_cases @ if Sys.win32 then win32_cases else unix_cases );
   ]
-  |> Alcotest.run "Picos_stdio"
+  |> Alcotest.run "Picos_io"

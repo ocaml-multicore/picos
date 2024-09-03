@@ -1,10 +1,10 @@
 (** Minimalistic {{:https://github.com/mirage/ocaml-cohttp/} Cohttp}
-    implementation using {!Picos_stdio} for {!Picos}.
+    implementation using {!Picos_io} for {!Picos}.
 
     ⚠️ This library is currently minimalistic and experimental and is highly
     likely to change.  Feedback from potential users is welcome! *)
 
-open Picos_stdio
+open Picos_io
 
 (** {1 Modules} *)
 
@@ -42,10 +42,10 @@ end
 
     {[
       open Cohttp
+      open Picos_io
+      open Picos_io_cohttp
       open Picos_std_finally
       open Picos_std_structured
-      open Picos_stdio
-      open Picos_stdio_cohttp
     ]}
 
     {2 A server and client}
@@ -71,7 +71,7 @@ end
 
     The reason for doing it like this, as we'll see later, is that we want the
     OS to decide the port for our server.  Also note that we explicitly set the
-    socket to non-blocking mode, which is what we should do with {!Picos_stdio}
+    socket to non-blocking mode, which is what we should do with {!Picos_io}
     whenever possible.
 
     Then we'll define a function that runs a server given a socket:

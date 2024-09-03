@@ -4,7 +4,7 @@ let () = Random.self_init ()
 open Picos
 
 let () =
-  Picos_stdio_select.check_configured ();
+  Picos_io_select.check_configured ();
 
   let[@alert "-handler"] rec propagate () =
     let computation =
@@ -13,7 +13,7 @@ let () =
       Lwt_unix.handle_signal Sys.sigchld;
       propagate ()
     in
-    Picos_stdio_select.return_on_sigchld computation ()
+    Picos_io_select.return_on_sigchld computation ()
   in
   propagate ()
 

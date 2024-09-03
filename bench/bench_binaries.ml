@@ -29,10 +29,10 @@ let paths =
     lib "picos_std.finally";
     lib "picos_std.structured";
     lib "picos_std.sync";
-    lib "picos_stdio";
-    lib "picos_stdio.fd";
-    lib "picos_stdio.select";
-    lib "picos_stdio_cohttp";
+    lib "picos_io";
+    lib "picos_io.fd";
+    lib "picos_io.select";
+    lib "picos_io_cohttp";
   ]
 
 let run_suite ~budgetf:_ =

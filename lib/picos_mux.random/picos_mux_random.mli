@@ -4,9 +4,9 @@
     ℹ️ This scheduler implementation is specifically intended for testing
     libraries implemented in Picos.
 
-    ⚠️ This scheduler uses {!Picos_stdio_select} internally.  If running multiple
-    threads that each run this scheduler, {!Picos_stdio_select.configure} must
-    be called by the main thread before creating other threads.
+    ⚠️ This scheduler uses {!Picos_io_select} internally.  If running multiple
+    threads that each run this scheduler, {!Picos_io_select.configure} must be
+    called by the main thread before creating other threads.
 
     {!Picos} is an interface that allows schedulers to make scheduling decisions
     freely.  After each effect this scheduler picks the next fiber to run

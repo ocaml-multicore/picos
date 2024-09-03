@@ -1,6 +1,6 @@
 (library
- (name picos_stdio_fd)
- (public_name picos_stdio.fd)
+ (name picos_io_fd)
+ (public_name picos_io.fd)
  (libraries
   (re_export unix)
   picos_aux.rc))

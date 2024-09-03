@@ -6,10 +6,10 @@
     We open both this library and a few other libraries
 
     {[
+      open Picos_io
       open Picos_std_finally
       open Picos_std_structured
       open Picos_std_sync
-      open Picos_stdio
     ]}
 
     for the examples. *)

@@ -1,9 +1,9 @@
 (library
- (name picos_stdio_cohttp)
- (public_name picos_stdio_cohttp)
+ (name picos_io_cohttp)
+ (public_name picos_io_cohttp)
  (libraries
-  (re_export picos_stdio)
   (re_export cohttp)
+  (re_export picos_io)
   (re_export uri)
   fmt
   picos_std.finally
@@ -18,14 +18,14 @@
  (libraries
   cohttp
   http
+  picos_io
+  picos_io_cohttp
   picos_mux.random
   picos_std.finally
   picos_std.structured
-  picos_stdio
-  picos_stdio_cohttp
   uri)
- (files picos_stdio_cohttp.mli))
+ (files picos_io_cohttp.mli))
 
 (documentation
- (package picos_stdio_cohttp)
+ (package picos_io_cohttp)
  (mld_files index))

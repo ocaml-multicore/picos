@@ -63,7 +63,7 @@
   ))
 
 (package
- (name picos_stdio)
+ (name picos_io)
  (synopsis "Asynchronous IO system for Picos")
  (depends
   (picos_aux
@@ -83,10 +83,10 @@
   ))
 
 (package
- (name picos_stdio_cohttp)
- (synopsis "Cohttp running on Picos stdio")
+ (name picos_io_cohttp)
+ (synopsis "Cohttp running on Picos IO")
  (depends
-  (picos_stdio
+  (picos_io
    (= :version))
   ;;
   (cohttp
@@ -114,7 +114,7 @@
   ;;
   )
  (depopts
-  (picos_stdio
+  (picos_io
    (= :version))
   ;;
   ))
@@ -145,9 +145,9 @@
    (= :version))
   (picos_std
    (= :version))
-  (picos_stdio
+  (picos_io
    (= :version))
-  (picos_stdio_cohttp
+  (picos_io_cohttp
    (= :version))
   (picos_mux
    (= :version))

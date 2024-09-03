@@ -57,12 +57,12 @@
       - lib: `picos_std.finally`
       - lib: `picos_std.structured`
       - lib: `picos_std.sync`
-    - pkg: `picos_stdio`
-      - lib: `picos_stdio`
-      - lib: `picos_stdio.fd`
-      - lib: `picos_stdio.select`
-    - pkg: `picos_stdio_cohttp`
-      - lib: `picos_stdio_cohttp`
+    - pkg: `picos_io`
+      - lib: `picos_io`
+      - lib: `picos_io.fd`
+      - lib: `picos_io.select`
+    - pkg: `picos_io_cohttp`
+      - lib: `picos_io_cohttp`
 
 ## 0.4.0
 
