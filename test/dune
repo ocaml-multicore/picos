@@ -228,11 +228,15 @@
  (modules test_schedulers)
  (libraries
   alcotest
+  backoff
+  domain_shims
   picos
+  picos_std.finally
   picos_std.structured
   picos_std.sync
   test_scheduler
-  test_util))
+  test_util
+  unix))
 
 ;;
 

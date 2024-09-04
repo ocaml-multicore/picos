@@ -1,4 +1,5 @@
 open Picos
+open Picos_std_finally
 open Picos_std_structured
 open Picos_std_sync
 
@@ -131,6 +132,55 @@ let test_fatal () =
   | _ -> assert false
   | exception Failure msg -> assert (msg = "fatal")
 
+let test_cross_scheduler_wakeup () =
+  let deadline = Unix.gettimeofday () +. 60.0 in
+  let n_wakeups = 10_000 in
+  for _ = 1 to 100 do
+    if Unix.gettimeofday () < deadline then begin
+      let trigger = Atomic.make None in
+      let barrier = Atomic.make 2 in
+      let wait () =
+        Atomic.decr barrier;
+        while Atomic.get barrier <> 0 do
+          Domain.cpu_relax ()
+        done
+      in
+      let awaiter () =
+        for _ = 1 to n_wakeups do
+          let t = Trigger.create () in
+          Atomic.set trigger (Some t);
+          Trigger.await t |> ignore
+        done
+      in
+      let signaler () =
+        for _ = 1 to n_wakeups do
+          while
+            match Atomic.get trigger with
+            | None -> true
+            | Some t ->
+                Atomic.set trigger None;
+                Backoff.once Backoff.default |> ignore;
+                Trigger.signal t;
+                false
+          do
+            Domain.cpu_relax ()
+          done
+        done
+      in
+      let which = Random.bool () in
+      let@ _other =
+        finally Domain.join @@ fun () ->
+        Domain.spawn @@ fun () ->
+        Test_scheduler.run @@ fun () ->
+        wait ();
+        if which then signaler () else awaiter ()
+      in
+      Test_scheduler.run @@ fun () ->
+      wait ();
+      if which then awaiter () else signaler ()
+    end
+  done
+
 let () =
   [
     ("Trivial main returns", [ Alcotest.test_case "" `Quick test_returns ]);
@@ -144,6 +194,8 @@ let () =
       ] );
     ( "Operation on canceled fiber raises",
       [ Alcotest.test_case "" `Quick test_op_raises_when_canceled ] );
+    ( "Cross scheduler wakeup",
+      [ Alcotest.test_case "" `Quick test_cross_scheduler_wakeup ] );
     (* The fatal exn test must be kept last, because it may leave some
        schedulers in a bad state. *)
     ( "Fatal exception terminates scheduler",
