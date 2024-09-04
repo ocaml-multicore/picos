@@ -27,6 +27,7 @@
     - Introduced concept of fatal errors, which must terminate the scheduler or
       the whole program
     - Simplified `FLS` interface
+    - Removed `Exn_bt`
 
   - Improvements:
 
