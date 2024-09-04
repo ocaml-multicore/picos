@@ -52,4 +52,5 @@ let () =
   @@ fun () ->
   try main () with
   | exn when is_opam_ci -> Printf.printf "%s\n%!" (Printexc.to_string exn)
-  | Unix.Unix_error _ as exn -> Printf.printf "%s\n%!" (Printexc.to_string exn)
+  | (Cohttp_lwt.Connection.Retry | Unix.Unix_error _) as exn ->
+      Printf.printf "%s\n%!" (Printexc.to_string exn)

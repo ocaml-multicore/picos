@@ -1,4 +1,4 @@
-name: build-and-test
+name: ci
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  build-windows:
+  test-on-windows:
     strategy:
       fail-fast: false
       matrix:
@@ -45,3 +45,29 @@ jobs:
 
       - name: Test
         run: opam exec -- dune runtest
+
+  build-on-lower-bound:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        ocaml-compiler:
+          - 4.13.x
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install picos core dependencies
+        run: opam install ./picos.opam --deps-only
+
+      - name: Build picos core
+        run: opam exec -- dune build lib/picos
