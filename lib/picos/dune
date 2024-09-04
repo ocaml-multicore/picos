@@ -17,8 +17,10 @@
 (mdx
  (package picos_meta)
  (enabled_if
-  (< %{ocaml_version} 5.0.0))
- (libraries picos picos_mux.thread picos_std.structured domain_shims)
+  (and
+   (<= 4.14.0 %{ocaml_version})
+   (< %{ocaml_version} 5.0.0)))
+ (libraries picos picos_mux.thread picos_std.structured)
  (files picos.mli))
 
 (mdx
