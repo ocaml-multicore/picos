@@ -15,7 +15,7 @@
 
 (homepage https://github.com/ocaml-multicore/picos)
 
-(version dev)
+(version 0.5)
 
 (license ISC)
 
