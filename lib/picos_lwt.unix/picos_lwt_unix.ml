@@ -82,5 +82,3 @@ let run ?(forbid = false) main =
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
   run_fiber fiber main |> Lwt.map @@ fun () -> Computation.await computation
-
-let () = Lwt_main.run (Lwt_unix.sleep 0.0)

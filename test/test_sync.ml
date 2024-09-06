@@ -65,6 +65,7 @@ let test_mutex_and_condition_errors () =
   end
 
 let test_mutex_and_condition_cancelation () =
+  Test_scheduler.init ();
   let mutex = Mutex.create () in
   let condition = Condition.create () in
 

@@ -1,6 +1,7 @@
 open Picos_io
 
 let test_system_unix () =
+  Test_scheduler.init ();
   let sleep = Lwt_unix.system "sleep 2" in
   Lwt_main.run @@ Lwt.bind sleep
   @@ fun _status ->
