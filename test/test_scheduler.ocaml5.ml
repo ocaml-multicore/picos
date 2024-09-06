@@ -3,22 +3,32 @@ let () = Random.self_init ()
 
 open Picos
 
-let () =
-  Picos_io_select.check_configured ();
+let init = ref false
 
-  let[@alert "-handler"] rec propagate () =
-    let computation =
-      Picos.Computation.with_action () () @@ fun _ _ _ ->
-      (* Note that [handle_signal] is documented to be "thread-safe". *)
-      Lwt_unix.handle_signal Sys.sigchld;
-      propagate ()
+let init () =
+  if not !init then begin
+    init := true;
+
+    (* Installs signal handlers *)
+    Lwt_main.run (Lwt_unix.sleep 0.0);
+
+    Picos_io_select.check_configured ();
+
+    let[@alert "-handler"] rec propagate () =
+      let computation =
+        Picos.Computation.with_action () () @@ fun _ _ _ ->
+        (* Note that [handle_signal] is documented to be "thread-safe". *)
+        Lwt_unix.handle_signal Sys.sigchld;
+        propagate ()
+      in
+      Picos_io_select.return_on_sigchld computation ()
     in
-    Picos_io_select.return_on_sigchld computation ()
-  in
-  propagate ()
+    propagate ()
+  end
 
 let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true) ?fatal_exn_handler
     fiber main =
+  init ();
   let scheduler =
     match Random.int 4 with
     | 0 -> `Fifos

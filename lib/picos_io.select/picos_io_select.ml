@@ -1,6 +1,13 @@
 open Picos
 open Picos_std_event
 
+let[@inline never] not_configured () =
+  invalid_arg
+    "not configured; please configure before spawning any threads or domains"
+
+let[@inline never] seconds_out_of_range () =
+  invalid_arg "seconds should be between 0 to pow(2, 53) nanoseconds"
+
 let handle_sigchld_bit = 0b001
 let select_thread_running_on_main_domain_bit = 0b010
 let ignore_sigpipe_bit = 0b100
@@ -296,8 +303,9 @@ let handle_signal signal =
        Computation.return r.computation r.value
   end
   else if signal = config.intr_sig then
-    let (Req r) = Picos_thread.TLS.get_exn intr_key in
-    Computation.return r.computation Signaled
+    match Picos_thread.TLS.get_exn intr_key with
+    | Req r -> Computation.return r.computation Signaled
+    | exception Picos_thread.TLS.Not_set -> not_configured ()
 
 let reconfigure_signal_handlers () =
   if not Sys.win32 then begin
@@ -382,7 +390,7 @@ let rec remove_action _trigger s id =
 
 let to_deadline ~seconds =
   match Mtime.Span.of_float_ns (seconds *. 1_000_000_000.) with
-  | None -> invalid_arg "seconds should be between 0 to pow(2, 53) nanoseconds"
+  | None -> seconds_out_of_range ()
   | Some span -> Mtime.Span.add (Mtime_clock.elapsed ()) span
 
 let[@alert "-handler"] cancel_after computation ~seconds exn bt =
