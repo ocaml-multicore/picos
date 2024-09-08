@@ -3,3 +3,19 @@
  (name guards)
  (modules guards)
  (libraries picos picos.domain picos_std.structured test_scheduler))
+
+(executable
+ (name hello_cohttp)
+ (modules hello_cohttp)
+ (enabled_if
+  (>= %{ocaml_version} 5.0.0))
+ (libraries
+  cohttp
+  picos_io
+  picos_io_cohttp
+  picos_mux.fifo
+  picos_mux.multififo
+  picos_mux.random
+  picos_mux.thread
+  picos_std.finally
+  picos_std.structured))
