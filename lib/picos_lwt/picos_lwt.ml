@@ -26,12 +26,12 @@ let await promise =
       let trigger = Trigger.create () in
       if Computation.try_attach computation trigger then begin
         match Trigger.await trigger with
-        | None -> Computation.await computation
+        | None -> Computation.peek_exn computation
         | Some (exn, bt) ->
             Lwt.cancel promise;
             Printexc.raise_with_backtrace exn bt
       end
-      else Computation.await computation
+      else Computation.peek_exn computation
   | Return value -> value
   | Fail exn -> raise exn
 
@@ -112,4 +112,4 @@ let run ?(forbid = false) system main =
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
   run_fiber system fiber main
-  |> Lwt.map @@ fun () -> Computation.await computation
+  |> Lwt.map @@ fun () -> Computation.peek_exn computation

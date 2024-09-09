@@ -11,7 +11,9 @@ let try_poison = Computation.try_cancel
 let poison = Computation.cancel
 
 let peek_opt ivar =
-  if Computation.is_running ivar then None else Some (Computation.await ivar)
+  match Computation.peek_exn ivar with
+  | value -> Some value
+  | exception Computation.Running -> None
 
 let read = Computation.await
 let read_evt = Event.from_computation
