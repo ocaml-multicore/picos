@@ -431,9 +431,29 @@ module Unix = struct
     Fd.create (Unix.socket ?cloexec socket_domain socket_type protocol)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/socketpair.html *)
-  let socketpair ?cloexec socket_domain socket_type mystery =
-    let fst, snd = Unix.socketpair ?cloexec socket_domain socket_type mystery in
-    (Fd.create fst, Fd.create snd)
+  let socketpair =
+    if Sys.win32 then
+      (* This is a workaround for [Unix.socketpair] on Win32 to avoid CI
+         failures.  We should be able to remove this once the root issue is
+         fixed. *)
+      let rec socketpair_win32 ?cloexec socket_domain socket_type mystery
+          retries =
+        match Unix.socketpair ?cloexec socket_domain socket_type mystery with
+        | sockets -> sockets
+        | exception Unix.Unix_error (EADDRINUSE, _, _) when 0 < retries ->
+            socketpair_win32 ?cloexec socket_domain socket_type mystery
+              (retries - 1)
+      in
+      fun ?cloexec socket_domain socket_type mystery ->
+        let fst, snd =
+          socketpair_win32 ?cloexec socket_domain socket_type mystery 5
+        in
+        (Fd.create fst, Fd.create snd)
+    else fun ?cloexec socket_domain socket_type mystery ->
+      let fst, snd =
+        Unix.socketpair ?cloexec socket_domain socket_type mystery
+      in
+      (Fd.create fst, Fd.create snd)
 
   (* https://pubs.opengroup.org/onlinepubs/9699919799/functions/accept.html *)
   let accept ?cloexec fd =
