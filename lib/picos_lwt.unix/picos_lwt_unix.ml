@@ -81,4 +81,4 @@ let run ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
-  run_fiber fiber main |> Lwt.map @@ fun () -> Computation.await computation
+  run_fiber fiber main |> Lwt.map @@ fun () -> Computation.peek_exn computation

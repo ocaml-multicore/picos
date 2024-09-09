@@ -13,7 +13,7 @@ let[@inline] advance t tail curr =
     Atomic.compare_and_set t (Cons tail) curr |> ignore
 
 let[@inline] help t tail =
-  let _, curr = Computation.await tail in
+  let _, curr = Computation.peek_exn tail in
   advance t tail curr
 
 let rec push t ((_, curr) as next) backoff =
@@ -37,7 +37,9 @@ let rec poison t exn bt backoff =
   end
 
 let peek_opt (Cons at) =
-  if Computation.is_running at then None else Some (Computation.await at)
+  match Computation.peek_exn at with
+  | value -> Some value
+  | exception Computation.Running -> None
 
 let poison t exn bt = poison t exn bt Backoff.default
 let tap = Atomic.get

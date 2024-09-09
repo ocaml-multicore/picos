@@ -98,4 +98,4 @@ let run ?(forbid = false) ?fatal_exn_handler main =
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
   run_fiber ?fatal_exn_handler fiber main;
-  Computation.await computation
+  Computation.peek_exn computation

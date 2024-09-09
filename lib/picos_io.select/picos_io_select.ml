@@ -477,7 +477,7 @@ module Intr = struct
        end
 
   let intr_action trigger (Req r as req : [ `Req ] tdt) id =
-    match Computation.await r.computation with
+    match Computation.peek_exn r.computation with
     | Cleared ->
         (* No signal needs to be delivered. *)
         remove_action trigger r.state id

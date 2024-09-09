@@ -299,7 +299,7 @@ let run ?context ?(forbid = false) main =
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
   run_fiber ?context fiber main;
-  Computation.await computation
+  Computation.peek_exn computation
 
 let rec run_fiber_on n fiber main runner_main context =
   if n <= 1 then run_fiber ~context fiber main
@@ -351,4 +351,4 @@ let run_on ?fatal_exn_handler ~n_domains ?(forbid = false) main =
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
   run_fiber_on ?fatal_exn_handler ~n_domains fiber main;
-  Computation.await computation
+  Computation.peek_exn computation

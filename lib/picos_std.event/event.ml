@@ -51,7 +51,7 @@ let sync_as : type a n. n -> (a, n) tycon -> a =
               if Computation.try_cancel target exn bt then
                 Printexc.raise_with_backtrace exn bt
       end;
-      Computation.await target ()
+      Computation.peek_exn target ()
   | exception exn ->
       let bt = Printexc.get_raw_backtrace () in
       Computation.cancel target exn bt;
@@ -65,7 +65,7 @@ let guard create_event =
 
 let[@alert "-handler"] from_computation source =
   let request target to_result =
-    let result () = to_result (Computation.await source) in
+    let result () = to_result (Computation.peek_exn source) in
     if Computation.is_running source then begin
       let propagator =
         Trigger.from_action result target @@ fun _ result target ->
