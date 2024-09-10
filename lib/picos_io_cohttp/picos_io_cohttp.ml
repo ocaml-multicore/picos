@@ -312,3 +312,8 @@ module Server = struct
     in
     accept ()
 end
+
+let () =
+  (* Try to work around Uri not being thread safe *)
+  Uri.of_string "http://[::::1]:8080" |> ignore;
+  Uri.of_string "http://localhost:8080/" |> ignore
