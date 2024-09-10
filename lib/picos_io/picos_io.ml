@@ -411,9 +411,9 @@ module Unix = struct
               else zip_filter pred xs ys
           | _, _ -> []
         in
-        ( zip_filter Computation.peek_exn rds rdcs,
-          zip_filter Computation.peek_exn wrs wrcs,
-          zip_filter Computation.peek_exn exs excs )
+        ( zip_filter Computation.await rds rdcs,
+          zip_filter Computation.await wrs wrcs,
+          zip_filter Computation.await exs excs )
     | exception cancelation_exn ->
         Computation.cancel overall Done empty_bt;
         raise cancelation_exn
