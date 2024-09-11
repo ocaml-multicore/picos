@@ -48,7 +48,15 @@ let main () =
               (Unix.string_of_inet_addr addr)
               port
       in
-      (* Then we call the server. *)
+      (* Then we call the server 1024 times to test that there is no FD leak. *)
+      for _ = 1 to 1024 do
+        let _resp, _body =
+          Client.post ~body:(`String "It's-a-Me, Picos!")
+            (Uri.of_string server_uri)
+        in
+        ()
+      done;
+      (* Finally we call the server one more time and print the result. *)
       let _resp, body =
         Client.post ~body:(`String "It's-a-Me, Picos!")
           (Uri.of_string server_uri)
