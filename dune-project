@@ -164,14 +164,14 @@
    (>= 0.21.2))
   (qcheck-stm
    (>= 0.3))
+  (backoff
+   (>= 0.1.0))
+  (multicore-magic
+   (>= 2.3.0))
   ;;
   (alcotest
    (and
     (>= 1.7.0)
-    :with-test))
-  (backoff
-   (and
-    (>= 0.1.0)
     :with-test))
   (cohttp
    (and
@@ -208,10 +208,6 @@
   (multicore-bench
    (and
     (>= 0.1.7)
-    :with-test))
-  (multicore-magic
-   (and
-    (>= 2.3.0)
     :with-test))
   (multicore-magic-dscheck
    (and

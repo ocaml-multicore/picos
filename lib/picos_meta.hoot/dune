@@ -1,0 +1,4 @@
+(library
+ (name picos_meta_hoot)
+ (public_name picos_meta.hoot)
+ (libraries backoff multicore-magic picos))
