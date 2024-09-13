@@ -994,6 +994,13 @@ module Fiber : sig
 
         ⚠️ It is only safe to call [set] from the fiber itself or when the fiber
         is known not to be running. *)
+
+    val remove : fiber -> 'a t -> unit
+    (** [remove fiber key] removes the value, if any, associated with the [key]
+        from the storage associated with the [fiber].
+
+        ⚠️ It is only safe to call [remove] from the fiber itself or when the
+        fiber is known not to be running. *)
   end
 
   (** {2 Interface for spawning} *)
