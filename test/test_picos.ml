@@ -29,6 +29,8 @@ let test_fls_basics =
       Fiber.FLS.set fiber float_key 4.2;
       Fiber.FLS.set fiber counter_key (Atomic.fetch_and_add counter 1);
       assert (Fiber.FLS.get_exn fiber float_key = 4.2);
+      Fiber.FLS.remove fiber float_key;
+      assert (Fiber.FLS.get fiber float_key ~default:1.01 = 1.01);
       assert (Fiber.FLS.get_exn fiber counter_key = 0)
     end;
     begin

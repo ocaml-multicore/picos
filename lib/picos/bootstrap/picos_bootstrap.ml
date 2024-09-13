@@ -499,6 +499,10 @@ module Fiber = struct
         r.fls <- fls;
         Array.unsafe_set fls key
           (Sys.opaque_identity (Obj.magic value : non_float))
+
+    let remove (type a) (Fiber r : fiber) (key : a t) =
+      let fls = r.fls in
+      if key < Array.length fls then Array.unsafe_set fls key unique
   end
 end
 
