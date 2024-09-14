@@ -1,0 +1,3 @@
+(library
+ (name prios)
+ (libraries backoff multicore-magic picos picos_std.sync psq))
