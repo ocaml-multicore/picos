@@ -31,7 +31,7 @@ let create ?padded () =
     Atomic.make (H (Head { counter = 1 })) |> Multicore_magic.copy_as ?padded
   in
   let tail =
-    Atomic.make (T (Tail { counter = 0; move = Obj.magic () }))
+    Atomic.make (T (Tail { counter = 0; move = Used }))
     |> Multicore_magic.copy_as ?padded
   in
   Multicore_magic.copy_as ?padded { head; tail }
