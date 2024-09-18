@@ -1,3 +1,18 @@
 (documentation
  (package picos_mux)
  (mld_files index))
+
+(mdx
+ (package picos_meta)
+ (enabled_if
+  (>= %{ocaml_version} 5.0.0))
+ (libraries
+  picos
+  picos_aux.mpscq
+  picos_mux.fifo
+  picos_mux.multififo
+  picos_mux.random
+  picos_mux.thread
+  picos_std.structured
+  unix)
+ (files index.mld))

@@ -2,6 +2,8 @@
 
 This package contains schedulers provided as samples for {!Picos}.
 
+{1 Libraries}
+
 {!modules:
   Picos_mux_fifo
   Picos_mux_multififo
@@ -11,3 +13,47 @@ This package contains schedulers provided as samples for {!Picos}.
 
 {^ You may find these useful for both understanding the core Picos interface and
    for testing your own libraries implemented in Picos.}
+
+{1 Examples}
+
+Below is a program that forks a number of fibers and records a list of the
+domain ids on which the fibers run:
+
+{[
+  open Picos_std_structured
+  module Mpscq = Picos_aux_mpscq
+
+  let main () =
+    let dids = Mpscq.create () in
+
+    Flock.join_after begin fun () ->
+      for _ = 1 to 4 do
+        Flock.fork @@ fun () ->
+        let did = (Domain.self () :> int) in
+        Unix.sleepf 0.1; (* <- simulate work *)
+        Mpscq.push dids did
+      done
+    end;
+
+    Mpscq.pop_all dids
+    |> List.of_seq
+    |> List.sort Int.compare
+]}
+
+We can now try running the program with the sample schedulers:
+
+{[
+  # Picos_mux_fifo.run main
+  - : int list = [0; 0; 0; 0]
+  # Picos_mux_multififo.run_on ~n_domains:4 main
+  - : int list = [0; 1; 2; 3]
+  # Picos_mux_random.run_on ~n_domains:4 main
+  - : int list = [0; 4; 5; 6]
+  # Picos_mux_thread.run main
+  - : int list = [0; 0; 0; 0]
+]}
+
+A subtle detail above is that the [Unix.sleepf 0.1] call blocks the underlying
+thread for a moment, which makes it likely that multiple domains will be used by
+the multi-threaded schedulers.  The results with the multi-threaded schedulers
+are still strictly speaking non-deterministic.
