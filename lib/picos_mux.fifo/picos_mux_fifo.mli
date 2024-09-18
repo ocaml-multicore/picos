@@ -8,7 +8,7 @@
     🐌 Due to FIFO scheduling this scheduler performs poorly on highly parallel
     workloads.
 
-    ℹ️ See {!Picos_std_multififos} for a multi-threaded variation of this
+    ℹ️ See {!Picos_mux_multififo} for a multi-threaded variation of this
     scheduler.
 
     ℹ️ This scheduler implementation is mostly meant as an example and for use in

@@ -10,7 +10,7 @@
     🐌 Due to mostly FIFO scheduling this scheduler performs poorly on highly
     parallel workloads.
 
-    ℹ️ See {!Picos_std_fifos} for a single-threaded variation of this scheduler.
+    ℹ️ See {!Picos_mux_fifo} for a single-threaded variation of this scheduler.
 
     ℹ️ This scheduler implementation is mostly meant as an example and for use in
     testing libraries implemented in {!Picos}.
