@@ -60,6 +60,14 @@ module Control : sig
   (** [protect thunk] forbids propagation of cancelation for the duration of
       [thunk ()].
 
+      ℹ️ {{!Picos_std_sync} Many operations are cancelable}.  In particular,
+      anything that might suspend the current fiber to await for something
+      should typically be cancelable.  Operations that release resources may
+      sometimes also be cancelable and {{!Picos_std_finally.finally} calls of
+      such operations should typically be protected} to ensure that resources
+      will be properly released.  Forbidding propagation of cancelation may also
+      be required when a sequence of cancelable operations must be performed.
+
       ℹ️ With the constructs provided by {{!Picos_std_structured} this library}
       it is not possible to prevent a fiber from being canceled, but it is
       possible for a fiber to forbid the scheduler from propagating cancelation
