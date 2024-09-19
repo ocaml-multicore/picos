@@ -28,7 +28,10 @@ val ( let@ ) : ('a -> 'b) -> 'a -> 'b
 val finally : ('r -> unit) -> (unit -> 'r) -> ('r -> 'a) -> 'a
 (** [finally release acquire scope] calls [acquire ()] to obtain a [resource],
     calls [scope resource], and then calls [release resource] after the scope
-    exits. *)
+    exits.
+
+    ℹ️ {{!Picos_std_structured.Control.protect} Cancelation propagation will be
+    forbidden} during the call of [release]. *)
 
 (** {2 Instances} *)
 
@@ -42,7 +45,10 @@ val instantiate : ('r -> unit) -> (unit -> 'r) -> ('r instance -> 'a) -> 'a
     and stores it as an {!instance}, calls [scope instance].  Then, if [scope]
     returns normally, awaits until the {!instance} becomes empty.  In case
     [scope] raises an exception or the fiber is canceled, the instance will be
-    {{!drop} dropped}. *)
+    {{!drop} dropped}.
+
+    ℹ️ {{!Picos_std_structured.Control.protect} Cancelation propagation will be
+    forbidden} during the call of [release]. *)
 
 val drop : 'r instance -> unit
 (** [drop instance] releases the resource, if any, contained by the {!instance}.

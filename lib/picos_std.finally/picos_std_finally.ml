@@ -32,13 +32,34 @@ let[@inline never] check_released () =
 
 (* *)
 
+let forbidden release x =
+  match Fiber.current () with
+  | fiber -> begin
+      if Fiber.exchange fiber ~forbid:true then release x
+      else
+        match release x with
+        | () -> Fiber.set fiber ~forbid:false
+        | exception exn ->
+            Fiber.set fiber ~forbid:false;
+            raise exn
+    end
+  | exception _exn ->
+      (* This should only happen when not running under a scheduler.  However,
+         we don't match on a specific exception, because it depends on the OCaml
+         version.
+
+         We also do not reraise the exception! *)
+      release x
+
+(* *)
+
 let rec drop instance =
   match Atomic.get instance with
   | Transferred | Dropped -> ()
   | Borrowed as case -> error case
   | Resource r as before ->
       if Atomic.compare_and_set instance before Dropped then begin
-        r.release r.resource;
+        forbidden r.release r.resource;
         Trigger.signal r.transferred_or_dropped
       end
       else drop instance
@@ -141,11 +162,11 @@ let[@inline never] rec move from scope =
           scope r.resource
         with
         | result ->
-            r.release r.resource;
+            forbidden r.release r.resource;
             result
         | exception exn ->
             let bt = Printexc.get_raw_backtrace () in
-            r.release r.resource;
+            forbidden r.release r.resource;
             Printexc.raise_with_backtrace exn bt
       end
       else move from scope
@@ -156,11 +177,11 @@ let[@inline never] finally release acquire scope =
   let x = acquire () in
   match scope x with
   | y ->
-      release x;
+      forbidden release x;
       y
   | exception exn ->
       let bt = Printexc.get_raw_backtrace () in
-      release x;
+      forbidden release x;
       Printexc.raise_with_backtrace exn bt
 
 external ( let@ ) : ('a -> 'b) -> 'a -> 'b = "%apply"
