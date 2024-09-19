@@ -3,6 +3,12 @@
     A resource is something that is {i acquired} and must be {i released} after
     it is no longer needed.
 
+    ⚠️ Beware that the Stdlib {{!Fun.protect} [Fun.protect ~finally]} helper does
+    not {{!Picos_std_structured.Control.protect} protect against cancelation
+    propagation} when it calls [finally ()].  This means that cancelable
+    operations performed by [finally] may be terminated and resources might be
+    leaked.
+
     We open both this library and a few other libraries
 
     {[
