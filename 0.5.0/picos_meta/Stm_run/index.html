@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Stm_run (picos_meta.Stm_run)</title><meta charset="utf-8"/><link rel="stylesheet" href="../../odoc.support/odoc.css"/><meta name="generator" content="odoc 2.4.3"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../odoc.support/highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../index.html">picos_meta</a> &#x00BB; Stm_run</nav><header class="odoc-preamble"><h1>Module <code><span>Stm_run</span></code></h1></header><div class="odoc-content"><div class="odoc-spec"><div class="spec module-type anchored" id="module-type-STM_domain"><a href="#module-type-STM_domain" class="anchor"></a><code><span><span class="keyword">module</span> <span class="keyword">type</span> <a href="module-type-STM_domain/index.html">STM_domain</a></span><span> = <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div></div><div class="odoc-spec"><div class="spec value anchored" id="val-default_count"><a href="#val-default_count" class="anchor"></a><code><span><span class="keyword">val</span> default_count : int</span></code></div></div><div class="odoc-spec"><div class="spec value anchored" id="val-default_budgetf"><a href="#val-default_budgetf" class="anchor"></a><code><span><span class="keyword">val</span> default_budgetf : float</span></code></div></div><div class="odoc-spec"><div class="spec value anchored" id="val-run"><a href="#val-run" class="anchor"></a><code><span><span class="keyword">val</span> run : 
+  <span><span class="optlabel">?verbose</span>:bool <span class="arrow">&#45;&gt;</span></span>
+  <span><span class="optlabel">?count</span>:int <span class="arrow">&#45;&gt;</span></span>
+  <span><span class="optlabel">?budgetf</span>:float <span class="arrow">&#45;&gt;</span></span>
+  <span><span class="label">name</span>:string <span class="arrow">&#45;&gt;</span></span>
+  <span><span class="optlabel">?make_domain</span>:
+    <span>(<span><span class="label">count</span>:int <span class="arrow">&#45;&gt;</span></span>
+      <span><span class="label">name</span>:string <span class="arrow">&#45;&gt;</span></span>
+      <span><span>(<span class="keyword">module</span> <a href="module-type-STM_domain/index.html">STM_domain</a>
+        <span class="keyword">with</span> <span class="keyword">type</span> <span class="xref-unresolved">Spec.cmd</span> = <span class="type-var">'cmd</span>
+         <span class="keyword">and</span> <span class="keyword">type</span> <span class="xref-unresolved">Spec.state</span> = <span class="type-var">'state</span>
+         <span class="keyword">and</span> <span class="keyword">type</span> <span class="xref-unresolved">Spec.sut</span> = <span class="type-var">'sut</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+      <span><span class="xref-unresolved">QCheck</span>.Test.t list</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+  <span><span>(<span class="keyword">module</span> <span class="xref-unresolved">STM</span>.Spec
+    <span class="keyword">with</span> <span class="keyword">type</span> <span class="xref-unresolved">cmd</span> = <span class="type-var">'cmd</span>
+     <span class="keyword">and</span> <span class="keyword">type</span> <span class="xref-unresolved">state</span> = <span class="type-var">'state</span>
+     <span class="keyword">and</span> <span class="keyword">type</span> <span class="xref-unresolved">sut</span> = <span class="type-var">'sut</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+  int</span></code></div></div></div></body></html>
