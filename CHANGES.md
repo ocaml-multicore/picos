@@ -1,3 +1,8 @@
+## Next version
+
+- Forbid cancelation propagation during `release` calls in the
+  `picos_std.finally` library (@polytypic)
+
 ## 0.5.0
 
 - Major additions, changes, bug fixes, improvements, and restructuring
