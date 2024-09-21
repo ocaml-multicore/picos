@@ -11,3 +11,19 @@
 (documentation
  (package picos_lwt)
  (mld_files index))
+
+(mdx
+ (package picos_meta)
+ (enabled_if
+  (and
+   (>= %{ocaml_version} 5.0.0)
+   (<> %{os_type} Win32)))
+ (libraries
+  lwt.unix
+  picos_io.select
+  picos_lwt
+  picos_lwt.unix
+  picos_mux.fifo
+  picos_std.finally
+  picos_std.sync)
+ (files index.mld))
