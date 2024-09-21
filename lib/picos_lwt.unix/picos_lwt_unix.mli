@@ -17,3 +17,6 @@ val run : ?forbid:bool -> (unit -> 'a) -> 'a Lwt.t
 
     The optional [forbid] argument defaults to [false] and determines whether
     propagation of cancelation is initially allowed. *)
+
+val run_main : ?forbid:bool -> (unit -> 'a) -> 'a
+(** [run_main main] is equivalent to {{!run} [Lwt_main.run (run main)]}. *)
