@@ -305,15 +305,25 @@ module Ivar : sig
   (** [fill ivar value] is equivalent to
       {{!try_fill} [try_fill ivar value |> ignore]}. *)
 
-  val try_poison : 'a t -> exn -> Printexc.raw_backtrace -> bool
-  (** [try_poison ivar exn bt] attempts to poison the incremental variable with
-      the specified exception and backtrace.  Returns [true] on success and
+  val try_poison_at : 'a t -> exn -> Printexc.raw_backtrace -> bool
+  (** [try_poison_at ivar exn bt] attempts to poison the incremental variable
+      with the specified exception and backtrace.  Returns [true] on success and
       [false] in case the variable had already been poisoned or assigned a
       value. *)
 
-  val poison : 'a t -> exn -> Printexc.raw_backtrace -> unit
-  (** [poison ivar exn bt] is equivalent to
-      {{!try_poison} [try_poison ivar exn bt |> ignore]}. *)
+  val try_poison : ?callstack:int -> 'a t -> exn -> bool
+  (** [try_poison ivar exn] is equivalent to
+      {{!try_poison_at} [try_poison_at ivar exn (Printexc.get_callstack n)]}
+      where [n] defaults to [0]. *)
+
+  val poison_at : 'a t -> exn -> Printexc.raw_backtrace -> unit
+  (** [poison_at ivar exn bt] is equivalent to
+      {{!try_poison_at} [try_poison_at ivar exn bt |> ignore]}. *)
+
+  val poison : ?callstack:int -> 'a t -> exn -> unit
+  (** [poison ivar exn] is equivalent to
+      {{!poison_at} [poison_at ivar exn (Printexc.get_callstack n)]}
+      where [n] defaults to [0]. *)
 
   val peek_opt : 'a t -> 'a option
   (** [peek_opt ivar] either returns [Some value] in case the variable has been
@@ -351,10 +361,15 @@ module Stream : sig
       has been {{!poison} poisoned} in which case only the exception given to
       {!poison} will be raised. *)
 
-  val poison : 'a t -> exn -> Printexc.raw_backtrace -> unit
-  (** [poison stream exn bt] marks the stream as poisoned at the current
+  val poison_at : 'a t -> exn -> Printexc.raw_backtrace -> unit
+  (** [poison_at stream exn bt] marks the stream as poisoned at the current
       position, which means that subsequent attempts to {!push} to the [stream]
       will raise the given exception with backtrace. *)
+
+  val poison : ?callstack:int -> 'a t -> exn -> unit
+  (** [poison stream exn] is equivalent to
+      {{!poison_at} [poison_at stream exn (Printexc.get_callstack n)]}
+      where [n] defaults to [0]. *)
 
   type !'a cursor
   (** Represents a (past or current) position in a stream. *)
