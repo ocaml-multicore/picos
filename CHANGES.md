@@ -2,6 +2,8 @@
 
 - Forbid cancelation propagation during `release` calls in the
   `picos_std.finally` library (@polytypic)
+- Renamed `(Ivar|Stream).poison` to `(Ivar|Stream).poison_at` and added
+  `(Ivar|Stream).poison` with optional `?callstack:int` (@polytypic)
 
 ## 0.5.0
 
