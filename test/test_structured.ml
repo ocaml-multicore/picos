@@ -1,4 +1,5 @@
 open Picos_std_event
+open Picos_std_finally
 open Picos_std_structured
 open Picos_std_sync
 module Mpscq = Picos_aux_mpscq
@@ -8,11 +9,11 @@ let check join_after ?callstack ?on_return scope =
   let open Picos in
   let fiber = Fiber.current () in
   let before = Fiber.get_computation fiber in
-  let finally () =
+  let check_computation_was_scoped () =
     let after = Fiber.get_computation fiber in
     assert (before == after)
   in
-  Fun.protect ~finally @@ fun () ->
+  lastly check_computation_was_scoped @@ fun () ->
   join_after ?callstack ?on_return @@ fun bundle ->
   let during = Fiber.get_computation fiber in
   assert (before != during);

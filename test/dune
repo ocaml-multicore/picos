@@ -47,6 +47,7 @@
   alcotest
   domain_shims
   picos_std.event
+  picos_std.finally
   picos_std.structured
   picos_std.sync
   test_scheduler
@@ -248,6 +249,7 @@
   alcotest
   picos
   picos_aux.mpscq
+  picos_std.finally
   picos_std.structured
   picos_std.sync
   test_scheduler

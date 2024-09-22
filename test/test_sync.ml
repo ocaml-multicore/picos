@@ -1,7 +1,8 @@
 open Picos
 open Picos_std_event
-open Picos_std_sync
+open Picos_std_finally
 open Picos_std_structured
+open Picos_std_sync
 
 let msgs = ref []
 let empty_bt = Printexc.get_callstack 0
@@ -131,7 +132,7 @@ let test_mutex_and_condition_cancelation () =
   let hard_deadline = Unix.gettimeofday () +. 120.0 in
 
   let main i () =
-    Fun.protect ~finally:(fun () -> Atomic.decr exit) @@ fun () ->
+    lastly (fun () -> Atomic.decr exit) @@ fun () ->
     Test_scheduler.run @@ fun () ->
     let state = Random.State.make_self_init () in
     let fiber = Fiber.current () in
