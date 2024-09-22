@@ -35,7 +35,13 @@ git clone $GIT
 cd $NAME
 
 git checkout "$TAG"
+
+sed -i.bak -e 's/^(version [^)]*)//' dune-project
+rm dune-project.bak
+
 dune build @doc --root=.
+
+git checkout .
 
 git checkout $GH_PAGES
 if [ "$TAG" != main ]; then
