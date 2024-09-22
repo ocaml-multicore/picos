@@ -1,2 +1,37 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml"><head><title>index (picos_lwt.index)</title><meta charset="utf-8"/><link rel="stylesheet" href="../odoc.support/odoc.css"/><meta name="generator" content="odoc 2.4.3"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../odoc.support/highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – picos_lwt</nav><header class="odoc-preamble"><h1 id="lwt-interface-for-picos"><a href="#lwt-interface-for-picos" class="anchor"></a>Lwt interface for Picos</h1><p>This package provides an alternative direct style interface to programming with Lwt via <a href="../picos/Picos/index.html"><code>Picos</code></a>.</p><ul class="modules"><li><a href="Picos_lwt/index.html"><code>Picos_lwt</code></a> <span class="synopsis">Direct style <a href="../picos/Picos/index.html"><code>Picos</code></a> compatible interface to <code>Lwt</code> for OCaml 5.</span></li><li><a href="Picos_lwt_unix/index.html"><code>Picos_lwt_unix</code></a> <span class="synopsis">Direct style <a href="../picos/Picos/index.html"><code>Picos</code></a> compatible interface to <code>Lwt</code> with <code>Lwt_unix</code> for OCaml 5.</span></li></ul></header><div class="odoc-content"></div></body></html>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>index (picos_lwt.index)</title><meta charset="utf-8"/><link rel="stylesheet" href="../odoc.support/odoc.css"/><meta name="generator" content="odoc 2.4.3"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../odoc.support/highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – picos_lwt</nav><header class="odoc-preamble"><h1 id="lwt-interface-for-picos"><a href="#lwt-interface-for-picos" class="anchor"></a>Lwt interface for Picos</h1><p>This package provides an alternative direct style interface to programming with Lwt via <a href="../picos/Picos/index.html"><code>Picos</code></a>.</p></header><nav class="odoc-toc"><ul><li><a href="#libraries">Libraries</a></li><li><a href="#examples">Examples</a></li></ul></nav><div class="odoc-content"><h2 id="libraries"><a href="#libraries" class="anchor"></a>Libraries</h2><ul class="modules"><li><a href="Picos_lwt/index.html"><code>Picos_lwt</code></a> <span class="synopsis">Direct style <a href="../picos/Picos/index.html"><code>Picos</code></a> compatible interface to <code>Lwt</code> for OCaml 5.</span></li><li><a href="Picos_lwt_unix/index.html"><code>Picos_lwt_unix</code></a> <span class="synopsis">Direct style <a href="../picos/Picos/index.html"><code>Picos</code></a> compatible interface to <code>Lwt</code> with <code>Lwt_unix</code> for OCaml 5.</span></li></ul><h2 id="examples"><a href="#examples" class="anchor"></a>Examples</h2><p>Perhaps one of the main reasons someone might want to use a <a href="../picos/Picos/index.html"><code>Picos</code></a> based direct style interface to programming with Lwt is for the purpose of working with an existing codebase and gradually porting the codebase to be effects based and to use an effects based scheduler. So, as an example, let's construct a program that runs both Lwt and, in another domain, an effects based scheduler.</p><p>As an aside, <a href="../picos/Picos/index.html"><code>Picos</code></a> is specifically designed to allow an application to run multiple schedulers and for code running on those schedulers to be able to communicate and synchronize. Specifically, <a href="../picos/Picos/index.html"><code>Picos</code></a> is an interface to communicating with schedulers. A concurrent abstraction implemented in terms of the <a href="../picos/Picos/index.html"><code>Picos</code></a> interface automatically works with any <a href="../picos/Picos/index.html"><code>Picos</code></a> compatible scheduler. Furthermore, a correctly implemented scheduler allows certain operations, such as operations that cause fibers running on the scheduler to be resumed, to work across schedulers.</p><p>For the example, we first open a couple of libraries:</p><pre class="language-ocaml"><code># open Picos_std_finally (* let@, finally, lastly *)
+# open Picos_std_sync (* Stream, Ivar *)</code></pre><p><span class="xref-unresolved" title="Picos_mux_fifo">The FIFO scheduler</span> we will use normally automatically checks that the <span class="xref-unresolved" title="Picos_io_select">IO event loop library</span> it uses for timeouts has been configured. However, as we will be spawning a new domain for the scheduler, we need to make sure to configure the IO library from the main thread of the application:</p><pre class="language-ocaml"><code>Picos_io_select.check_configured ()</code></pre><p>Below is our example program:</p><pre class="language-ocaml"><code>let main () =
+  let stream = Stream.create () in
+
+  let@ _ =
+    finally Domain.join @@ fun () -&gt;
+    let cursor = Stream.tap stream in
+    Domain.spawn @@ fun () -&gt;
+    Picos_mux_fifo.run @@ fun () -&gt;
+    let rec loop cursor =
+      let ((who, out), cursor) =
+        Stream.read cursor
+      in
+      Printf.sprintf &quot;Hello, %s!&quot; who
+      |&gt; Ivar.fill out;
+      loop cursor
+    in
+    try loop cursor with Exit -&gt; ()
+  in
+
+  let@ _ = lastly @@ fun () -&gt;
+    Stream.poison stream Exit
+  in
+
+  [&quot;Mii&quot;; &quot;Uuu&quot;]
+  |&gt; List.iter (fun who -&gt;
+     let reply = Ivar.create () in
+     Stream.push stream (who, reply);
+     Ivar.read reply
+     |&gt; Lwt_io.printl
+     |&gt; Picos_lwt.await);
+
+  Picos_lwt.await Lwt_io.(flush stdout)</code></pre><p>The above program first creates a stream for communication. Then it spawns a domain for running the FIFO scheduler making sure that the domain will be joined and that a cursor to the stream is obtained before the rest of the program pushes messages to the stream. The loop running on the FIFO scheduler reads messages from the stream and responds to them until the stream is poisoned. The rest of the program runs on Lwt on the main thread. It first makes sure to poison the stream at the end. Then it runs a loop that sends a couple of messages to the stream, reads the responses, and prints them using Lwt.</p><p>Finally we run the program with Lwt:</p><pre class="language-ocaml"><code># Picos_lwt_unix.run_main main
+Hello, Mii!
+Hello, Uuu!
+- : unit = ()</code></pre><p>Importantly, the above program shows that one can use communication and synchronization primitives like <span class="xref-unresolved" title="Picos_std_sync.Stream"><code>Stream</code></span> and <span class="xref-unresolved" title="Picos_std_sync.Ivar"><code>Ivar</code></span> across schedulers.</p></div></body></html>
