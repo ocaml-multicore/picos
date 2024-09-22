@@ -184,4 +184,14 @@ let[@inline never] finally release acquire scope =
       forbidden release x;
       Printexc.raise_with_backtrace exn bt
 
+let[@inline never] lastly action scope =
+  match scope () with
+  | value ->
+      forbidden action ();
+      value
+  | exception exn ->
+      let bt = Printexc.get_raw_backtrace () in
+      forbidden action ();
+      Printexc.raise_with_backtrace exn bt
+
 external ( let@ ) : ('a -> 'b) -> 'a -> 'b = "%apply"

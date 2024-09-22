@@ -7,7 +7,9 @@
     not {{!Picos_std_structured.Control.protect} protect against cancelation
     propagation} when it calls [finally ()].  This means that cancelable
     operations performed by [finally] may be terminated and resources might be
-    leaked.
+    leaked.  So, if you want to avoid resource leaks, you should either use
+    {!lastly} or explicitly {{!Picos_std_structured.Control.protect} protect
+    against cancelation propagation}.
 
     We open both this library and a few other libraries
 
@@ -38,6 +40,13 @@ val finally : ('r -> unit) -> (unit -> 'r) -> ('r -> 'a) -> 'a
 
     ℹ️ {{!Picos_std_structured.Control.protect} Cancelation propagation will be
     forbidden} during the call of [release]. *)
+
+val lastly : (unit -> unit) -> (unit -> 'a) -> 'a
+(** [lastly action scope] is equivalent to
+    {{!finally} [finally action Fun.id scope]}.
+
+    ℹ️ {{!Picos_std_structured.Control.protect} Cancelation propagation will be
+    forbidden} during the call of [action]. *)
 
 (** {2 Instances} *)
 
