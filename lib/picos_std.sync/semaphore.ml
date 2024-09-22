@@ -11,7 +11,10 @@ module Counting = struct
     Atomic.make (Obj.repr count) |> Multicore_magic.copy_as ?padded
 
   let rec release t backoff =
-    let before = Atomic.get t in
+    (* The release operation will mutate the atomic location and will be
+       sequentially consistent.  The fenceless get here performs better on
+       ARM. *)
+    let before = Multicore_magic.fenceless_get t in
     if Obj.is_int before then begin
       let count = Obj.obj before in
       if count < count + 1 then begin
@@ -39,7 +42,10 @@ module Counting = struct
       then cleanup t trigger (Backoff.once backoff)
 
   let rec acquire t backoff =
-    let before = Atomic.get t in
+    (* The acquire operation will mutate the atomic location and will be
+       sequentially consistent.  The fenceless get here performs better on
+       ARM. *)
+    let before = Multicore_magic.fenceless_get t in
     if Obj.is_int before then
       let count = Obj.obj before in
       if 0 < count then begin
@@ -96,7 +102,10 @@ module Binary = struct
   let make ?padded initial = Counting.make ?padded (Bool.to_int initial)
 
   let rec release t backoff =
-    let before = Atomic.get t in
+    (* The release operation will mutate the atomic location and will be
+       sequentially consistent.  The fenceless get here performs better on
+       ARM. *)
+    let before = Multicore_magic.fenceless_get t in
     if Obj.is_int before then begin
       let count = Obj.obj before in
       if count = 0 then

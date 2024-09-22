@@ -525,4 +525,12 @@ end
     false sharing}.  For relatively long lived objects this can improve
     performance and make performance more stable at the cost of using more
     memory.  It is not recommended to use [~padded:true] for short lived
-    objects. *)
+    objects.
+
+    The primitives provided by this library are generally optimized for low
+    contention scenariors and size.  Generally speaking, for best performance
+    and scalability, you should try to avoid high contention scenarios by
+    architecting your program to distribute processing such that sequential
+    bottlenecks are avoided.  If high contention is unavoidable then other
+    communication and synchronization primitive implementations may provide
+    better performance. *)
