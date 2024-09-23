@@ -59,6 +59,8 @@ module Mutex : sig
   val unlock : ?checked:bool -> t -> unit
   (** [unlock mutex] unlocks the mutex.
 
+      ℹ️ This operation is not cancelable.
+
       @raise Sys_error if the mutex was locked by another fiber.  If
         [~checked:false] was specified for some previous operation on the mutex
         the exception may or may not be raised. *)
@@ -128,6 +130,8 @@ module Semaphore : sig
     val release : t -> unit
     (** [release semaphore] increments the count of the semaphore.
 
+        ℹ️ This operation is not cancelable.
+
         @raise Sys_error in case the count would overflow. *)
 
     val acquire : t -> unit
@@ -154,7 +158,9 @@ module Semaphore : sig
         [initial] is [true] and count of [0] otherwise. *)
 
     val release : t -> unit
-    (** [release semaphore] sets the count of the semaphore to [1]. *)
+    (** [release semaphore] sets the count of the semaphore to [1].
+
+        ℹ️ This operation is not cancelable. *)
 
     val acquire : t -> unit
     (** [acquire semaphore] waits until the count of the semaphore is [1] and
@@ -259,6 +265,8 @@ module Latch : sig
           invalid_arg "zero count"
       ]}
 
+      ℹ️ This operation is not cancelable.
+
       @raise Invalid_argument in case the count of the latch is zero. *)
 
   val try_incr : t -> bool
@@ -309,7 +317,9 @@ module Ivar : sig
   (** [try_poison_at ivar exn bt] attempts to poison the incremental variable
       with the specified exception and backtrace.  Returns [true] on success and
       [false] in case the variable had already been poisoned or assigned a
-      value. *)
+      value.
+
+      ℹ️ This operation is not cancelable. *)
 
   val try_poison : ?callstack:int -> 'a t -> exn -> bool
   (** [try_poison ivar exn] is equivalent to
@@ -364,7 +374,9 @@ module Stream : sig
   val poison_at : 'a t -> exn -> Printexc.raw_backtrace -> unit
   (** [poison_at stream exn bt] marks the stream as poisoned at the current
       position, which means that subsequent attempts to {!push} to the [stream]
-      will raise the given exception with backtrace. *)
+      will raise the given exception with backtrace.
+
+      ℹ️ This operation is not cancelable. *)
 
   val poison : ?callstack:int -> 'a t -> exn -> unit
   (** [poison stream exn] is equivalent to
