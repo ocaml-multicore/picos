@@ -287,6 +287,26 @@ let test_event_basics () =
     | exception Exit -> ()
   end
 
+let test_non_cancelable_ops () =
+  Test_scheduler.run @@ fun () ->
+  let ivar = Ivar.create () in
+  let stream = Stream.create () in
+  let latch = Latch.create 1 in
+  let mutex = Mutex.create () in
+  let counting = Semaphore.Counting.make 0 in
+  let binary = Semaphore.Binary.make false in
+  Flock.join_after @@ fun () ->
+  Mutex.lock ~checked:(Random.bool ()) mutex;
+  Flock.terminate ();
+  try
+    Ivar.poison ivar Exit;
+    Stream.poison stream Exit;
+    Latch.decr latch;
+    Mutex.unlock ~checked:(Random.bool ()) mutex;
+    Semaphore.Counting.release counting;
+    Semaphore.Binary.release binary
+  with _ -> assert false
+
 let () =
   try
     [
@@ -308,6 +328,9 @@ let () =
           Alcotest.test_case "cancelation" `Quick test_lazy_cancelation;
         ] );
       ("Event", [ Alcotest.test_case "basics" `Quick test_event_basics ]);
+      ( "Non-cancelable ops",
+        [ Alcotest.test_case "are not canceled" `Quick test_non_cancelable_ops ]
+      );
     ]
     |> Alcotest.run ~and_exit:false "Picos_sync";
     !msgs |> List.iter (Printf.eprintf "%s\n%!")
