@@ -51,6 +51,12 @@ let forbidden release x =
          We also do not reraise the exception! *)
       release x
 
+(** This helps to reduce CPU stack usage with the native compiler. *)
+let[@inline never] release_and_reraise exn release x =
+  let bt = Printexc.get_raw_backtrace () in
+  forbidden release x;
+  Printexc.raise_with_backtrace exn bt
+
 (* *)
 
 let rec drop instance =
@@ -63,6 +69,11 @@ let rec drop instance =
         Trigger.signal r.transferred_or_dropped
       end
       else drop instance
+
+(** This helps to reduce CPU stack usage with the native compiler. *)
+let[@inline never] drop_and_reraise bt instance exn =
+  drop instance;
+  Printexc.raise_with_backtrace exn bt
 
 (* *)
 
@@ -80,8 +91,7 @@ let await_transferred_or_dropped instance =
           drop instance
       | Some (exn, bt) ->
           (* We have been canceled, so we release. *)
-          drop instance;
-          Printexc.raise_with_backtrace exn bt
+          drop_and_reraise bt instance exn
     end
 
 let[@inline never] instantiate release acquire scope =
@@ -104,8 +114,7 @@ let[@inline never] instantiate release acquire scope =
       result
   | exception exn ->
       let bt = Printexc.get_raw_backtrace () in
-      drop instance;
-      Printexc.raise_with_backtrace exn bt
+      drop_and_reraise bt instance exn
 
 (* *)
 
@@ -126,8 +135,7 @@ let[@inline never] rec transfer from scope =
             result
         | exception exn ->
             let bt = Printexc.get_raw_backtrace () in
-            drop into;
-            Printexc.raise_with_backtrace exn bt
+            drop_and_reraise bt into exn
       end
       else transfer from scope
 
@@ -164,10 +172,7 @@ let[@inline never] rec move from scope =
         | result ->
             forbidden r.release r.resource;
             result
-        | exception exn ->
-            let bt = Printexc.get_raw_backtrace () in
-            forbidden r.release r.resource;
-            Printexc.raise_with_backtrace exn bt
+        | exception exn -> release_and_reraise exn r.release r.resource
       end
       else move from scope
 
@@ -179,19 +184,13 @@ let[@inline never] finally release acquire scope =
   | y ->
       forbidden release x;
       y
-  | exception exn ->
-      let bt = Printexc.get_raw_backtrace () in
-      forbidden release x;
-      Printexc.raise_with_backtrace exn bt
+  | exception exn -> release_and_reraise exn release x
 
 let[@inline never] lastly action scope =
   match scope () with
   | value ->
       forbidden action ();
       value
-  | exception exn ->
-      let bt = Printexc.get_raw_backtrace () in
-      forbidden action ();
-      Printexc.raise_with_backtrace exn bt
+  | exception exn -> release_and_reraise exn action ()
 
 external ( let@ ) : ('a -> 'b) -> 'a -> 'b = "%apply"
