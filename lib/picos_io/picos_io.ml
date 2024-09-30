@@ -440,7 +440,8 @@ module Unix = struct
           retries =
         match Unix.socketpair ?cloexec socket_domain socket_type mystery with
         | sockets -> sockets
-        | exception Unix.Unix_error ((EACCES | EADDRINUSE | ENOENT), _, _)
+        | exception
+            Unix.Unix_error ((EACCES | EADDRINUSE | EINVAL | ENOENT), _, _)
           when 0 < retries ->
             socketpair_win32 ?cloexec socket_domain socket_type mystery
               (retries - 1)
