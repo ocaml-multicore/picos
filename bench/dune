@@ -23,6 +23,9 @@
    (run %{test} -brief "Picos binaries")
    (run %{test} -brief "Bounded_q with Picos_sync")
    (run %{test} -brief "Memory usage")))
+ (foreign_stubs
+  (language c)
+  (names bench_stubs))
  (libraries
   backoff
   multicore-bench
