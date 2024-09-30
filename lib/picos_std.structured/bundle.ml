@@ -132,6 +132,22 @@ let rec incr (Bundle r as t : t) backoff =
   else if not (Atomic.compare_and_set r.config before (before + config_one))
   then incr t (Backoff.once backoff)
 
+let finish (Bundle { bundle = Packed bundle; _ } as t : t) canceler =
+  Computation.detach bundle canceler;
+  decr t
+
+(** This helps to reduce CPU stack usage with the native compiler. *)
+let[@inline never] raised exn child t canceler =
+  let bt = Printexc.get_raw_backtrace () in
+  Computation.cancel child exn bt;
+  error t exn bt;
+  finish t canceler
+
+(** This helps to reduce CPU stack usage with the native compiler. *)
+let[@inline never] returned value child t canceler =
+  Computation.return child value;
+  finish t canceler
+
 let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
   (* The sequence of operations below ensures that nothing is leaked. *)
   incr t Backoff.default;
@@ -142,34 +158,19 @@ let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
     let canceler = Computation.attach_canceler ~from:bundle ~into:child in
     let main =
       match pass with
-      | FLS ->
+      | FLS -> begin
           Fiber.FLS.set fiber flock_key t;
           fun fiber ->
-            begin
-              match thunk () with
-              | value -> Computation.return child value
-              | exception exn ->
-                  let bt = Printexc.get_raw_backtrace () in
-                  Computation.cancel child exn bt;
-                  error (get_flock fiber) exn bt
-            end;
-            let (Bundle r as t : t) = get_flock fiber in
-            let (Packed bundle) = r.bundle in
-            Computation.detach bundle canceler;
-            decr t
-      | Arg ->
+            match thunk () with
+            | value -> returned value child (get_flock fiber) canceler
+            | exception exn -> raised exn child (get_flock fiber) canceler
+        end
+      | Arg -> begin
           fun _ ->
-            begin
-              match thunk () with
-              | value -> Computation.return child value
-              | exception exn ->
-                  let bt = Printexc.get_raw_backtrace () in
-                  Computation.cancel child exn bt;
-                  error t exn bt
-            end;
-            let (Packed bundle) = r.bundle in
-            Computation.detach bundle canceler;
-            decr t
+            match thunk () with
+            | value -> returned value child t canceler
+            | exception exn -> raised exn child t canceler
+        end
     in
     Fiber.spawn fiber main;
     child
@@ -180,6 +181,18 @@ let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
     decr t;
     raise canceled_exn
 
+(** This helps to reduce CPU stack usage with the native compiler. *)
+let[@inline never] raised_flock exn fiber =
+  let t = get_flock fiber in
+  let bt = Printexc.get_raw_backtrace () in
+  error t exn bt;
+  decr t
+
+(** This helps to reduce CPU stack usage with the native compiler. *)
+let[@inline never] raised_bundle exn t =
+  error t exn (Printexc.get_raw_backtrace ());
+  decr t
+
 let fork_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
   (* The sequence of operations below ensures that nothing is leaked. *)
   incr t Backoff.default;
@@ -187,22 +200,19 @@ let fork_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
     let fiber = Fiber.create_packed ~forbid:false r.bundle in
     let main =
       match pass with
-      | FLS ->
+      | FLS -> begin
           Fiber.FLS.set fiber flock_key t;
           fun fiber ->
-            begin
-              try thunk ()
-              with exn ->
-                error (get_flock fiber) exn (Printexc.get_raw_backtrace ())
-            end;
-            decr (get_flock fiber)
-      | Arg ->
+            match thunk () with
+            | () -> decr (get_flock fiber)
+            | exception exn -> raised_flock exn fiber
+        end
+      | Arg -> begin
           fun _ ->
-            begin
-              try thunk ()
-              with exn -> error t exn (Printexc.get_raw_backtrace ())
-            end;
-            decr t
+            match thunk () with
+            | () -> decr t
+            | exception exn -> raised_bundle exn t
+        end
     in
     Fiber.spawn fiber main
   with canceled_exn ->
