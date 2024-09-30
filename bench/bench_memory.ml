@@ -254,4 +254,56 @@ let run_suite ~budgetf:_ =
           ~units:"B" ~trend:`Lower_is_better ~description:"Memory usage"
           (`Float (divide_up (!stack + !heap) n))
       end;
+      begin
+        Scheduler.run @@ fun () ->
+        let open Picos_std_structured in
+        let n = 10_000 in
+        let heap = ref 0 in
+        let counter = ref n in
+        let rec finalizers () =
+          Bundle.join_after @@ fun _ ->
+          decr counter;
+          if 0 < !counter then finalizers ()
+          else begin
+            heap := live_bytes () - !heap;
+            stack_size ()
+          end
+        in
+        let stack =
+          Flock.join_after @@ fun () ->
+          Promise.await @@ Flock.fork_as_promise
+          @@ fun () ->
+          heap := live_bytes ();
+          finalizers ()
+        in
+        Metric.make ~metric:"stack and heap used" ~config:"join_after bundle"
+          ~units:"B" ~trend:`Lower_is_better ~description:"Memory usage"
+          (`Float (divide_up (stack + !heap) n))
+      end;
+      begin
+        Scheduler.run @@ fun () ->
+        let open Picos_std_structured in
+        let n = 10_000 in
+        let heap = ref 0 in
+        let counter = ref n in
+        let rec finalizers () =
+          Flock.join_after @@ fun _ ->
+          decr counter;
+          if 0 < !counter then finalizers ()
+          else begin
+            heap := live_bytes () - !heap;
+            stack_size ()
+          end
+        in
+        let stack =
+          Flock.join_after @@ fun () ->
+          Promise.await @@ Flock.fork_as_promise
+          @@ fun () ->
+          heap := live_bytes ();
+          finalizers ()
+        in
+        Metric.make ~metric:"stack and heap used" ~config:"join_after flock"
+          ~units:"B" ~trend:`Lower_is_better ~description:"Memory usage"
+          (`Float (divide_up (stack + !heap) n))
+      end;
     ]
