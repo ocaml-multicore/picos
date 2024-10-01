@@ -137,10 +137,18 @@ module Promise : sig
 
       ℹ️ In addition to using a promise to concurrently compute and return a
       value, a cancelable promise can also represent a concurrent fiber that
-      will continue until it is explicitly {{!try_terminate} canceled}. *)
+      will continue until it is explicitly {{!try_terminate} canceled}.
+
+      ⚠️ {{!try_terminate} Canceling} a promise does not immediately terminate
+      the fiber or wait for the fiber working to complete the promise to
+      terminate.  Constructs like {!Bundle.join_after} and {!Flock.join_after}
+      only guarantee that all fibers forked within their scope have terminated
+      before they return or raise.  The reason for this design choice in this
+      library is that synchronization is expensive and delaying synchronization
+      to the join operation is typically sufficient and amortizes the cost. *)
 
   type !'a t
-  (** Represents a promise to return value of type ['a]. *)
+  (** Represents a promise to produce a value of type ['a]. *)
 
   val of_value : 'a -> 'a t
   (** [of_value value] returns a constant completed promise that returns the
@@ -155,7 +163,10 @@ module Promise : sig
       the [value] that the evaluation of the promise returned, raises the
       exception that the evaluation of the promise raised, or raises the
       {{!Control.Terminate} [Terminate]} exception in case the promise has been
-      canceled. *)
+      canceled.
+
+      ⚠️ The fiber corresponding to a {{!try_terminate} canceled} promise is not
+      guaranteed to have terminated at the point [await] raises. *)
 
   val completed : 'a t -> 'a Event.t
   (** [completed promise] returns an {{!Picos_std_event.Event} event} that can
