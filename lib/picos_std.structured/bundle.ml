@@ -53,20 +53,42 @@ let get_flock fiber =
   | Bundle _ as t -> t
   | Nothing -> no_flock ()
 
-let await (type a) (Bundle r as t : t) fiber packed canceler outer
-    (pass : a pass) =
+let await (Bundle r as t : t) fiber packed canceler outer =
   decr t;
   Fiber.set_computation fiber packed;
   let forbid = Fiber.exchange fiber ~forbid:true in
   Trigger.await r.finished |> ignore;
   Fiber.set fiber ~forbid;
-  begin
-    match pass with FLS -> Fiber.FLS.set fiber flock_key outer | Arg -> ()
-  end;
+  if Fiber.FLS.get fiber flock_key ~default:Nothing != outer then
+    Fiber.FLS.set fiber flock_key outer;
   let (Packed parent) = packed in
   Computation.detach parent canceler;
   Control.Errors.check r.errors;
   Fiber.check fiber
+
+let[@inline never] raised exn t fiber packed canceler outer =
+  let bt = Printexc.get_raw_backtrace () in
+  error t exn bt;
+  await t fiber packed canceler outer;
+  Printexc.raise_with_backtrace exn bt
+
+let[@inline never] returned value (Bundle r as t : t) fiber packed canceler
+    outer =
+  let config = Atomic.get r.config in
+  if config land config_terminated_bit <> 0 then begin
+    let callstack =
+      let n = (config land config_callstack_mask) lsr config_callstack_shift in
+      if n = 0 then None else Some n
+    in
+    terminate ?callstack t
+  end;
+  await t fiber packed canceler outer;
+  value
+
+let join_after_realloc x fn t fiber packed canceler outer =
+  match fn x with
+  | value -> returned value t fiber packed canceler outer
+  | exception exn -> raised exn t fiber packed canceler outer
 
 let join_after_pass (type a) ?callstack ?on_return (fn : a -> _) (pass : a pass)
     =
@@ -93,38 +115,20 @@ let join_after_pass (type a) ?callstack ?on_return (fn : a -> _) (pass : a pass)
     Bundle { config; bundle; errors; finished }
   in
   let fiber = Fiber.current () in
-  let outer =
-    match pass with
-    | Arg -> Nothing
-    | FLS -> Fiber.FLS.get fiber flock_key ~default:Nothing
-  in
+  let outer = Fiber.FLS.get fiber flock_key ~default:Nothing in
+  begin
+    match pass with FLS -> Fiber.FLS.reserve fiber flock_key | Arg -> ()
+  end;
   let (Packed parent as packed) = Fiber.get_computation fiber in
   let (Packed bundle) = r.bundle in
   let canceler = Computation.attach_canceler ~from:parent ~into:bundle in
   (* Ideally there should be no poll point betweem [attach_canceler] and the
-     [match ... with] below. *)
-  match
-    Fiber.set_computation fiber r.bundle;
-    fn (match pass with FLS -> Fiber.FLS.set fiber flock_key t | Arg -> t)
-  with
-  | value ->
-      let config = Atomic.get r.config in
-      if config land config_terminated_bit <> 0 then begin
-        let callstack =
-          let n =
-            (config land config_callstack_mask) lsr config_callstack_shift
-          in
-          if n = 0 then None else Some n
-        in
-        terminate ?callstack t
-      end;
-      await t fiber packed canceler outer pass;
-      value
-  | exception exn ->
-      let bt = Printexc.get_raw_backtrace () in
-      error t exn bt;
-      await t fiber packed canceler outer pass;
-      Printexc.raise_with_backtrace exn bt
+     [match ... with] in [join_after_realloc]. *)
+  Fiber.set_computation fiber r.bundle;
+  let x : a =
+    match pass with FLS -> Fiber.FLS.set fiber flock_key t | Arg -> t
+  in
+  join_after_realloc x fn t fiber packed canceler outer
 
 let rec incr (Bundle r as t : t) backoff =
   let before = Atomic.get r.config in
@@ -136,14 +140,12 @@ let finish (Bundle { bundle = Packed bundle; _ } as t : t) canceler =
   Computation.detach bundle canceler;
   decr t
 
-(** This helps to reduce CPU stack usage with the native compiler. *)
 let[@inline never] raised exn child t canceler =
   let bt = Printexc.get_raw_backtrace () in
   Computation.cancel child exn bt;
   error t exn bt;
   finish t canceler
 
-(** This helps to reduce CPU stack usage with the native compiler. *)
 let[@inline never] returned value child t canceler =
   Computation.return child value;
   finish t canceler
@@ -181,14 +183,12 @@ let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
     decr t;
     raise canceled_exn
 
-(** This helps to reduce CPU stack usage with the native compiler. *)
 let[@inline never] raised_flock exn fiber =
   let t = get_flock fiber in
   let bt = Printexc.get_raw_backtrace () in
   error t exn bt;
   decr t
 
-(** This helps to reduce CPU stack usage with the native compiler. *)
 let[@inline never] raised_bundle exn t =
   error t exn (Printexc.get_raw_backtrace ());
   decr t

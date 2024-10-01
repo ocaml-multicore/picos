@@ -1001,6 +1001,17 @@ module Fiber : sig
 
         ⚠️ It is only safe to call [remove] from the fiber itself or when the
         fiber is known not to be running. *)
+
+    val reserve : fiber -> 'a t -> unit
+    (** [reserve fiber key] ensures that sufficient space has been allocated to
+        associate a value with the specified [key] such that a subsequent {!set}
+        with the [key] will not allocate.
+
+        ℹ️ This can be used to optimize the population of the FLS and to avoid
+        performing memory allocations in critical sections.
+
+        ⚠️ It is only safe to call [reserve] from the fiber itself or when the
+        fiber is known not to be running. *)
   end
 
   (** {2 Interface for spawning} *)

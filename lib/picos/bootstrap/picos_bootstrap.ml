@@ -489,6 +489,10 @@ module Fiber = struct
         Sys.opaque_identity (Obj.magic (Array.unsafe_get r.fls key) : a)
       else default
 
+    let reserve (type a) (Fiber r : fiber) (key : a t) =
+      let fls = r.fls in
+      if Array.length fls <= key then r.fls <- grow fls key
+
     let set (type a) (Fiber r : fiber) (key : a t) (value : a) =
       let fls = r.fls in
       if key < Array.length fls then
