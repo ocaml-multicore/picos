@@ -35,8 +35,9 @@
     {1 Understanding cancelation}
 
     A central idea of Picos is to provide a collection of building blocks for
-    parallelism safe cancelation.  Consider the following characteristic
-    example:
+    parallelism safe cancelation.
+
+    Consider the following motivating example:
 
     {@ocaml skip[
       Mutex.protect mutex begin fun () ->
@@ -48,25 +49,51 @@
 
     Assume that the fiber executing the above computation might be canceled, at
     any point, by another fiber running in parallel.  How could that be done
-    both effectively and safely?
+    ensuring both safety and liveness?
 
-    - To be effective, cancelation should take effect as soon as possible.  In
-      this case, cancelation should take effect even during the
-      {{!Picos_std_sync.Mutex.lock} [Mutex.lock]} inside
-      {{!Picos_std_sync.Mutex.protect} [Mutex.protect]} and the
-      {{!Picos_std_sync.Condition.wait} [Condition.wait]} operations when the
-      fiber might be in a suspended state awaiting for a signal to continue.
-    - To be safe, cancelation should not leave the program in an invalid state
+    - For safety, cancelation should not leave the program in an invalid state
       or cause the program to leak memory.  In this case, the ownership of the
       mutex must be transferred to the next fiber or be left unlocked and no
       references to unused objects must be left in the mutex or the condition
       variable.
 
-    Picos allows {{!Picos_std_sync.Mutex} [Mutex]} and
-    {{!Picos_std_sync.Condition} [Condition]} to be implemented such that
-    cancelation may safely take effect at or during calls to
-    {{!Picos_std_sync.Mutex.lock} [Mutex.lock]} and
-    {{!Picos_std_sync.Condition.wait} [Condition.wait]}.
+    - For liveness, cancelation should take effect as soon as possible.  In this
+      case, cancelation should take effect even during the
+      {{!Picos_std_sync.Mutex.lock} [Mutex.lock]} inside
+      {{!Picos_std_sync.Mutex.protect} [Mutex.protect]} and the
+      {{!Picos_std_sync.Condition.wait} [Condition.wait]} operations when the
+      fiber might be in a suspended state awaiting for a signal to continue.
+
+    Here is another motivating example:
+
+    {@ocaml skip[
+      (* ... allocate resources ... *)
+      Fun.protect ~finally begin fun () ->
+        Flock.join_after begin fun () ->
+          (* ... *)
+          Flock.fork begin fun () ->
+            (* ... may use resources ... *)
+          end;
+          (* ... *)
+        end;
+        (* ... resources no longer used ... *)
+      end
+    ]}
+
+    The idea is that the main or parent fiber allocates some resources, which
+    are then used by child fibers running in parallel.  What should happen when
+    the main fiber gets canceled?  We again have both safety and liveness
+    concerns:
+
+    - For safety, to ensure that resources are not finalized prematurely, the
+      {{!Picos_std_structured.Flock.join_after} [Flock.join_after]} call must
+      not return or raise before all of the child fibers have terminated.
+
+    - For liveness, when the parent fiber gets canceled, we'd like all the child
+      fibers to also get canceled.
+
+    Picos is designed to allow the above motivating examples and more to be
+    implemented correctly addressing both safety and liveness.
 
     {2 Cancelation in Picos}
 
