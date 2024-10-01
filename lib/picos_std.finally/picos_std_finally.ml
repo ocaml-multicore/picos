@@ -51,11 +51,14 @@ let forbidden release x =
          We also do not reraise the exception! *)
       release x
 
-(** This helps to reduce CPU stack usage with the native compiler. *)
-let[@inline never] release_and_reraise exn release x =
+let[@inline never] release_and_reraise exn x release =
   let bt = Printexc.get_raw_backtrace () in
   forbidden release x;
   Printexc.raise_with_backtrace exn bt
+
+let[@inline never] release_and_return value x release =
+  forbidden release x;
+  value
 
 (* *)
 
@@ -70,16 +73,19 @@ let rec drop instance =
       end
       else drop instance
 
-(** This helps to reduce CPU stack usage with the native compiler. *)
-let[@inline never] drop_and_reraise bt instance exn =
+let[@inline never] drop_and_reraise_as bt instance exn =
   drop instance;
   Printexc.raise_with_backtrace exn bt
 
+let[@inline never] drop_and_reraise exn instance =
+  let bt = Printexc.get_raw_backtrace () in
+  drop_and_reraise_as bt instance exn
+
 (* *)
 
-let await_transferred_or_dropped instance =
+let await_transferred_or_dropped instance result =
   match Atomic.get instance with
-  | Transferred | Dropped -> ()
+  | Transferred | Dropped -> result
   | Borrowed as case ->
       (* This should be impossible as [let@ _ = borrow _ in _] should have
          restored the state. *)
@@ -88,11 +94,17 @@ let await_transferred_or_dropped instance =
       match Trigger.await r.transferred_or_dropped with
       | None ->
           (* We release in case we could not wait. *)
-          drop instance
+          drop instance;
+          result
       | Some (exn, bt) ->
           (* We have been canceled, so we release. *)
-          drop_and_reraise bt instance exn
+          drop_and_reraise_as bt instance exn
     end
+
+let[@inline never] instantiate instance scope =
+  match scope instance with
+  | result -> await_transferred_or_dropped instance result
+  | exception exn -> drop_and_reraise exn instance
 
 let[@inline never] instantiate release acquire scope =
   let instance =
@@ -108,13 +120,7 @@ let[@inline never] instantiate release acquire scope =
   (* After this point there must be no allocations before [acquire ()]. *)
   let (Resource r : (_, [ `Resource ]) tdt) = Obj.magic (Atomic.get instance) in
   r.resource <- acquire ();
-  match scope instance with
-  | result ->
-      await_transferred_or_dropped instance;
-      result
-  | exception exn ->
-      let bt = Printexc.get_raw_backtrace () in
-      drop_and_reraise bt instance exn
+  instantiate instance scope
 
 (* *)
 
@@ -130,12 +136,8 @@ let[@inline never] rec transfer from scope =
           Trigger.signal r.transferred_or_dropped;
           scope into
         with
-        | result ->
-            await_transferred_or_dropped into;
-            result
-        | exception exn ->
-            let bt = Printexc.get_raw_backtrace () in
-            drop_and_reraise bt into exn
+        | result -> await_transferred_or_dropped into result
+        | exception exn -> drop_and_reraise exn into
       end
       else transfer from scope
 
@@ -172,25 +174,24 @@ let[@inline never] rec move from scope =
         | result ->
             forbidden r.release r.resource;
             result
-        | exception exn -> release_and_reraise exn r.release r.resource
+        | exception exn -> release_and_reraise exn r.resource r.release
       end
       else move from scope
 
 (* *)
 
+let[@inline never] finally x scope release =
+  match scope x with
+  | y -> release_and_return y x release
+  | exception exn -> release_and_reraise exn x release
+
 let[@inline never] finally release acquire scope =
   let x = acquire () in
-  match scope x with
-  | y ->
-      forbidden release x;
-      y
-  | exception exn -> release_and_reraise exn release x
+  finally x scope release
 
 let[@inline never] lastly action scope =
   match scope () with
-  | value ->
-      forbidden action ();
-      value
-  | exception exn -> release_and_reraise exn action ()
+  | value -> release_and_return value () action
+  | exception exn -> release_and_reraise exn () action
 
 external ( let@ ) : ('a -> 'b) -> 'a -> 'b = "%apply"
