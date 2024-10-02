@@ -150,6 +150,11 @@ let[@inline never] returned value child t canceler =
   Computation.return child value;
   finish t canceler
 
+let[@inline never] plug t thunk child canceler =
+  match thunk () with
+  | value -> returned value child t canceler
+  | exception exn -> raised exn child t canceler
+
 let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
   (* The sequence of operations below ensures that nothing is leaked. *)
   incr t Backoff.default;
@@ -160,19 +165,10 @@ let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
     let canceler = Computation.attach_canceler ~from:bundle ~into:child in
     let main =
       match pass with
-      | FLS -> begin
+      | FLS ->
           Fiber.FLS.set fiber flock_key t;
-          fun fiber ->
-            match thunk () with
-            | value -> returned value child (get_flock fiber) canceler
-            | exception exn -> raised exn child (get_flock fiber) canceler
-        end
-      | Arg -> begin
-          fun _ ->
-            match thunk () with
-            | value -> returned value child t canceler
-            | exception exn -> raised exn child t canceler
-        end
+          fun fiber -> plug (get_flock fiber) thunk child canceler
+      | Arg -> fun _ -> plug t thunk child canceler
     in
     Fiber.spawn fiber main;
     child
@@ -183,15 +179,12 @@ let fork_as_promise_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
     decr t;
     raise canceled_exn
 
-let[@inline never] raised_flock exn fiber =
-  let t = get_flock fiber in
-  let bt = Printexc.get_raw_backtrace () in
-  error t exn bt;
-  decr t
-
-let[@inline never] raised_bundle exn t =
+let[@inline never] raised exn t =
   error t exn (Printexc.get_raw_backtrace ());
   decr t
+
+let[@inline never] plug t thunk =
+  match thunk () with () -> decr t | exception exn -> raised exn t
 
 let fork_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
   (* The sequence of operations below ensures that nothing is leaked. *)
@@ -200,19 +193,10 @@ let fork_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
     let fiber = Fiber.create_packed ~forbid:false r.bundle in
     let main =
       match pass with
-      | FLS -> begin
+      | FLS ->
           Fiber.FLS.set fiber flock_key t;
-          fun fiber ->
-            match thunk () with
-            | () -> decr (get_flock fiber)
-            | exception exn -> raised_flock exn fiber
-        end
-      | Arg -> begin
-          fun _ ->
-            match thunk () with
-            | () -> decr t
-            | exception exn -> raised_bundle exn t
-        end
+          fun fiber -> plug (get_flock fiber) thunk
+      | Arg -> fun _ -> plug t thunk
     in
     Fiber.spawn fiber main
   with canceled_exn ->
