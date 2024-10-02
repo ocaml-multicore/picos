@@ -23,7 +23,11 @@ module Fiber = struct
 
   type _ Effect.t += Current : Fiber.t Effect.t
 
-  let current () = Effect.perform Current
+  let current () =
+    let p = Per_thread.get () in
+    match p.current with
+    | T Nothing -> Effect.perform Current
+    | T (Fiber _ as fiber) -> fiber
 
   type _ Effect.t +=
     | Spawn : { fiber : Fiber.t; main : Fiber.t -> unit } -> unit Effect.t

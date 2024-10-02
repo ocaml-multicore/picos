@@ -1,4 +1,4 @@
 (library
  (name picos_bootstrap)
  (package picos)
- (libraries backoff))
+ (libraries picos.thread backoff))

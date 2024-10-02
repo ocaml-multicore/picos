@@ -58,17 +58,6 @@ type t = {
   mutable run : bool;
 }
 
-let fiber_key : Fiber.Maybe.t ref Picos_thread.TLS.t =
-  Picos_thread.TLS.create ()
-
-let get () =
-  match Picos_thread.TLS.get_exn fiber_key with
-  | p -> p
-  | exception Picos_thread.TLS.Not_set ->
-      let p = ref Fiber.Maybe.nothing in
-      Picos_thread.TLS.set fiber_key p;
-      p
-
 let[@inline] relaxed_wakeup t ~known_not_empty =
   if
     t.num_waiters_non_zero
@@ -79,24 +68,24 @@ let[@inline] relaxed_wakeup t ~known_not_empty =
     Condition.signal t.condition
   end
 
-let exec p t = function
+let exec (p : Per_thread.t) t = function
   | Spawn (fiber, main) ->
-      p := Fiber.Maybe.of_fiber fiber;
+      p.current <- Fiber.Maybe.of_fiber fiber;
       Effect.Deep.match_with main fiber t.handler
   | Raise (fiber, k, exn, bt) ->
-      p := Fiber.Maybe.of_fiber fiber;
+      p.current <- Fiber.Maybe.of_fiber fiber;
       Effect.Deep.discontinue_with_backtrace k exn bt
   | Return (fiber, k) ->
-      p := Fiber.Maybe.of_fiber fiber;
+      p.current <- Fiber.Maybe.of_fiber fiber;
       Effect.Deep.continue k ()
   | Current (fiber, k) ->
-      p := Fiber.Maybe.of_fiber fiber;
+      p.current <- Fiber.Maybe.of_fiber fiber;
       Effect.Deep.continue k fiber
   | Continue (fiber, k) ->
-      p := Fiber.Maybe.of_fiber fiber;
+      p.current <- Fiber.Maybe.of_fiber fiber;
       Fiber.continue fiber k ()
   | Resume (fiber, k) ->
-      p := Fiber.Maybe.of_fiber fiber;
+      p.current <- Fiber.Maybe.of_fiber fiber;
       Fiber.resume fiber k
 
 let rec next p t =
@@ -105,7 +94,7 @@ let rec next p t =
       relaxed_wakeup t ~known_not_empty:false;
       exec p t ready
   | exception Not_found ->
-      p := Fiber.Maybe.nothing;
+      p.current <- Fiber.Maybe.nothing;
       if Atomic.get t.num_alive_fibers <> 0 then begin
         Mutex.lock t.mutex;
         let n = !(t.num_waiters) + 1 in
@@ -190,22 +179,22 @@ let context ?fatal_exn_handler () =
   and current =
     Some
       (fun k ->
-        let p = Picos_thread.TLS.get_exn fiber_key in
-        let fiber = Fiber.Maybe.to_fiber !p in
+        let p = Per_thread.get () in
+        let fiber = Fiber.Maybe.to_fiber p.current in
         Collection.push t.ready (Current (fiber, k));
         next p t)
   and yield =
     Some
       (fun k ->
-        let p = Picos_thread.TLS.get_exn fiber_key in
-        let fiber = Fiber.Maybe.to_fiber !p in
+        let p = Per_thread.get () in
+        let fiber = Fiber.Maybe.to_fiber p.current in
         Collection.push t.ready (Continue (fiber, k));
         next p t)
   and return =
     Some
       (fun k ->
-        let p = Picos_thread.TLS.get_exn fiber_key in
-        let fiber = Fiber.Maybe.to_fiber !p in
+        let p = Per_thread.get () in
+        let fiber = Fiber.Maybe.to_fiber p.current in
         Collection.push t.ready (Return (fiber, k));
         next p t)
   and handler = { retc; exnc; effc }
@@ -214,8 +203,8 @@ let context ?fatal_exn_handler () =
     function
     | Fiber.Current -> t.current
     | Fiber.Spawn r ->
-        let p = Picos_thread.TLS.get_exn fiber_key in
-        let fiber = Fiber.Maybe.to_fiber !p in
+        let p = Per_thread.get () in
+        let fiber = Fiber.Maybe.to_fiber p.current in
         if Fiber.is_canceled fiber then t.yield
         else begin
           Atomic.incr t.num_alive_fibers;
@@ -225,8 +214,8 @@ let context ?fatal_exn_handler () =
         end
     | Fiber.Yield -> t.yield
     | Computation.Cancel_after r -> begin
-        let p = Picos_thread.TLS.get_exn fiber_key in
-        let fiber = Fiber.Maybe.to_fiber !p in
+        let p = Per_thread.get () in
+        let fiber = Fiber.Maybe.to_fiber p.current in
         if Fiber.is_canceled fiber then t.yield
         else
           match
@@ -243,8 +232,8 @@ let context ?fatal_exn_handler () =
     | Trigger.Await trigger ->
         Some
           (fun k ->
-            let p = Picos_thread.TLS.get_exn fiber_key in
-            let fiber = Fiber.Maybe.to_fiber !p in
+            let p = Per_thread.get () in
+            let fiber = Fiber.Maybe.to_fiber p.current in
             if Fiber.try_suspend fiber trigger fiber k t.resume then next p t
             else begin
               Collection.push t.ready (Resume (fiber, k));
@@ -253,14 +242,14 @@ let context ?fatal_exn_handler () =
     | _ -> None
   and retc () =
     Atomic.decr t.num_alive_fibers;
-    let p = Picos_thread.TLS.get_exn fiber_key in
+    let p = Per_thread.get () in
     next p t
   in
   t
 
 let runner_on_this_thread t =
   Select.check_configured ();
-  next (get ()) t
+  next (Per_thread.get ()) t
 
 let rec await t =
   if t.num_waiters_non_zero then begin
@@ -289,7 +278,7 @@ let run_fiber ?context:t_opt fiber main =
     t.run <- true;
     Mutex.unlock t.mutex;
     Collection.push t.ready (Spawn (fiber, main));
-    next (get ()) t;
+    next (Per_thread.get ()) t;
     Mutex.lock t.mutex;
     await t
   end
