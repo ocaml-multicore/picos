@@ -10,6 +10,7 @@
    (run %{test} -brief "Picos DLS")
    (run %{test} -brief "Yield with Picos_std_sync")
    (run %{test} -brief "Picos Spawn")
+   (run %{test} -brief "Picos Queue")
    (run %{test} -brief "Picos Yield")
    (run %{test} -brief "Picos Cancel_after with Picos_select")
    (run %{test} -brief "Ref with Picos_std_sync")
