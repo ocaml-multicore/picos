@@ -4,4 +4,5 @@ module Semaphore = Semaphore
 module Lazy = Lazy
 module Latch = Latch
 module Ivar = Ivar
+module Queue = Queue
 module Stream = Stream
