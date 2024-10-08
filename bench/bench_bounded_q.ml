@@ -102,7 +102,8 @@ let run_one_domain ~budgetf ?(n_msgs = 25 * Util.iter_factor) () =
 (** This will keep a domain running. *)
 let yielder () =
   while true do
-    Control.yield ()
+    Control.yield ();
+    Backoff.once Backoff.default |> ignore
   done
 
 let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 10 * Util.iter_factor) () =
