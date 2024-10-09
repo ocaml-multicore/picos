@@ -1,4 +1,4 @@
-let[@inline never] error_awaiting () = invalid_arg "already awaiting"
+let[@inline never] error_awaiting _ = invalid_arg "already awaiting"
 
 type state =
   | Signaled
@@ -7,38 +7,45 @@ type state =
 
 and t = state Atomic.t
 
-let create () = Atomic.make Initial
-let is_signaled t = Atomic.get t == Signaled
-
-let is_initial t =
-  match Atomic.get t with
-  | Initial -> true
-  | Awaiting _ -> error_awaiting ()
-  | Signaled -> false
-
-let rec finish t ~allow_awaiting =
+let finish t ~allow_awaiting =
   match Atomic.get t with
   | Signaled -> ()
   | Awaiting r as before ->
-      if allow_awaiting then
+      if allow_awaiting then begin
         if Atomic.compare_and_set t before Signaled then r.action t r.x r.y
-        else finish t ~allow_awaiting
-      else error_awaiting ()
+      end
+      else error_awaiting before
   | Initial ->
-      if not (Atomic.compare_and_set t Initial Signaled) then
-        finish t ~allow_awaiting
+      if not (Atomic.compare_and_set t Initial Signaled) then begin
+        match Atomic.get t with
+        | Signaled | Initial -> ()
+        | Awaiting r as before ->
+            if allow_awaiting && Atomic.compare_and_set t before Signaled then
+              r.action t r.x r.y
+      end
 
-let signal t = finish t ~allow_awaiting:true
-let dispose t = finish t ~allow_awaiting:false
-
-let rec on_signal t x y action =
+let on_signal t x y action =
   match Atomic.get t with
   | Signaled -> false
-  | Awaiting _ -> error_awaiting ()
-  | Initial ->
+  | Awaiting _ as any -> error_awaiting any
+  | Initial -> begin
       let success =
         Atomic.compare_and_set t Initial (Awaiting { action; x; y })
       in
-      if success then success else on_signal t x y action
+      if success then success
+      else
+        match Atomic.get t with Signaled -> false | any -> error_awaiting any
+    end
 
-let from_action x y action = Atomic.make (Awaiting { action; x; y })
+let[@inline] create () = Atomic.make Initial
+
+let[@inline] is_initial t =
+  match Atomic.get t with
+  | Initial -> true
+  | Awaiting _ as any -> error_awaiting any
+  | Signaled -> false
+
+let[@inline] from_action x y action = Atomic.make (Awaiting { action; x; y })
+let[@inline] is_signaled t = Atomic.get t == Signaled
+let[@inline] signal t = finish t ~allow_awaiting:true
+let[@inline] dispose t = finish t ~allow_awaiting:false
