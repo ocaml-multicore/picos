@@ -84,8 +84,8 @@ module Counting = struct
     0 < count
     &&
     let after = Obj.repr (count - 1) in
-    Atomic.compare_and_set t before after
-    || try_acquire t (Backoff.once backoff)
+    let success = Atomic.compare_and_set t before after in
+    if success then success else try_acquire t (Backoff.once backoff)
 
   let get_value t =
     let state = Atomic.get t in

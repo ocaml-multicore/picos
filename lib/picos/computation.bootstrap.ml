@@ -101,11 +101,12 @@ module Tx = struct
         &&
         let completions = r.completions in
         r.completions <- Completion { computation; before; completions };
-        Atomic.compare_and_set computation (S before) (S after)
-        || begin
-             r.completions <- completions;
-             try_complete tx computation (Backoff.once backoff) after
-           end
+        let success = Atomic.compare_and_set computation (S before) (S after) in
+        if success then success
+        else begin
+          r.completions <- completions;
+          try_complete tx computation (Backoff.once backoff) after
+        end
     | S (Canceled { tx = previous_tx; _ })
     | S (Returned { tx = previous_tx; _ }) ->
         if try_abort previous_tx then try_complete tx computation backoff after
@@ -124,7 +125,8 @@ module Tx = struct
         commit r.completions
 
   let try_commit (Running r : [ `Running ] tx) =
-    Atomic.compare_and_set r.state Started Stopped && commit r.completions
+    let success = Atomic.compare_and_set r.state Started Stopped in
+    if not success then success else commit r.completions
 
   let[@inline] try_return (Running _ as tx : [ `Running ] tx) computation value
       =
@@ -191,8 +193,8 @@ let rec try_attach t trigger backoff =
         else
           gc (one + (r.balance_and_mode land fifo_bit)) [ trigger ] r.triggers
       in
-      Atomic.compare_and_set t before after
-      || try_attach t trigger (Backoff.once backoff)
+      let success = Atomic.compare_and_set t before after in
+      if success then success else try_attach t trigger (Backoff.once backoff)
 
 let try_attach t trigger = try_attach t trigger Backoff.default
 
@@ -209,8 +211,8 @@ let rec unsafe_unsuspend t backoff =
           S (Continue { r with balance_and_mode })
         else gc (r.balance_and_mode land fifo_bit) [] r.triggers
       in
-      Atomic.compare_and_set t before after
-      || unsafe_unsuspend t (Backoff.once backoff)
+      let success = Atomic.compare_and_set t before after in
+      if success then success else unsafe_unsuspend t (Backoff.once backoff)
 
 let detach t trigger =
   Trigger.signal trigger;

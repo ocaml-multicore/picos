@@ -36,7 +36,9 @@ let rec on_signal t x y action =
   | Signaled -> false
   | Awaiting _ -> error_awaiting ()
   | Initial ->
-      Atomic.compare_and_set t Initial (Awaiting { action; x; y })
-      || on_signal t x y action
+      let success =
+        Atomic.compare_and_set t Initial (Awaiting { action; x; y })
+      in
+      if success then success else on_signal t x y action
 
 let from_action x y action = Atomic.make (Awaiting { action; x; y })
