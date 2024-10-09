@@ -1,7 +1,0 @@
-(library
- (name picos_ocaml4)
- (package picos)
- (wrapped false)
- (enabled_if
-  (< %{ocaml_version} 5.0.0))
- (libraries picos.thread picos_bootstrap))

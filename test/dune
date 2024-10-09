@@ -79,8 +79,17 @@
 (rule
  (package picos_meta)
  (action
-  (progn
-   (copy ../lib/picos/bootstrap/picos_bootstrap.ml picos_bootstrap.ml))))
+  (with-stdout-to
+   picos_bootstrap.ml
+   (progn
+    (echo "module Trigger = struct\n")
+    (echo "# 1 \"lib/picos/trigger.bootstrap.ml\"\n")
+    (cat ../lib/picos/trigger.bootstrap.ml)
+    (echo "end\n")
+    (echo "module Computation = struct\n")
+    (echo "# 1 \"lib/picos/computation.bootstrap.ml\"\n")
+    (cat ../lib/picos/computation.bootstrap.ml)
+    (echo "end\n")))))
 
 (test
  (package picos_meta)
