@@ -12,7 +12,7 @@ let paths =
     )
   in
   [
-    lib "picos" ~subs:[ "bootstrap"; "ocaml5"; "ocaml4" ];
+    lib "picos";
     lib "picos.domain";
     lib "picos.thread";
     lib "picos_aux.htbl";

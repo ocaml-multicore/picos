@@ -1,4 +1,0 @@
-(library
- (name picos_bootstrap)
- (package picos)
- (libraries backoff))
