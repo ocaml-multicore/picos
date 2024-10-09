@@ -65,11 +65,12 @@ let try_suspend (Fiber r : t) trigger x y resume =
   let (Packed computation) = r.packed in
   if not r.forbid then begin
     if Computation.try_attach computation trigger then
-      Trigger.on_signal trigger x y resume
-      || begin
-           Computation.detach computation trigger;
-           false
-         end
+      let success = Trigger.on_signal trigger x y resume in
+      if success then success
+      else begin
+        Computation.detach computation trigger;
+        false
+      end
     else if Computation.is_canceled computation then begin
       Trigger.dispose trigger;
       false
