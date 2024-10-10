@@ -26,14 +26,14 @@ and _ completions =
 
 and ('a, _) st =
   | Canceled : {
+      mutable tx : [ `Stopped | `Running ] tx;
       exn : exn;
       bt : Printexc.raw_backtrace;
-      mutable tx : [ `Stopped | `Running ] tx;
     }
       -> ('a, [> `Canceled ]) st
   | Returned : {
-      value : 'a;
       mutable tx : [ `Stopped | `Running ] tx;
+      value : 'a;
     }
       -> ('a, [> `Returned ]) st
   | Continue : {
