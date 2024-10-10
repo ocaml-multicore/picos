@@ -2,16 +2,18 @@ open Multicore_bench
 open Picos
 
 module Stash = struct
-  type 'a t = { mutable size : int; array : 'a option array }
+  type t = { mutable size : int; array : int ref array }
 
-  let create ~capacity = { size = 0; array = Array.make capacity None }
+  let create ~capacity =
+    { size = 0; array = Array.make capacity (Obj.magic ()) }
+
   let capacity t = Array.length t.array
   let length t = t.size
 
-  let unsafe_push t x =
-    let x = Some x in
+  let unsafe_push t (x : Trigger.t) =
+    let x = x in
     let i = t.size in
-    Array.unsafe_set t.array i x;
+    Array.unsafe_set t.array i (Obj.magic x : int ref);
     t.size <- i + 1
 
   let unsafe_drop t i =
@@ -19,14 +21,13 @@ module Stash = struct
     t.size <- n;
     let x = Array.unsafe_get t.array i in
     Array.unsafe_set t.array i (Array.unsafe_get t.array n);
-    Array.unsafe_set t.array n None;
-    match x with Some x -> x | None -> assert false
+    (Obj.magic x : Trigger.t)
 end
 
 let run_one ~budgetf ~n_domains () =
   let n_ops = 200 / n_domains * Util.iter_factor in
 
-  let computation = Computation.create () in
+  let computation = Computation.create () |> Multicore_magic.copy_as_padded in
 
   let n_ops_todo = Countdown.create ~n_domains () in
 

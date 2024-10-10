@@ -7,21 +7,25 @@ type state =
 
 and t = state Atomic.t
 
-let finish t ~allow_awaiting =
+let finish t ~run_action =
   match Atomic.get t with
   | Signaled -> ()
   | Awaiting r as before ->
-      if allow_awaiting then begin
-        if Atomic.compare_and_set t before Signaled then r.action t r.x r.y
-      end
-      else error_awaiting before
+      if
+        Bool.to_int (Atomic.compare_and_set t before Signaled)
+        land Bool.to_int run_action
+        != 0
+      then r.action t r.x r.y
   | Initial ->
       if not (Atomic.compare_and_set t Initial Signaled) then begin
         match Atomic.get t with
         | Signaled | Initial -> ()
         | Awaiting r as before ->
-            if allow_awaiting && Atomic.compare_and_set t before Signaled then
-              r.action t r.x r.y
+            if
+              Bool.to_int (Atomic.compare_and_set t before Signaled)
+              land Bool.to_int run_action
+              != 0
+            then r.action t r.x r.y
       end
 
 let on_signal t x y action =
@@ -47,5 +51,5 @@ let[@inline] is_initial t =
 
 let[@inline] from_action x y action = Atomic.make (Awaiting { action; x; y })
 let[@inline] is_signaled t = Atomic.get t == Signaled
-let[@inline] signal t = finish t ~allow_awaiting:true
-let[@inline] dispose t = finish t ~allow_awaiting:false
+let[@inline] signal t = finish t ~run_action:true
+let[@inline] dispose t = finish t ~run_action:false

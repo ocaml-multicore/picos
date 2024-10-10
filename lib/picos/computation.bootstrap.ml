@@ -215,7 +215,7 @@ let rec unsafe_unsuspend t backoff =
       if success then success else unsafe_unsuspend t (Backoff.once backoff)
 
 let detach t trigger =
-  Trigger.signal trigger;
+  Trigger.dispose trigger;
   unsafe_unsuspend t Backoff.default |> ignore
 
 (** This cannot be [@@unboxed] because [Atomic.t] is opaque *)
