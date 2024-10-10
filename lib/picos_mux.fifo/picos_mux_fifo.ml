@@ -4,11 +4,13 @@ let[@inline never] quota_non_positive () = invalid_arg "quota must be positive"
 
 type ready =
   | Spawn of Fiber.t * (Fiber.t -> unit)
-  | Continue of Fiber.t * (unit, unit) Effect.Deep.continuation
+  | Continue of Fiber.t * (unit, unit) Effect.Shallow.continuation
   | Resume of
       Fiber.t
-      * ((exn * Printexc.raw_backtrace) option, unit) Effect.Deep.continuation
-  | Return of Fiber.Maybe.t * (unit, unit) Effect.Deep.continuation
+      * ( (exn * Printexc.raw_backtrace) option,
+          unit )
+        Effect.Shallow.continuation
+  | Return of Fiber.Maybe.t * (unit, unit) Effect.Shallow.continuation
 
 module Mpscq = Picos_aux_mpscq
 
@@ -20,13 +22,13 @@ type t = {
   resume :
     Trigger.t ->
     Fiber.t ->
-    ((exn * Printexc.raw_backtrace) option, unit) Effect.Deep.continuation ->
+    ((exn * Printexc.raw_backtrace) option, unit) Effect.Shallow.continuation ->
     unit;
-  current : ((Fiber.t, unit) Effect.Deep.continuation -> unit) option;
-  yield : ((unit, unit) Effect.Deep.continuation -> unit) option;
-  return : ((unit, unit) Effect.Deep.continuation -> unit) option;
-  discontinue : ((unit, unit) Effect.Deep.continuation -> unit) option;
-  handler : (unit, unit) Effect.Deep.handler;
+  current : ((Fiber.t, unit) Effect.Shallow.continuation -> unit) option;
+  yield : ((unit, unit) Effect.Shallow.continuation -> unit) option;
+  return : ((unit, unit) Effect.Shallow.continuation -> unit) option;
+  discontinue : ((unit, unit) Effect.Shallow.continuation -> unit) option;
+  handler : (unit, unit) Effect.Shallow.handler;
   quota : int;
   mutable fiber : Fiber.Maybe.t;
   mutable remaining_quota : int;
@@ -38,19 +40,20 @@ let rec next t =
   | Spawn (fiber, main) ->
       t.fiber <- Fiber.Maybe.of_fiber fiber;
       t.remaining_quota <- t.quota;
-      Effect.Deep.match_with main fiber t.handler
+      let k = Effect.Shallow.fiber main in
+      Effect.Shallow.continue_with k fiber t.handler
   | Return (fiber, k) ->
       t.fiber <- fiber;
       t.remaining_quota <- t.quota;
-      Effect.Deep.continue k ()
+      Effect.Shallow.continue_with k () t.handler
   | Continue (fiber, k) ->
       t.fiber <- Fiber.Maybe.of_fiber fiber;
       t.remaining_quota <- t.quota;
-      Fiber.continue fiber k ()
+      Fiber.continue_with fiber k () t.handler
   | Resume (fiber, k) ->
       t.fiber <- Fiber.Maybe.of_fiber fiber;
       t.remaining_quota <- t.quota;
-      Fiber.resume fiber k
+      Fiber.resume_with fiber k t.handler
   | exception Mpscq.Empty ->
       t.fiber <- Fiber.Maybe.nothing;
       if t.num_alive_fibers <> 0 then begin
@@ -102,7 +105,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
     Some
       (fun k ->
         let fiber = Fiber.Maybe.to_fiber t.fiber in
-        Effect.Deep.continue k fiber)
+        Effect.Shallow.continue_with k fiber t.handler)
   and yield =
     Some
       (fun k ->
@@ -115,7 +118,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
         let remaining_quota = t.remaining_quota - 1 in
         if 0 < remaining_quota then begin
           t.remaining_quota <- remaining_quota;
-          Effect.Deep.continue k ()
+          Effect.Shallow.continue_with k () t.handler
         end
         else begin
           Mpscq.push t.ready (Return (t.fiber, k));
@@ -125,10 +128,10 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
     Some
       (fun k ->
         let fiber = Fiber.Maybe.to_fiber t.fiber in
-        Fiber.continue fiber k ())
+        Fiber.continue_with fiber k () t.handler)
   and handler = { retc; exnc; effc }
   and[@alert "-handler"] effc :
-      type a. a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option =
+      type a. a Effect.t -> ((a, _) Effect.Shallow.continuation -> _) option =
     function
     | Fiber.Current -> t.current
     | Fiber.Spawn r ->
@@ -150,7 +153,9 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
           | () -> t.return
           | exception exn ->
               let bt = Printexc.get_raw_backtrace () in
-              Some (fun k -> Effect.Deep.discontinue_with_backtrace k exn bt)
+              Some
+                (fun k ->
+                  Effect.Shallow.discontinue_with_backtrace k exn bt t.handler)
       end
     | Trigger.Await trigger ->
         Some
@@ -161,7 +166,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
               let remaining_quota = t.remaining_quota - 1 in
               if 0 < remaining_quota then begin
                 t.remaining_quota <- remaining_quota;
-                Fiber.resume fiber k
+                Fiber.resume_with fiber k t.handler
               end
               else begin
                 Mpscq.push t.ready (Resume (fiber, k));
