@@ -1,0 +1,3 @@
+(library
+ (name hoot)
+ (libraries backoff multicore-magic picos))
