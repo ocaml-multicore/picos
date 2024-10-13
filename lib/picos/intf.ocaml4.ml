@@ -8,5 +8,6 @@ end
 
 module type Fiber = sig
   type t
+  type maybe
   type _ computation
 end

@@ -1176,7 +1176,10 @@ module Fiber : sig
       @raise Invalid_argument if the trigger is not in the signaled state. *)
 
   include
-    Intf.Fiber with type t := t with type 'a computation := 'a Computation.t
+    Intf.Fiber
+      with type t := t
+      with type maybe = Maybe.t
+      with type 'a computation := 'a Computation.t
 
   (** {2 Design rationale}
 

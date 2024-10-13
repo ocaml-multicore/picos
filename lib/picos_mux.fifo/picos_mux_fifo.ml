@@ -27,8 +27,8 @@ type t = {
   mutable return : ((unit, unit) Effect.Deep.continuation -> unit) option;
   mutable discontinue : ((unit, unit) Effect.Deep.continuation -> unit) option;
   mutable handler : (unit, unit) Effect.Deep.handler;
+  per_thread : Fiber.Per_thread.t;
   quota : int;
-  mutable fiber : Fiber.Maybe.t;
   mutable remaining_quota : int;
   mutable num_alive_fibers : int;
 }
@@ -37,7 +37,7 @@ let rec next t =
   match Mpscq.pop_exn t.ready with
   | ready -> begin
       t.remaining_quota <- t.quota;
-      t.fiber <-
+      t.per_thread.current <-
         (match ready with
         | Spawn (fiber, _)
         | Continue (fiber, _)
@@ -51,7 +51,7 @@ let rec next t =
       | Resume (fiber, k) -> Fiber.resume fiber k
     end
   | exception Mpscq.Empty ->
-      t.fiber <- Fiber.Maybe.nothing;
+      t.per_thread.current <- Fiber.Maybe.nothing;
       if t.num_alive_fibers <> 0 then begin
         if Atomic.get t.needs_wakeup then begin
           Mutex.lock t.mutex;
@@ -75,6 +75,8 @@ let run_fiber ?quota ?fatal_exn_handler fiber main =
       | None -> Int.max_int
       | Some quota -> if quota <= 0 then quota_non_positive quota else quota
     in
+    let per_thread = Fiber.Per_thread.get () in
+    per_thread.current <- Fiber.Maybe.of_fiber fiber;
     {
       ready = Mpscq.create ~padded:true ();
       needs_wakeup = Atomic.make false |> Multicore_magic.copy_as_padded;
@@ -86,8 +88,8 @@ let run_fiber ?quota ?fatal_exn_handler fiber main =
       return = Obj.magic ();
       discontinue = Obj.magic ();
       handler = Obj.magic ();
+      per_thread;
       quota;
-      fiber = Fiber.Maybe.of_fiber fiber;
       remaining_quota = quota;
       num_alive_fibers = 1;
     }
@@ -101,7 +103,7 @@ let run_fiber ?quota ?fatal_exn_handler fiber main =
           | Fiber.Current ->
               (t.current : ((a, _) Effect.Deep.continuation -> _) option)
           | Fiber.Spawn r ->
-              let fiber = Fiber.Maybe.to_fiber t.fiber in
+              let fiber = Fiber.Maybe.to_fiber t.per_thread.current in
               if Fiber.is_canceled fiber then t.discontinue
               else begin
                 t.num_alive_fibers <- t.num_alive_fibers + 1;
@@ -110,7 +112,7 @@ let run_fiber ?quota ?fatal_exn_handler fiber main =
               end
           | Fiber.Yield -> t.yield
           | Computation.Cancel_after r -> begin
-              let fiber = Fiber.Maybe.to_fiber t.fiber in
+              let fiber = Fiber.Maybe.to_fiber t.per_thread.current in
               if Fiber.is_canceled fiber then t.discontinue
               else
                 match
@@ -126,7 +128,7 @@ let run_fiber ?quota ?fatal_exn_handler fiber main =
           | Trigger.Await trigger ->
               Some
                 (fun k ->
-                  let fiber = Fiber.Maybe.to_fiber t.fiber in
+                  let fiber = Fiber.Maybe.to_fiber t.per_thread.current in
                   if Fiber.try_suspend fiber trigger fiber k t.resume then
                     next t
                   else
@@ -164,12 +166,12 @@ let run_fiber ?quota ?fatal_exn_handler fiber main =
   t.current <-
     Some
       (fun k ->
-        let fiber = Fiber.Maybe.to_fiber t.fiber in
+        let fiber = Fiber.Maybe.to_fiber t.per_thread.current in
         Effect.Deep.continue k fiber);
   t.yield <-
     Some
       (fun k ->
-        let fiber = Fiber.Maybe.to_fiber t.fiber in
+        let fiber = Fiber.Maybe.to_fiber t.per_thread.current in
         Mpscq.push t.ready (Continue (fiber, k));
         next t);
   t.return <-
@@ -181,13 +183,14 @@ let run_fiber ?quota ?fatal_exn_handler fiber main =
           Effect.Deep.continue k ()
         end
         else begin
-          Mpscq.push t.ready (Return (Fiber.Maybe.to_fiber t.fiber, k));
+          Mpscq.push t.ready
+            (Return (Fiber.Maybe.to_fiber t.per_thread.current, k));
           next t
         end);
   t.discontinue <-
     Some
       (fun k ->
-        let fiber = Fiber.Maybe.to_fiber t.fiber in
+        let fiber = Fiber.Maybe.to_fiber t.per_thread.current in
         Fiber.continue fiber k ());
   Effect.Deep.match_with main fiber t.handler
 

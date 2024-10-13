@@ -65,6 +65,7 @@ end
 
 module type Fiber = sig
   type t
+  type maybe
   type _ computation
 
   val resume :
@@ -158,4 +159,14 @@ module type Fiber = sig
   type _ Effect.t +=
     private
     | Spawn : { fiber : t; main : t -> unit } -> unit Effect.t
+
+  module Per_thread : sig
+    (** *)
+
+    type t = { mutable current : maybe  (** *) }
+    (** *)
+
+    val get : unit -> t
+    (** *)
+  end
 end
