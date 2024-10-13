@@ -380,11 +380,7 @@ module Computation = struct
 
   let attach_canceler ~from ~into =
     let canceler = canceler ~from ~into in
-    if try_attach from canceler then canceler
-    else begin
-      check from;
-      error_returned ()
-    end
+    if try_attach from canceler then canceler else error_returned (check from)
 
   (* END COMPUTATION BOOTSTRAP *)
 
@@ -493,7 +489,7 @@ module Fiber = struct
         let success = Trigger.on_signal trigger x y resume in
         if success then success
         else begin
-          Computation.detach computation trigger;
+          Computation.unsafe_unsuspend computation Backoff.default |> ignore;
           false
         end
       else if Computation.is_canceled computation then begin
@@ -600,7 +596,7 @@ module Fiber = struct
   (* BEGIN FIBER COMMON *)
 
   module Maybe = struct
-    let[@inline never] not_a_fiber () = invalid_arg "not a fiber"
+    let[@inline never] not_a_fiber _ = invalid_arg "not a fiber"
 
     type t = T : [< `Nothing | `Fiber ] tdt -> t [@@unboxed]
 
@@ -632,7 +628,7 @@ module Fiber = struct
       | T (Fiber _ as t) -> check t
 
     let[@inline] to_fiber = function
-      | T Nothing -> not_a_fiber ()
+      | T Nothing as any -> not_a_fiber any
       | T (Fiber _ as t) -> t
   end
 
