@@ -469,10 +469,10 @@ module Fiber = struct
     else
       match body (r.forbid <- forbid) with
       | value ->
-          r.forbid <- not forbid;
+          r.forbid <- not r.forbid;
           value
       | exception exn ->
-          r.forbid <- not forbid;
+          r.forbid <- not r.forbid;
           raise exn
 
   let forbid t body = explicitly t body ~forbid:true
