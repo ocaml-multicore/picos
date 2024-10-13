@@ -79,25 +79,15 @@
 (rule
  (package picos_meta)
  (action
-  (with-stdout-to
-   picos_bootstrap.ml
-   (progn
-    (echo "module Trigger = struct\n")
-    (echo "# 1 \"lib/picos/trigger.bootstrap.ml\"\n")
-    (cat ../lib/picos/trigger.bootstrap.ml)
-    (echo "end\n")
-    (echo "module Computation = struct\n")
-    (echo "# 1 \"lib/picos/computation.bootstrap.ml\"\n")
-    (cat ../lib/picos/computation.bootstrap.ml)
-    (echo "end\n")))))
+  (copy ../lib/picos/picos.ocaml5.ml picos.ml)))
 
 (test
  (package picos_meta)
  (name test_picos_dscheck)
- (modules test_picos_dscheck picos_bootstrap)
+ (modules test_picos_dscheck picos)
  (build_if
   (>= %{ocaml_version} 5))
- (libraries picos backoff traced_atomic dscheck alcotest))
+ (libraries backoff traced_atomic dscheck alcotest))
 
 ;;
 
