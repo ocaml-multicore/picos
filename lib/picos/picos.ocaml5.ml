@@ -366,18 +366,6 @@ module Computation = struct
 
   let canceler ~from ~into = Trigger.from_action from into propagate
 
-  let check_non_negative seconds =
-    if not (0.0 <= seconds) then error_negative_or_nan ()
-
-  let rec get_or block t =
-    match Atomic.get t with
-    | S (Returned { value; tx; _ }) ->
-        if tx == Stopped then value else get_or block (block t)
-    | S (Canceled { exn; bt; tx; _ }) ->
-        if tx == Stopped then Printexc.raise_with_backtrace exn bt
-        else get_or block (block t)
-    | S (Continue _) -> get_or block (block t)
-
   let attach_canceler ~from ~into =
     let canceler = canceler ~from ~into in
     if try_attach from canceler then canceler else error_returned (check from)
@@ -394,7 +382,7 @@ module Computation = struct
         -> unit Effect.t
 
   let cancel_after computation ~seconds exn bt =
-    check_non_negative seconds;
+    if not (0.0 <= seconds) then error_negative_or_nan ();
     Effect.perform (Cancel_after { seconds; exn; bt; computation })
 
   (* BEGIN COMPUTATION COMMON *)
@@ -405,12 +393,20 @@ module Computation = struct
       match Trigger.await trigger with
       | None -> t
       | Some (exn, bt) ->
-          detach t trigger;
+          unsafe_unsuspend t Backoff.default |> ignore;
           Printexc.raise_with_backtrace exn bt
     end
     else t
 
-  let await t = get_or block t
+  let rec await t =
+    match Atomic.get t with
+    | S (Returned { tx; value; _ }) ->
+        if tx == Stopped then value else await (block t)
+    | S (Canceled { tx; exn; bt; _ }) ->
+        if tx == Stopped then Printexc.raise_with_backtrace exn bt
+        else await (block t)
+    | S (Continue _) -> await (block t)
+
   let wait t = if is_running t then ignore (block t)
 
   (* END COMPUTATION COMMON *)
