@@ -2,7 +2,7 @@
     interleavings of [Atomic] operations performed by different [Atomic.spawn]ed
     fibers. *)
 
-open Picos_bootstrap
+open Picos
 
 let sum_as fn xs = Array.fold_left (fun sum x -> sum + fn x) 0 xs
 let ( += ) x y = x := !x + y

@@ -7,99 +7,31 @@
   (with-stdout-to
    picos.ml
    (progn
-    (echo "module Trigger = struct\n")
-    (echo "# 1 \"lib/picos/trigger.bootstrap.ml\"\n")
-    (cat trigger.bootstrap.ml)
-    (echo "# 1 \"lib/picos/trigger.ocaml5.ml\"\n")
-    (cat trigger.ocaml5.ml)
-    (echo "end\n")
-    ;;
-    (echo "module Computation = struct\n")
-    (echo "# 1 \"lib/picos/computation.bootstrap.ml\"\n")
-    (cat computation.bootstrap.ml)
-    (echo "# 1 \"lib/picos/computation.ocaml5.ml\"\n")
-    (cat computation.ocaml5.ml)
-    (echo "# 1 \"lib/picos/computation.common.ml\"\n")
-    (cat computation.common.ml)
-    (echo "end\n")
-    ;;
-    (echo "module Fiber = struct\n")
-    (echo "# 1 \"lib/picos/fiber.bootstrap.ml\"\n")
-    (cat fiber.bootstrap.ml)
-    (echo "# 1 \"lib/picos/fiber.ocaml5.ml\"\n")
-    (cat fiber.ocaml5.ml)
-    (echo "# 1 \"lib/picos/fiber.common.ml\"\n")
-    (cat fiber.common.ml)
-    (echo "end\n")
-    ;;
-    (echo "module Handler = struct\n")
-    (echo "# 1 \"lib/picos/handler.bootstrap.ml\"\n")
-    (cat handler.bootstrap.ml)
-    (echo "# 1 \"lib/picos/handler.ocaml5.ml\"\n")
-    (cat handler.ocaml5.ml)
-    (echo "end\n")
-    ;;
-    ))))
+    (echo "# 1 \"lib/picos/picos.ocaml5.ml\"\n")
+    (cat picos.ocaml5.ml)))))
 
 ;; Picos for OCaml 4
+
+(executable
+ (enabled_if
+  (< %{ocaml_version} 5.0.0))
+ (name generate_picos_ml_for_ocaml_4)
+ (modules generate_picos_ml_for_ocaml_4))
 
 (rule
  (enabled_if
   (< %{ocaml_version} 5.0.0))
+ (deps
+  computation.ocaml4.ml
+  fiber.ocaml4.ml
+  generate_picos_ml_for_ocaml_4.exe
+  handler.ocaml4.ml
+  picos.ocaml5.ml
+  trigger.ocaml4.ml)
  (action
   (with-stdout-to
    picos.ml
-   (progn
-    (echo "module Bootstrap = struct\n")
-    ;;
-    (echo "module Trigger = struct\n")
-    (echo "# 1 \"lib/picos/trigger.bootstrap.ml\"\n")
-    (cat trigger.bootstrap.ml)
-    (echo "end\n")
-    ;;
-    (echo "module Computation = struct\n")
-    (echo "# 1 \"lib/picos/computation.bootstrap.ml\"\n")
-    (cat computation.bootstrap.ml)
-    (echo "end\n")
-    ;;
-    (echo "module Fiber = struct\n")
-    (echo "# 1 \"lib/picos/fiber.bootstrap.ml\"\n")
-    (cat fiber.bootstrap.ml)
-    (echo "end\n")
-    ;;
-    (echo "end\n")
-    ;;
-    (echo "module Handler = struct\n")
-    (echo "open Bootstrap\n")
-    (echo "# 1 \"lib/picos/handler.bootstrap.ml\"\n")
-    (cat handler.bootstrap.ml)
-    (echo "# 1 \"lib/picos/handler.ocaml4.ml\"\n")
-    (cat handler.ocaml4.ml)
-    (echo "end\n")
-    ;;
-    (echo "module Trigger = struct\n")
-    (echo "include Bootstrap.Trigger\n")
-    (echo "# 1 \"lib/picos/trigger.ocaml4.ml\"\n")
-    (cat trigger.ocaml4.ml)
-    (echo "end\n")
-    ;;
-    (echo "module Computation = struct\n")
-    (echo "include Bootstrap.Computation\n")
-    (echo "# 1 \"lib/picos/computation.ocaml4.ml\"\n")
-    (cat computation.ocaml4.ml)
-    (echo "# 1 \"lib/picos/computation.common.ml\"\n")
-    (cat computation.common.ml)
-    (echo "end\n")
-    ;;
-    (echo "module Fiber = struct\n")
-    (echo "include Bootstrap.Fiber\n")
-    (echo "# 1 \"lib/picos/fiber.ocaml4.ml\"\n")
-    (cat fiber.ocaml4.ml)
-    (echo "# 1 \"lib/picos/fiber.common.ml\"\n")
-    (cat fiber.common.ml)
-    (echo "end\n")
-    ;;
-    ))))
+   (run ./generate_picos_ml_for_ocaml_4.exe))))
 
 ;;
 
@@ -115,6 +47,7 @@
 (library
  (name picos)
  (public_name picos)
+ (modules picos intf)
  (libraries
   backoff
   (select
