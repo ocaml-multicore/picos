@@ -133,22 +133,22 @@ module Computation = struct
     let[@inline] create () =
       Running { state = Atomic.make Started; completions = Nil }
 
-    let rec rollback tx = function
-      | Nil -> true
-      | Completion r -> begin
-          begin
-            match Atomic.get r.computation with
-            | ( S (Canceled { tx = previous_tx; _ })
-              | S (Returned { tx = previous_tx; _ }) ) as before ->
-                if tx == previous_tx then
-                  Atomic.compare_and_set r.computation before (S r.before)
-                  |> ignore
-            | S (Continue _) -> ()
-          end;
-          rollback tx r.completions
-        end
-
     let rec abort (Running r as tx : [ `Running ] tx) =
+      let rec rollback tx = function
+        | Nil -> true
+        | Completion r -> begin
+            begin
+              match Atomic.get r.computation with
+              | ( S (Canceled { tx = previous_tx; _ })
+                | S (Returned { tx = previous_tx; _ }) ) as before ->
+                  if tx == previous_tx then
+                    Atomic.compare_and_set r.computation before (S r.before)
+                    |> ignore
+              | S (Continue _) -> ()
+            end;
+            rollback tx r.completions
+          end
+      in
       match Atomic.get r.state with
       | Started ->
           if Atomic.compare_and_set r.state Started Aborted then
@@ -680,7 +680,7 @@ module Handler = struct
       Some
         (fun k ->
           match h.yield c with
-          | () -> Effect.Deep.continue k ()
+          | unit -> Effect.Deep.continue k unit
           | exception exn -> discontinue k exn)
     in
     let effc (type a) :
