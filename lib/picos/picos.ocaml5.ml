@@ -271,10 +271,6 @@ module Computation = struct
 
   let rec unsafe_unsuspend t backoff =
     match Atomic.get t with
-    | S (Returned { tx; _ }) ->
-        if Tx.try_abort tx then unsafe_unsuspend t backoff else true
-    | S (Canceled { tx; _ }) ->
-        if Tx.try_abort tx then unsafe_unsuspend t backoff else false
     | S (Continue r) as before ->
         let after =
           if fifo_bit <= r.balance_and_mode then
@@ -284,6 +280,13 @@ module Computation = struct
         in
         let success = Atomic.compare_and_set t before after in
         if success then success else unsafe_unsuspend t (Backoff.once backoff)
+    | S ((Returned { tx; _ } | Canceled { tx; _ }) as was) ->
+        if Tx.try_abort tx then unsafe_unsuspend t backoff
+        else begin
+          match (was : (_, [ `Returned | `Canceled ]) st) with
+          | Returned _ -> true
+          | Canceled _ -> false
+        end
 
   let detach t trigger =
     Trigger.signal trigger;
