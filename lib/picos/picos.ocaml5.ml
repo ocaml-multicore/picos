@@ -404,9 +404,9 @@ module Computation = struct
     if try_attach t trigger then begin
       match Trigger.await trigger with
       | None -> begin match op with Ignore -> () | Peek -> peek_exn t end
-      | Some (exn, bt) ->
+      | Some exn_bt ->
           unsafe_unsuspend t Backoff.default |> ignore;
-          Printexc.raise_with_backtrace exn bt
+          Printexc.raise_with_backtrace (fst exn_bt) (snd exn_bt)
     end
     else begin
       match op with Ignore -> () | Peek -> peek_exn t
@@ -657,9 +657,9 @@ module Fiber = struct
     if Computation.try_attach sleep trigger then
       match Trigger.await trigger with
       | None -> ()
-      | Some (exn, bt) ->
+      | Some exn_bt ->
           Computation.finish sleep;
-          Printexc.raise_with_backtrace exn bt
+          Printexc.raise_with_backtrace (fst exn_bt) (snd exn_bt)
 
   (* END FIBER COMMON *)
 end
