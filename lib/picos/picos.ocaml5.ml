@@ -340,21 +340,24 @@ module Computation = struct
 
   let capture t fn x = try_capture t fn x |> ignore
 
+  let[@inline never] raise (Canceled { exn; bt; _ } : (_, [ `Canceled ]) st) =
+    Printexc.raise_with_backtrace exn bt
+
   let check t =
     match Atomic.get t with
-    | S (Canceled { exn; bt; tx; _ }) ->
-        if tx == Stopped then Printexc.raise_with_backtrace exn bt
+    | S (Canceled { tx; _ } as canceled) -> if tx == Stopped then raise canceled
     | S (Returned _) | S (Continue _) -> ()
 
   exception Running
 
   let peek_exn t =
     match Atomic.get t with
-    | S (Canceled { exn; bt; tx; _ }) ->
-        if tx == Stopped then Printexc.raise_with_backtrace exn bt
+    | S ((Canceled { tx; _ } | Returned { tx; _ }) as was) ->
+        if tx == Stopped then
+          match (was : (_, [ `Returned | `Canceled ]) st) with
+          | Canceled _ as canceled -> raise canceled
+          | Returned { value; _ } -> value
         else raise_notrace Running
-    | S (Returned { value; tx; _ }) ->
-        if tx == Stopped then value else raise_notrace Running
     | S (Continue _) -> raise_notrace Running
 
   let peek t =
@@ -394,27 +397,32 @@ module Computation = struct
 
   (* BEGIN COMPUTATION COMMON *)
 
-  let block t =
+  type ('a, _) op = Ignore : ('a, unit) op | Peek : ('a, 'a) op
+
+  let block (type a r) (t : a t) (op : (a, r) op) : r =
     let trigger = Trigger.create () in
     if try_attach t trigger then begin
       match Trigger.await trigger with
-      | None -> t
+      | None -> begin match op with Ignore -> () | Peek -> peek_exn t end
       | Some (exn, bt) ->
           unsafe_unsuspend t Backoff.default |> ignore;
           Printexc.raise_with_backtrace exn bt
     end
-    else t
+    else begin
+      match op with Ignore -> () | Peek -> peek_exn t
+    end
 
-  let rec await t =
+  let await t =
     match Atomic.get t with
-    | S (Returned { tx; value; _ }) ->
-        if tx == Stopped then value else await (block t)
-    | S (Canceled { tx; exn; bt; _ }) ->
-        if tx == Stopped then Printexc.raise_with_backtrace exn bt
-        else await (block t)
-    | S (Continue _) -> await (block t)
+    | S (Continue _) -> block t Peek
+    | S ((Returned { tx; _ } | Canceled { tx; _ }) as was) ->
+        if tx == Stopped then
+          match (was : (_, [ `Returned | `Canceled ]) st) with
+          | Canceled _ as canceled -> raise canceled
+          | Returned { value; _ } -> value
+        else block t Peek
 
-  let wait t = if is_running t then ignore (block t)
+  let wait t = if is_running t then block t Ignore
 
   (* END COMPUTATION COMMON *)
 end
