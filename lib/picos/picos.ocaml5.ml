@@ -392,8 +392,8 @@ module Computation = struct
         -> unit Effect.t
 
   let cancel_after computation ~seconds exn bt =
-    if not (0.0 <= seconds) then error_negative_or_nan ();
-    Effect.perform (Cancel_after { seconds; exn; bt; computation })
+    if not (0.0 <= seconds) then error_negative_or_nan ()
+    else Effect.perform (Cancel_after { seconds; exn; bt; computation })
 
   (* BEGIN COMPUTATION COMMON *)
 
