@@ -8,7 +8,7 @@ type ready =
   | Resume of
       Fiber.t
       * ((exn * Printexc.raw_backtrace) option, unit) Effect.Deep.continuation
-  | Return of Fiber.Maybe.t * (unit, unit) Effect.Deep.continuation
+  | Return of Fiber.t * (unit, unit) Effect.Deep.continuation
 
 module Mpscq = Picos_aux_mpscq
 
@@ -35,22 +35,21 @@ type t = {
 
 let rec next t =
   match Mpscq.pop_exn t.ready with
-  | Spawn (fiber, main) ->
-      t.fiber <- Fiber.Maybe.of_fiber fiber;
+  | ready -> begin
       t.remaining_quota <- t.quota;
-      Effect.Deep.match_with main fiber t.handler
-  | Return (fiber, k) ->
-      t.fiber <- fiber;
-      t.remaining_quota <- t.quota;
-      Effect.Deep.continue k ()
-  | Continue (fiber, k) ->
-      t.fiber <- Fiber.Maybe.of_fiber fiber;
-      t.remaining_quota <- t.quota;
-      Fiber.continue fiber k ()
-  | Resume (fiber, k) ->
-      t.fiber <- Fiber.Maybe.of_fiber fiber;
-      t.remaining_quota <- t.quota;
-      Fiber.resume fiber k
+      t.fiber <-
+        (match ready with
+        | Spawn (fiber, _)
+        | Continue (fiber, _)
+        | Resume (fiber, _)
+        | Return (fiber, _) ->
+            Fiber.Maybe.of_fiber fiber);
+      match ready with
+      | Spawn (fiber, main) -> Effect.Deep.match_with main fiber t.handler
+      | Return (_, k) -> Effect.Deep.continue k ()
+      | Continue (fiber, k) -> Fiber.continue fiber k ()
+      | Resume (fiber, k) -> Fiber.resume fiber k
+    end
   | exception Mpscq.Empty ->
       t.fiber <- Fiber.Maybe.nothing;
       if t.num_alive_fibers <> 0 then begin
@@ -84,7 +83,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
   let rec t =
     {
       ready;
-      fiber = Fiber.Maybe.nothing;
+      fiber = Fiber.Maybe.of_fiber fiber;
       needs_wakeup;
       mutex;
       condition;
@@ -118,7 +117,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
           Effect.Deep.continue k ()
         end
         else begin
-          Mpscq.push t.ready (Return (t.fiber, k));
+          Mpscq.push t.ready (Return (Fiber.Maybe.to_fiber t.fiber, k));
           next t
         end)
   and discontinue =
@@ -187,8 +186,7 @@ let run_fiber ?quota ?fatal_exn_handler:(exnc : _ = raise) fiber main =
       Condition.broadcast t.condition
     end
   in
-  Mpscq.push t.ready (Spawn (fiber, main));
-  next t
+  Effect.Deep.match_with main fiber t.handler
 
 let run ?quota ?fatal_exn_handler ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
