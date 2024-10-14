@@ -415,6 +415,8 @@ end
 module Fiber = struct
   (* BEGIN FIBER BOOTSTRAP *)
 
+  let[@inline never] not_signaled () = invalid_arg "not signaled"
+
   type non_float = [ `Non_float of non_float ]
 
   type _ tdt =
@@ -497,11 +499,12 @@ module Fiber = struct
     else Trigger.on_signal trigger x y resume
 
   let[@inline] unsuspend (Fiber r : t) trigger =
-    assert (Trigger.is_signaled trigger);
-    r.forbid
-    ||
-    let (Packed computation) = r.packed in
-    Computation.unsafe_unsuspend computation Backoff.default
+    if Trigger.is_signaled trigger then
+      r.forbid
+      ||
+      let (Packed computation) = r.packed in
+      Computation.unsafe_unsuspend computation Backoff.default
+    else not_signaled ()
 
   module FLS = struct
     type fiber = t

@@ -1182,7 +1182,7 @@ module Fiber : sig
       fiber has been canceled and propagation of cancelation is not forbidden.
       Otherwise returns [true].
 
-      ⚠️ The trigger must be in the signaled state! *)
+      @raise Invalid_argument if the trigger is not in the signaled state. *)
 
   include
     Intf.Fiber with type t := t with type 'a computation := 'a Computation.t
