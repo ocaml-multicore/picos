@@ -79,25 +79,25 @@ let[@inline] relaxed_wakeup t ~known_not_empty =
     Condition.signal t.condition
   end
 
-let exec p t = function
-  | Spawn (fiber, main) ->
-      p := Fiber.Maybe.of_fiber fiber;
-      Effect.Deep.match_with main fiber t.handler
-  | Raise (fiber, k, exn, bt) ->
-      p := Fiber.Maybe.of_fiber fiber;
-      Effect.Deep.discontinue_with_backtrace k exn bt
-  | Return (fiber, k) ->
-      p := Fiber.Maybe.of_fiber fiber;
-      Effect.Deep.continue k ()
-  | Current (fiber, k) ->
-      p := Fiber.Maybe.of_fiber fiber;
-      Effect.Deep.continue k fiber
-  | Continue (fiber, k) ->
-      p := Fiber.Maybe.of_fiber fiber;
-      Fiber.continue fiber k ()
-  | Resume (fiber, k) ->
-      p := Fiber.Maybe.of_fiber fiber;
-      Fiber.resume fiber k
+let exec p t ready =
+  begin
+    p :=
+      match ready with
+      | Spawn (fiber, _)
+      | Raise (fiber, _, _, _)
+      | Return (fiber, _)
+      | Current (fiber, _)
+      | Continue (fiber, _)
+      | Resume (fiber, _) ->
+          Fiber.Maybe.of_fiber fiber
+  end;
+  match ready with
+  | Spawn (fiber, main) -> Effect.Deep.match_with main fiber t.handler
+  | Raise (_, k, exn, bt) -> Effect.Deep.discontinue_with_backtrace k exn bt
+  | Return (_, k) -> Effect.Deep.continue k ()
+  | Current (fiber, k) -> Effect.Deep.continue k fiber
+  | Continue (fiber, k) -> Fiber.continue fiber k ()
+  | Resume (fiber, k) -> Fiber.resume fiber k
 
 let rec next p t =
   match Collection.pop_exn t.ready with
@@ -288,8 +288,8 @@ let run_fiber ?context:t_opt fiber main =
   else begin
     t.run <- true;
     Mutex.unlock t.mutex;
-    Collection.push t.ready (Spawn (fiber, main));
-    next (get ()) t;
+    get () := Fiber.Maybe.of_fiber fiber;
+    Effect.Deep.match_with main fiber t.handler;
     Mutex.lock t.mutex;
     await t
   end

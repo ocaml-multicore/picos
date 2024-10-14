@@ -12,7 +12,7 @@ type ready =
   | Resume of
       Fiber.t
       * ((exn * Printexc.raw_backtrace) option, unit) Effect.Deep.continuation
-  | Return of Fiber.Maybe.t * (unit, unit) Effect.Deep.continuation
+  | Return of Fiber.t * (unit, unit) Effect.Deep.continuation
 
 type t = {
   mutable num_waiters_non_zero : bool;
@@ -101,19 +101,18 @@ let[@inline] relaxed_wakeup t ~known_not_empty ready =
 
 let exec ready (Per_thread p : per_thread) t =
   p.remaining_quota <- t.quota;
+  p.fiber <-
+    (match ready with
+    | Spawn (fiber, _)
+    | Return (fiber, _)
+    | Continue (fiber, _)
+    | Resume (fiber, _) ->
+        Fiber.Maybe.of_fiber fiber);
   match ready with
-  | Spawn (fiber, main) ->
-      p.fiber <- Fiber.Maybe.of_fiber fiber;
-      Effect.Deep.match_with main fiber t.handler
-  | Return (fiber, k) ->
-      p.fiber <- fiber;
-      Effect.Deep.continue k ()
-  | Continue (fiber, k) ->
-      p.fiber <- Fiber.Maybe.of_fiber fiber;
-      Fiber.continue fiber k ()
-  | Resume (fiber, k) ->
-      p.fiber <- Fiber.Maybe.of_fiber fiber;
-      Fiber.resume fiber k
+  | Spawn (fiber, main) -> Effect.Deep.match_with main fiber t.handler
+  | Return (_, k) -> Effect.Deep.continue k ()
+  | Continue (fiber, k) -> Fiber.continue fiber k ()
+  | Resume (fiber, k) -> Fiber.resume fiber k
 
 let rec next (Per_thread p as pt : per_thread) =
   match Mpmcq.pop_exn p.ready with
@@ -229,7 +228,7 @@ let per_thread context =
           Effect.Deep.continue k ()
         end
         else begin
-          Mpmcq.push p.ready (Return (p.fiber, k));
+          Mpmcq.push p.ready (Return (Fiber.Maybe.to_fiber p.fiber, k));
           next pt
         end)
   and discontinue =
@@ -391,7 +390,7 @@ let runner_on_this_thread t =
 
 let run_fiber ?context:t_opt fiber main =
   let t = match t_opt with None -> context () | Some t -> t in
-  with_per_thread t @@ fun (Per_thread p as pt) ->
+  with_per_thread t @@ fun (Per_thread p) ->
   Mutex.lock t.mutex;
   if t.run then begin
     Mutex.unlock t.mutex;
@@ -401,8 +400,9 @@ let run_fiber ?context:t_opt fiber main =
     t.run <- true;
     Mutex.unlock t.mutex
   end;
-  Mpmcq.push p.ready (Spawn (fiber, main));
-  next pt
+  p.remaining_quota <- t.quota;
+  p.fiber <- Fiber.Maybe.of_fiber fiber;
+  Effect.Deep.match_with main fiber t.handler
 
 let run ?context ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
