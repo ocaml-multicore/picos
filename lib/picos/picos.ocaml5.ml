@@ -333,10 +333,13 @@ module Computation = struct
   let finish t = try_finish t |> ignore
   let cancel t exn bt = try_cancel t exn bt |> ignore
 
+  let[@inline never] try_capture_raised exn t =
+    try_cancel t exn (Printexc.get_raw_backtrace ())
+
   let try_capture t fn x =
     match fn x with
     | y -> try_return t y
-    | exception exn -> try_cancel t exn (Printexc.get_raw_backtrace ())
+    | exception exn -> try_capture_raised exn t
 
   let capture t fn x = try_capture t fn x |> ignore
 
