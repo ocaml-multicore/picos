@@ -341,7 +341,12 @@ module Computation = struct
     | y -> try_return t y
     | exception exn -> try_capture_raised exn t
 
-  let capture t fn x = try_capture t fn x |> ignore
+  let capture t fn x =
+    (* Intentionally manually inlined [try_capture] to minimize stack usage *)
+    (match fn x with
+    | y -> try_return t y
+    | exception exn -> try_capture_raised exn t)
+    |> ignore
 
   let[@inline never] raise (Canceled { exn; bt; _ } : (_, [ `Canceled ]) st) =
     Printexc.raise_with_backtrace exn bt
