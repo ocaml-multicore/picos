@@ -43,7 +43,7 @@ type t = {
   ready : ready Collection.t;
   mutable num_waiters_non_zero : bool;
   num_alive_fibers : int Atomic.t;
-  resume :
+  mutable resume :
     Trigger.t ->
     Fiber.t ->
     ((exn * Printexc.raw_backtrace) option, unit) Effect.Deep.continuation ->
@@ -51,10 +51,10 @@ type t = {
   num_waiters : int ref;
   condition : Condition.t;
   mutex : Mutex.t;
-  current : ((Fiber.t, unit) Effect.Deep.continuation -> unit) option;
-  yield : ((unit, unit) Effect.Deep.continuation -> unit) option;
-  return : ((unit, unit) Effect.Deep.continuation -> unit) option;
-  handler : (unit, unit) Effect.Deep.handler;
+  mutable current : ((Fiber.t, unit) Effect.Deep.continuation -> unit) option;
+  mutable yield : ((unit, unit) Effect.Deep.continuation -> unit) option;
+  mutable return : ((unit, unit) Effect.Deep.continuation -> unit) option;
+  mutable handler : (unit, unit) Effect.Deep.handler;
   mutable run : bool;
 }
 
@@ -159,103 +159,111 @@ let context ?fatal_exn_handler () =
           handler exn;
           raise exn
   in
-  let rec t =
+  let t =
     {
       ready = Collection.create ();
       num_waiters_non_zero = false;
       num_alive_fibers = Atomic.make 1 |> Multicore_magic.copy_as_padded;
-      resume;
+      resume = Obj.magic ();
       num_waiters = ref 0 |> Multicore_magic.copy_as_padded;
       condition = Condition.create ();
       mutex = Mutex.create ();
-      current;
-      yield;
-      return;
-      handler;
+      current = Obj.magic ();
+      yield = Obj.magic ();
+      return = Obj.magic ();
+      handler = Obj.magic ();
       run = false;
     }
-  and resume trigger fiber k =
-    let resume = Resume (fiber, k) in
-    Fiber.unsuspend fiber trigger |> ignore;
-    Collection.push t.ready resume;
-    let non_zero =
-      match Mutex.lock t.mutex with
-      | () ->
-          let non_zero = t.num_waiters_non_zero in
-          Mutex.unlock t.mutex;
-          non_zero
-      | exception Sys_error _ -> false
-    in
-    if non_zero then Condition.signal t.condition
-  and current =
+  in
+  t.resume <-
+    (fun trigger fiber k ->
+      let resume = Resume (fiber, k) in
+      Fiber.unsuspend fiber trigger |> ignore;
+      Collection.push t.ready resume;
+      let non_zero =
+        match Mutex.lock t.mutex with
+        | () ->
+            let non_zero = t.num_waiters_non_zero in
+            Mutex.unlock t.mutex;
+            non_zero
+        | exception Sys_error _ -> false
+      in
+      if non_zero then Condition.signal t.condition);
+  t.current <-
     Some
       (fun k ->
         let p = Picos_thread.TLS.get_exn fiber_key in
         let fiber = Fiber.Maybe.to_fiber !p in
         Collection.push t.ready (Current (fiber, k));
-        next p t)
-  and yield =
+        next p t);
+  t.yield <-
     Some
       (fun k ->
         let p = Picos_thread.TLS.get_exn fiber_key in
         let fiber = Fiber.Maybe.to_fiber !p in
         Collection.push t.ready (Continue (fiber, k));
-        next p t)
-  and return =
+        next p t);
+  t.return <-
     Some
       (fun k ->
         let p = Picos_thread.TLS.get_exn fiber_key in
         let fiber = Fiber.Maybe.to_fiber !p in
         Collection.push t.ready (Return (fiber, k));
-        next p t)
-  and handler = { retc; exnc; effc }
-  and[@alert "-handler"] effc :
-      type a. a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option =
-    function
-    | Fiber.Current -> t.current
-    | Fiber.Spawn r ->
-        let p = Picos_thread.TLS.get_exn fiber_key in
-        let fiber = Fiber.Maybe.to_fiber !p in
-        if Fiber.is_canceled fiber then t.yield
-        else begin
-          Atomic.incr t.num_alive_fibers;
-          Collection.push t.ready (Spawn (r.fiber, r.main));
-          relaxed_wakeup t ~known_not_empty:true;
-          t.return
-        end
-    | Fiber.Yield -> t.yield
-    | Computation.Cancel_after r -> begin
-        let p = Picos_thread.TLS.get_exn fiber_key in
-        let fiber = Fiber.Maybe.to_fiber !p in
-        if Fiber.is_canceled fiber then t.yield
-        else
-          match
-            Select.cancel_after r.computation ~seconds:r.seconds r.exn r.bt
-          with
-          | () -> t.return
-          | exception exn ->
-              let bt = Printexc.get_raw_backtrace () in
+        next p t);
+  t.handler <-
+    {
+      retc =
+        (fun () ->
+          Atomic.decr t.num_alive_fibers;
+          let p = Picos_thread.TLS.get_exn fiber_key in
+          next p t);
+      exnc;
+      effc =
+        (fun (type a) (e : a Effect.t) :
+             ((a, _) Effect.Deep.continuation -> _) option ->
+          match e with
+          | Fiber.Current -> t.current
+          | Fiber.Spawn r ->
+              let p = Picos_thread.TLS.get_exn fiber_key in
+              let fiber = Fiber.Maybe.to_fiber !p in
+              if Fiber.is_canceled fiber then t.yield
+              else begin
+                Atomic.incr t.num_alive_fibers;
+                Collection.push t.ready (Spawn (r.fiber, r.main));
+                relaxed_wakeup t ~known_not_empty:true;
+                t.return
+              end
+          | Fiber.Yield -> t.yield
+          | Computation.Cancel_after r -> begin
+              let p = Picos_thread.TLS.get_exn fiber_key in
+              let fiber = Fiber.Maybe.to_fiber !p in
+              if Fiber.is_canceled fiber then t.yield
+              else
+                match
+                  Select.cancel_after r.computation ~seconds:r.seconds r.exn
+                    r.bt
+                with
+                | () -> t.return
+                | exception exn ->
+                    let bt = Printexc.get_raw_backtrace () in
+                    Some
+                      (fun k ->
+                        Collection.push t.ready (Raise (fiber, k, exn, bt));
+                        next p t)
+            end
+          | Trigger.Await trigger ->
               Some
                 (fun k ->
-                  Collection.push t.ready (Raise (fiber, k, exn, bt));
-                  next p t)
-      end
-    | Trigger.Await trigger ->
-        Some
-          (fun k ->
-            let p = Picos_thread.TLS.get_exn fiber_key in
-            let fiber = Fiber.Maybe.to_fiber !p in
-            if Fiber.try_suspend fiber trigger fiber k t.resume then next p t
-            else begin
-              Collection.push t.ready (Resume (fiber, k));
-              next p t
-            end)
-    | _ -> None
-  and retc () =
-    Atomic.decr t.num_alive_fibers;
-    let p = Picos_thread.TLS.get_exn fiber_key in
-    next p t
-  in
+                  let p = Picos_thread.TLS.get_exn fiber_key in
+                  let fiber = Fiber.Maybe.to_fiber !p in
+                  if Fiber.try_suspend fiber trigger fiber k t.resume then
+                    next p t
+                  else begin
+                    Collection.push t.ready (Resume (fiber, k));
+                    next p t
+                  end)
+          | _ -> None);
+    };
   t
 
 let runner_on_this_thread t =
@@ -294,12 +302,16 @@ let run_fiber ?context:t_opt fiber main =
     await t
   end
 
-let run ?context ?(forbid = false) main =
+let[@inline never] run ?context fiber main computation =
+  run_fiber ?context fiber main;
+  Computation.peek_exn computation
+
+let run ?context ?forbid main =
+  let forbid = match forbid with None -> false | Some forbid -> forbid in
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
-  run_fiber ?context fiber main;
-  Computation.peek_exn computation
+  run ?context fiber main computation
 
 let rec run_fiber_on n fiber main runner_main context =
   if n <= 1 then run_fiber ~context fiber main
@@ -343,12 +355,15 @@ let run_fiber_on ?fatal_exn_handler ~n_domains fiber main =
             let bt = Printexc.get_raw_backtrace () in
             Some (exn, bt)
   in
-
   run_fiber_on n_domains fiber main runner_main context
 
-let run_on ?fatal_exn_handler ~n_domains ?(forbid = false) main =
+let[@inline never] run_on ?fatal_exn_handler ~n_domains fiber main computation =
+  run_fiber_on ?fatal_exn_handler ~n_domains fiber main;
+  Computation.peek_exn computation
+
+let run_on ?fatal_exn_handler ~n_domains ?forbid main =
+  let forbid = match forbid with None -> false | Some forbid -> forbid in
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
-  run_fiber_on ?fatal_exn_handler ~n_domains fiber main;
-  Computation.peek_exn computation
+  run_on ?fatal_exn_handler ~n_domains fiber main computation

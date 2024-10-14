@@ -1,8 +1,8 @@
 open Picos
 
-let[@inline never] quota_non_positive () = invalid_arg "quota must be positive"
+let[@inline never] quota_non_positive _ = invalid_arg "quota must be positive"
 let[@inline never] already_running () = invalid_arg "already running"
-let[@inline never] not_worker () = invalid_arg "not a worker thread"
+let[@inline never] not_worker _ = invalid_arg "not a worker thread"
 
 module Mpmcq = Picos_aux_mpmcq
 
@@ -31,13 +31,14 @@ and _ tdt =
   | Nothing : [> `Nothing ] tdt
   | Per_thread : {
       ready : ready Mpmcq.t;
-      resume :
+      mutable resume :
         Trigger.t ->
         Fiber.t ->
         ((exn * Printexc.raw_backtrace) option, unit) Effect.Deep.continuation ->
         unit;
-      return : ((unit, unit) Effect.Deep.continuation -> unit) option;
-      discontinue : ((unit, unit) Effect.Deep.continuation -> unit) option;
+      mutable return : ((unit, unit) Effect.Deep.continuation -> unit) option;
+      mutable discontinue :
+        ((unit, unit) Effect.Deep.continuation -> unit) option;
       context : t;
       mutable index : int;
       mutable num_started : int;
@@ -53,12 +54,12 @@ let per_thread_key = Picos_thread.TLS.create ()
 
 let[@inline] get_per_thread () : per_thread =
   match Picos_thread.TLS.get_exn per_thread_key with
-  | Nothing -> not_worker ()
+  | Nothing as any -> not_worker any
   | Per_thread _ as pt -> pt
 
 let get_thread t i : per_thread =
   match Array.unsafe_get t.threads i with
-  | Nothing -> not_worker ()
+  | Nothing as any -> not_worker any
   | Per_thread _ as pt -> pt
 
 let any_fibers_alive t =
@@ -181,13 +182,13 @@ let default_fatal_exn_handler exn =
 
 let per_thread context =
   let ready = Mpmcq.create ~padded:true () in
-  let rec pt : per_thread =
+  let (Per_thread p as pt : per_thread) =
     Per_thread
       {
         ready;
-        resume;
-        return;
-        discontinue;
+        resume = Obj.magic ();
+        return = Obj.magic ();
+        discontinue = Obj.magic ();
         context;
         index = 0;
         num_started = 0;
@@ -195,33 +196,37 @@ let per_thread context =
         fiber = Fiber.Maybe.nothing;
         remaining_quota = 0;
       }
-  and resume trigger fiber k =
-    let resume = Resume (fiber, k) in
-    let (Per_thread p_original) = pt in
-    match Picos_thread.TLS.get_exn per_thread_key with
-    | Per_thread p_current when p_original.context == p_current.context ->
-        (* We are running on a thread of this scheduler *)
-        if Fiber.unsuspend fiber trigger then Mpmcq.push p_current.ready resume
-        else Mpmcq.push_head p_current.ready resume;
-        relaxed_wakeup p_current.context ~known_not_empty:true p_current.ready
-    | _ | (exception Picos_thread.TLS.Not_set) ->
-        (* We are running on a foreign thread *)
-        if Fiber.unsuspend fiber trigger then Mpmcq.push p_original.ready resume
-        else Mpmcq.push_head p_original.ready resume;
-        let t = p_original.context in
-        let non_zero =
-          match Mutex.lock t.mutex with
-          | () ->
-              let non_zero = t.num_waiters_non_zero in
-              Mutex.unlock t.mutex;
-              non_zero
-          | exception Sys_error _ -> false
-        in
-        if non_zero then Condition.signal t.condition
-  and return =
+  in
+  p.resume <-
+    (fun trigger fiber k ->
+      let resume = Resume (fiber, k) in
+      let (Per_thread p_original) = (pt : per_thread) in
+      match Picos_thread.TLS.get_exn per_thread_key with
+      | Per_thread p_current when p_original.context == p_current.context ->
+          (* We are running on a thread of this scheduler *)
+          if Fiber.unsuspend fiber trigger then
+            Mpmcq.push p_current.ready resume
+          else Mpmcq.push_head p_current.ready resume;
+          relaxed_wakeup p_current.context ~known_not_empty:true p_current.ready
+      | _ | (exception Picos_thread.TLS.Not_set) ->
+          (* We are running on a foreign thread *)
+          if Fiber.unsuspend fiber trigger then
+            Mpmcq.push p_original.ready resume
+          else Mpmcq.push_head p_original.ready resume;
+          let t = p_original.context in
+          let non_zero =
+            match Mutex.lock t.mutex with
+            | () ->
+                let non_zero = t.num_waiters_non_zero in
+                Mutex.unlock t.mutex;
+                non_zero
+            | exception Sys_error _ -> false
+          in
+          if non_zero then Condition.signal t.condition);
+  p.return <-
     Some
       (fun k ->
-        let (Per_thread p) = pt in
+        let (Per_thread p) = (pt : per_thread) in
         let remaining_quota = p.remaining_quota - 1 in
         if 0 < remaining_quota then begin
           p.remaining_quota <- remaining_quota;
@@ -230,15 +235,29 @@ let per_thread context =
         else begin
           Mpmcq.push p.ready (Return (Fiber.Maybe.to_fiber p.fiber, k));
           next pt
-        end)
-  and discontinue =
+        end);
+  p.discontinue <-
     Some
       (fun k ->
-        let (Per_thread p) = pt in
+        let (Per_thread p) = (pt : per_thread) in
         let fiber = Fiber.Maybe.to_fiber p.fiber in
-        Fiber.continue fiber k ())
-  in
-  pt
+        Fiber.continue fiber k ());
+  (pt : per_thread)
+
+let[@inline never] returned value old_p =
+  (* TODO: maybe remove from [t.threads]? *)
+  Picos_thread.TLS.set per_thread_key old_p;
+  value
+
+let[@inline never] raised exn old_p =
+  let bt = Printexc.get_raw_backtrace () in
+  Picos_thread.TLS.set per_thread_key old_p;
+  Printexc.raise_with_backtrace exn bt
+
+let[@inline never] with_per_thread new_pt fn old_p =
+  match fn (new_pt : per_thread) with
+  | value -> returned value old_p
+  | exception exn -> raised exn old_p
 
 let with_per_thread t fn =
   let (Per_thread new_p as new_pt) = per_thread t in
@@ -269,14 +288,7 @@ let with_per_thread t fn =
     with Picos_thread.TLS.Not_set -> Nothing
   in
   Picos_thread.TLS.set per_thread_key new_pt;
-  match fn (new_pt : per_thread) with
-  | value ->
-      (* TODO: maybe remove from [t.threads]? *)
-      Picos_thread.TLS.set per_thread_key old_p;
-      value
-  | exception exn ->
-      Picos_thread.TLS.set per_thread_key old_p;
-      raise exn
+  with_per_thread new_pt fn old_p
 
 let current =
   Some
@@ -351,9 +363,7 @@ let context ?quota ?fatal_exn_handler () =
   let quota =
     match quota with
     | None -> Int.max_int
-    | Some quota ->
-        if quota <= 0 then quota_non_positive ();
-        quota
+    | Some quota -> if quota <= 0 then quota_non_positive quota else quota
   in
   let exnc =
     match fatal_exn_handler with
@@ -368,21 +378,18 @@ let context ?quota ?fatal_exn_handler () =
   and condition = Condition.create ()
   and num_waiters = ref 0 |> Multicore_magic.copy_as_padded
   and num_started = Atomic.make 0 |> Multicore_magic.copy_as_padded in
-  let rec context =
-    {
-      num_waiters_non_zero = false;
-      num_waiters;
-      num_started;
-      mutex;
-      condition;
-      handler;
-      quota;
-      run = false;
-      threads = Array.make 15 Nothing;
-      threads_num = 0;
-    }
-  and handler = { retc; exnc; effc } in
-  context
+  {
+    num_waiters_non_zero = false;
+    num_waiters;
+    num_started;
+    mutex;
+    condition;
+    handler = { retc; exnc; effc };
+    quota;
+    run = false;
+    threads = Array.make 15 Nothing;
+    threads_num = 0;
+  }
 
 let runner_on_this_thread t =
   Select.check_configured ();
@@ -398,18 +405,22 @@ let run_fiber ?context:t_opt fiber main =
   end
   else begin
     t.run <- true;
-    Mutex.unlock t.mutex
-  end;
-  p.remaining_quota <- t.quota;
-  p.fiber <- Fiber.Maybe.of_fiber fiber;
-  Effect.Deep.match_with main fiber t.handler
+    Mutex.unlock t.mutex;
+    p.remaining_quota <- t.quota;
+    p.fiber <- Fiber.Maybe.of_fiber fiber;
+    Effect.Deep.match_with main fiber t.handler
+  end
 
-let run ?context ?(forbid = false) main =
+let[@inline never] run ?context fiber main computation =
+  run_fiber ?context fiber main;
+  Computation.peek_exn computation
+
+let run ?context ?forbid main =
+  let forbid = match forbid with None -> false | Some forbid -> forbid in
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
-  run_fiber ?context fiber main;
-  Computation.peek_exn computation
+  run ?context fiber main computation
 
 let rec run_fiber_on n fiber main runner_main context =
   if n <= 1 then run_fiber ~context fiber main
@@ -455,9 +466,14 @@ let run_fiber_on ?quota ?fatal_exn_handler ~n_domains fiber main =
   in
   run_fiber_on n_domains fiber main runner_main context
 
-let run_on ?quota ?fatal_exn_handler ~n_domains ?(forbid = false) main =
+let[@inline never] run_on ?quota ?fatal_exn_handler ~n_domains fiber main
+    computation =
+  run_fiber_on ?quota ?fatal_exn_handler ~n_domains fiber main;
+  Computation.peek_exn computation
+
+let run_on ?quota ?fatal_exn_handler ~n_domains ?forbid main =
+  let forbid = match forbid with None -> false | Some forbid -> forbid in
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
-  run_fiber_on ?quota ?fatal_exn_handler ~n_domains fiber main;
-  Computation.peek_exn computation
+  run_on ?quota ?fatal_exn_handler ~n_domains fiber main computation

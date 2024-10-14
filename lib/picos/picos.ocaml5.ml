@@ -219,7 +219,7 @@ module Computation = struct
     let trigger = Trigger.from_action x y action in
     Atomic.make (S (Continue { balance_and_mode; triggers = [ trigger ] }))
 
-  let is_canceled t =
+  let[@inline] is_canceled t =
     match Atomic.get t with
     | S (Canceled { tx; _ }) -> tx == Stopped
     | S (Returned _) | S (Continue _) -> false
@@ -460,13 +460,13 @@ module Fiber = struct
 
   let has_forbidden (Fiber r : t) = r.forbid
 
-  let is_canceled (Fiber r : t) =
+  let[@inline] is_canceled (Fiber r : t) =
     (not r.forbid)
     &&
     let (Packed computation) = r.packed in
     Computation.is_canceled computation
 
-  let canceled (Fiber r : t) =
+  let[@inline] canceled (Fiber r : t) =
     if r.forbid then None
     else
       let (Packed computation) = r.packed in
