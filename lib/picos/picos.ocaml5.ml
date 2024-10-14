@@ -224,11 +224,15 @@ module Computation = struct
     | S (Canceled { tx; _ }) -> tx == Stopped
     | S (Returned _) | S (Continue _) -> false
 
-  let canceled t =
+  let[@inline never] canceled : (_, [ `Canceled | `Returned ]) st -> _ =
+    function
+    | Canceled { tx; exn; bt } -> if tx == Stopped then Some (exn, bt) else None
+    | Returned _ -> None
+
+  let[@inline] canceled t =
     match Atomic.get t with
-    | S (Canceled { exn; bt; tx }) ->
-        if tx == Stopped then Some (exn, bt) else None
-    | S (Returned _) | S (Continue _) -> None
+    | S (Continue _) -> None
+    | S ((Canceled _ | Returned _) as completed) -> canceled completed
 
   (** [gc] is called when balance becomes negative by both [try_attach] and
       [detach].  This ensures that the [O(n)] lazy removal done by [gc] cannot
