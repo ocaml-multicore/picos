@@ -1,5 +1,16 @@
 {0 Picos — Interoperable effects based concurrency}
 
+This packages contains the core {!Picos} interface library and auxiliary
+libraries for dealing with the OCaml multithreading architecture.
+
+{1 Libraries}
+
+{!modules:
+  Picos
+  Picos_domain
+  Picos_thread
+}
+
 {1 Introduction}
 
 {!Picos} is a {{:https://en.wikipedia.org/wiki/Systems_programming} systems
@@ -125,14 +136,6 @@ it is perhaps illuminating to explicitly mention some of those:
 
 Let's build an incredible ecosystem of interoperable concurrent programming
 libraries and frameworks!
-
-{1 Libraries}
-
-{!modules:
-  Picos
-  Picos_domain
-  Picos_thread
-}
 
 {1 Conventions}
 
