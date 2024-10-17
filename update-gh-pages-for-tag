@@ -28,6 +28,8 @@ EOF
   exit 1
 fi
 
+opam install sherlodoc
+
 mkdir $TMP
 cd $TMP
 
