@@ -1,5 +1,5 @@
 open Multicore_bench
-open Picos_std_sync
+open Futexy
 
 module Ref = struct
   type 'a t = 'a ref

@@ -1,6 +1,6 @@
 open Multicore_bench
 open Picos_std_structured
-open Picos_std_sync
+open Futexy
 
 let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
 

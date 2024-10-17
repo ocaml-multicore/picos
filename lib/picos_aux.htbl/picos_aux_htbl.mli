@@ -78,12 +78,32 @@ val try_add : ('k, 'v) t -> 'k -> 'v -> bool
     the hash table [htbl]. Returns [true] on success and [false] in case the
     hash table already contained a binding for [key]. *)
 
+(** {2 Updating bindings} *)
+
+val try_set : ('k, 'v) t -> 'k -> 'v -> bool
+(** [try_set htbl key value] tries to update an existing binding of [key] to
+    [value].  Returns [true] on success and [false] in case the hash table did
+    not contain a binding for [key]. *)
+
+val try_compare_and_set : ('k, 'v) t -> 'k -> 'v -> 'v -> bool
+(** [try_compare_and_set htbl key before after] tries to update an existing
+    binding of [key] from the [before] value to the [after] value.  The values
+    are compared using physical equality, i.e. the [==] operator.  Returns
+    [true] on success and [false] in case the hash table did not contain a
+    binding of [key] to the [before] value. *)
+
 (** {2 Removing bindings} *)
 
 val try_remove : ('k, 'v) t -> 'k -> bool
 (** [try_remove htbl key] tries to remove a binding of [key] from the hash table
     [htbl].  Returns [true] on success and [false] in case the hash table did
     not contain a binding for [key]. *)
+
+val try_compare_and_remove : ('k, 'v) t -> 'k -> 'v -> bool
+(** [try_compare_and_remove htbl key before] tries to remove a binding of [key]
+    to the [before] value.  Values are compared using physical equality,
+    i.e. the [==] operator.  Returns [true] on success and [false] in case the
+    hash table did not contain a binding of [key] to the [before] value. *)
 
 val remove_exn : ('k, 'v) t -> 'k -> 'v
 (** [remove_exn htbl key] tries to remove a binding of [key] from the hash table
