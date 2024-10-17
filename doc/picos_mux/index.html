@@ -1,4 +1,28 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml"><head><title>index (picos_mux.index)</title><meta charset="utf-8"/><link rel="stylesheet" href="../odoc.support/odoc.css"/><meta name="generator" content="odoc 2.4.3"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../odoc.support/highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script><script>let base_url = '../';
 let search_urls = ['db.js','../sherlodoc.js'];
-</script><script src="../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – picos_mux</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1 id="sample-schedulers-for-picos"><a href="#sample-schedulers-for-picos" class="anchor"></a>Sample schedulers for Picos</h1><p>This package contains schedulers provided as samples for <a href="../picos/Picos/index.html"><code>Picos</code></a>.</p><ul class="modules"><li><a href="Picos_mux_fifo/index.html"><code>Picos_mux_fifo</code></a> <span class="synopsis">Basic single-threaded effects based <a href="../picos/Picos/index.html"><code>Picos</code></a> compatible scheduler for OCaml 5.</span></li><li><a href="Picos_mux_multififo/index.html"><code>Picos_mux_multififo</code></a> <span class="synopsis">Basic multi-threaded effects based <a href="../picos/Picos/index.html"><code>Picos</code></a> compatible scheduler for OCaml 5.</span></li><li><a href="Picos_mux_random/index.html"><code>Picos_mux_random</code></a> <span class="synopsis">Randomized multi-threaded effects based <a href="../picos/Picos/index.html"><code>Picos</code></a> compatible scheduler for OCaml 5.</span></li><li><a href="Picos_mux_thread/index.html"><code>Picos_mux_thread</code></a> <span class="synopsis">Basic <code>Thread</code> based <a href="../picos/Picos/index.html"><code>Picos</code></a> compatible scheduler for OCaml 4.</span></li></ul><p><sup>You may find these useful for both understanding the core Picos interface and for testing your own libraries implemented in Picos.</sup></p></header><div class="odoc-content"></div></body></html>
+</script><script src="../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – picos_mux</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1 id="sample-schedulers-for-picos"><a href="#sample-schedulers-for-picos" class="anchor"></a>Sample schedulers for Picos</h1><p>This package contains schedulers provided as samples for <a href="../picos/Picos/index.html"><code>Picos</code></a>.</p></header><nav class="odoc-toc"><ul><li><a href="#libraries">Libraries</a></li><li><a href="#examples">Examples</a></li></ul></nav><div class="odoc-content"><h2 id="libraries"><a href="#libraries" class="anchor"></a>Libraries</h2><ul class="modules"><li><a href="Picos_mux_fifo/index.html"><code>Picos_mux_fifo</code></a> <span class="synopsis">Basic single-threaded effects based <a href="../picos/Picos/index.html"><code>Picos</code></a> compatible scheduler for OCaml 5.</span></li><li><a href="Picos_mux_multififo/index.html"><code>Picos_mux_multififo</code></a> <span class="synopsis">Basic multi-threaded effects based <a href="../picos/Picos/index.html"><code>Picos</code></a> compatible scheduler for OCaml 5.</span></li><li><a href="Picos_mux_random/index.html"><code>Picos_mux_random</code></a> <span class="synopsis">Randomized multi-threaded effects based <a href="../picos/Picos/index.html"><code>Picos</code></a> compatible scheduler for OCaml 5.</span></li><li><a href="Picos_mux_thread/index.html"><code>Picos_mux_thread</code></a> <span class="synopsis">Basic <code>Thread</code> based <a href="../picos/Picos/index.html"><code>Picos</code></a> compatible scheduler for OCaml 4.</span></li></ul><p><sup>You may find these useful for both understanding the core Picos interface and for testing your own libraries implemented in Picos.</sup></p><h2 id="examples"><a href="#examples" class="anchor"></a>Examples</h2><p>Below is a program that forks a number of fibers and records a list of the domain ids on which the fibers run:</p><pre class="language-ocaml"><code>open Picos_std_structured
+module Mpscq = Picos_aux_mpscq
+
+let main ~work () =
+  let dids = Mpscq.create () in
+
+  Flock.join_after begin fun () -&gt;
+    for _ = 1 to 4 do
+      Flock.fork @@ fun () -&gt;
+      let did = (Domain.self () :&gt; int) in
+      Unix.sleepf work; (* &lt;- simulate work *)
+      Mpscq.push dids did
+    done
+  end;
+
+  Mpscq.pop_all dids
+  |&gt; List.of_seq
+  |&gt; List.sort Int.compare</code></pre><p>We can now try running the program with the sample schedulers:</p><pre class="language-ocaml"><code># Picos_mux_fifo.run (main ~work:0.0)
+- : int list = [0; 0; 0; 0]
+# Picos_mux_multififo.run_on ~n_domains:4 (main ~work:0.2)
+- : int list = [0; 1; 2; 3]
+# Picos_mux_random.run_on ~n_domains:4 (main ~work:0.2)
+- : int list = [0; 4; 5; 6]
+# Picos_mux_thread.run (main ~work:0.0)
+- : int list = [0; 0; 0; 0]</code></pre><p>A subtle detail above is that the <code>Unix.sleepf</code> call blocks the underlying thread for a moment, which makes it likely that multiple domains will be used by the multi-threaded schedulers. The results with the multi-threaded schedulers are still strictly speaking non-deterministic.</p></div></body></html>
