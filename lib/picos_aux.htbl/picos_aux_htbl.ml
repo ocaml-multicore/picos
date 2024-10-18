@@ -343,34 +343,49 @@ let[@inline] get t =
 
 (* *)
 
-let rec assoc_node t key = function
-  | Nil -> (Nil : (_, _, [< `Nil | `Cons ]) tdt)
-  | Cons r as cons -> if t r.key key then cons else assoc_node t key r.rest
+let rec exists t key = function
+  | Nil -> false
+  | Cons r ->
+      let result = t r.key key in
+      if result then result else exists t key r.rest
 
-let find_node t key =
+let mem t key =
   (* Reads can proceed in parallel with writes. *)
   let r = Atomic.get t in
   let h = r.hash key in
   let mask = Atomic_array.length r.buckets - 1 in
   let i = h land mask in
   match Atomic_array.unsafe_fenceless_get r.buckets i with
-  | B Nil -> Nil
-  | B (Cons cons_r as cons) ->
-      if r.equal cons_r.key key then cons
-      else assoc_node r.equal key cons_r.rest
+  | B Nil -> false
+  | B (Cons cons_r) ->
+      let result = r.equal cons_r.key key in
+      if result then result else exists r.equal key cons_r.rest
   | B (Resize resize_r) ->
       (* A resize is in progress.  The spine of the resize still holds what was
          in the bucket before resize reached that bucket. *)
-      assoc_node r.equal key resize_r.spine
+      exists r.equal key resize_r.spine
 
 (* *)
 
-let find_exn t key =
-  match find_node t key with
+let rec assoc t key = function
   | Nil -> raise_notrace Not_found
-  | Cons r -> r.value
+  | Cons r -> if t r.key key then r.value else assoc t key r.rest
 
-let mem t key = find_node t key != Nil
+let find_exn t key =
+  (* Reads can proceed in parallel with writes. *)
+  let r = Atomic.get t in
+  let h = r.hash key in
+  let mask = Atomic_array.length r.buckets - 1 in
+  let i = h land mask in
+  match Atomic_array.unsafe_fenceless_get r.buckets i with
+  | B Nil -> raise_notrace Not_found
+  | B (Cons cons_r) ->
+      if r.equal cons_r.key key then cons_r.value
+      else assoc r.equal key cons_r.rest
+  | B (Resize resize_r) ->
+      (* A resize is in progress.  The spine of the resize still holds what was
+         in the bucket before resize reached that bucket. *)
+      assoc r.equal key resize_r.spine
 
 (* *)
 
@@ -386,7 +401,7 @@ let rec try_add t key value backoff =
         adjust_estimated_size t r mask 1 true
       else try_add t key value (Backoff.once backoff)
   | B (Cons _ as before) ->
-      if assoc_node r.equal key before != Nil then false
+      if exists r.equal key before then false
       else
         let after = Cons { key; value; rest = before } in
         if Atomic_array.unsafe_compare_and_set r.buckets i (B before) (B after)
@@ -396,8 +411,6 @@ let rec try_add t key value backoff =
       let _ = finish t (Atomic.get t) in
       try_add t key value Backoff.default
 
-let[@inline] try_add t key value = try_add t key value Backoff.default
-
 (* *)
 
 type ('v, _) condition =
@@ -406,26 +419,23 @@ type ('v, _) condition =
 
 let[@tail_mod_cons] rec reassoc :
     type v c.
-    ('k -> 'k -> bool) ->
-    'k ->
+    _ ->
+    _ ->
     c ->
     v ->
     (v, c) condition ->
-    ('k, v, [< `Nil | `Cons ]) tdt ->
-    ('k, v, _) tdt =
- fun equal key present future condition -> function
+    (_, v, [< `Nil | `Cons ]) tdt ->
+    (_, v, _) tdt =
+ fun t key present future condition -> function
   | Nil -> raise_notrace Not_found
   | Cons r ->
-      if equal key r.key then
+      if t key r.key then
         match condition with
         | True -> Cons { r with value = future }
         | Compare ->
             if r.value == present then Cons { r with value = future }
             else raise_notrace Not_found
-      else
-        Cons { r with rest = reassoc equal key present future condition r.rest }
-
-(* *)
+      else Cons { r with rest = reassoc t key present future condition r.rest }
 
 let rec try_reassoc :
     type v c. ('k, v) t -> 'k -> c -> v -> (v, c) condition -> _ -> bool =
@@ -467,13 +477,9 @@ let rec try_reassoc :
       let _ = finish t (Atomic.get t) in
       try_reassoc t key present future condition Backoff.default
 
-let[@inline] try_set t key future =
-  try_reassoc t key future future True Backoff.default
-
-let[@inline] try_compare_and_set t key present future =
-  try_reassoc t key present future Compare Backoff.default
-
 (* *)
+
+type ('v, _) result = Bool : ('v, bool) result | Value : ('v, 'v) result
 
 let[@tail_mod_cons] rec dissoc t key = function
   | Nil -> raise_notrace Not_found
@@ -481,20 +487,17 @@ let[@tail_mod_cons] rec dissoc t key = function
       if t key r.key then r.rest else Cons { r with rest = dissoc t key r.rest }
 
 let rec try_dissoc :
-    type v c.
-    ('k, v) t ->
-    'k ->
-    c ->
-    (v, c) condition ->
-    _ ->
-    ('k, v, [ `Nil | `Cons ]) tdt =
- fun t key present condition backoff ->
+    type v c r.
+    (_, v) t -> _ -> c -> (v, c) condition -> (v, r) result -> _ -> r =
+ fun t key present condition result backoff ->
   let r = Atomic.get t in
   let h = r.hash key in
   let mask = Atomic_array.length r.buckets - 1 in
   let i = h land mask in
   match Atomic_array.unsafe_fenceless_get r.buckets i with
-  | B Nil -> Nil
+  | B Nil -> begin
+      match result with Bool -> false | Value -> raise_notrace Not_found
+    end
   | B (Cons cons_r as before) -> begin
       if r.equal cons_r.key key then
         if
@@ -505,9 +508,15 @@ let rec try_dissoc :
           if
             Atomic_array.unsafe_compare_and_set r.buckets i (B before)
               (B cons_r.rest)
-          then adjust_estimated_size t r mask (-1) before
-          else try_dissoc t key present condition (Backoff.once backoff)
-        else Nil
+          then
+            let result : r =
+              match result with Bool -> true | Value -> cons_r.value
+            in
+            adjust_estimated_size t r mask (-1) result
+          else try_dissoc t key present condition result (Backoff.once backoff)
+        else begin
+          match result with Bool -> false | Value -> raise_notrace Not_found
+        end
       else
         match dissoc r.equal key cons_r.rest with
         | (Nil | Cons _) as rest ->
@@ -515,24 +524,21 @@ let rec try_dissoc :
               Atomic_array.unsafe_compare_and_set r.buckets i (B before)
                 (B (Cons { cons_r with rest }))
             then
-              assoc_node r.equal key cons_r.rest
-              |> adjust_estimated_size t r mask (-1)
-            else try_dissoc t key present condition (Backoff.once backoff)
-        | exception Not_found -> Nil
+              let result : r =
+                match result with
+                | Bool -> true
+                | Value -> assoc r.equal key cons_r.rest
+              in
+              adjust_estimated_size t r mask (-1) result
+            else
+              try_dissoc t key present condition result (Backoff.once backoff)
+        | exception Not_found -> begin
+            match result with Bool -> false | Value -> raise_notrace Not_found
+          end
     end
   | B (Resize _) ->
       let _ = finish t (Atomic.get t) in
-      try_dissoc t key present condition Backoff.default
-
-let try_compare_and_remove t key present =
-  try_dissoc t key present Compare Backoff.default != Nil
-
-let try_remove t key = try_dissoc t key () True Backoff.default != Nil
-
-let remove_exn t key =
-  match try_dissoc t key () True Backoff.default with
-  | Nil -> raise_notrace Not_found
-  | Cons r -> r.value
+      try_dissoc t key present condition result Backoff.default
 
 (* *)
 
@@ -607,3 +613,23 @@ let find_random_exn t =
       let n = Array.length bindings in
       if n <> 0 then fst (Array.unsafe_get bindings (Random.int n))
       else raise_notrace Not_found
+
+(* *)
+
+let[@inline] try_add t key value = try_add t key value Backoff.default
+
+(* *)
+
+let[@inline] try_set t key future =
+  try_reassoc t key future future True Backoff.default
+
+let[@inline] try_compare_and_set t key present future =
+  try_reassoc t key present future Compare Backoff.default
+
+(* *)
+
+let[@inline] try_compare_and_remove t key present =
+  try_dissoc t key present Compare Bool Backoff.default
+
+let[@inline] try_remove t key = try_dissoc t key key True Bool Backoff.default
+let[@inline] remove_exn t key = try_dissoc t key key True Value Backoff.default
