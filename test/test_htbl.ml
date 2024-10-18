@@ -29,7 +29,8 @@ module Spec = struct
   type cmd =
     | Try_add of int
     | Mem of int
-    | Try_remove of int
+    | Remove_opt of int
+    | Set_opt of int
     | To_keys
     | Remove_all
 
@@ -37,20 +38,22 @@ module Spec = struct
     match c with
     | Try_add x -> "Try_add " ^ string_of_int x
     | Mem x -> "Mem " ^ string_of_int x
-    | Try_remove x -> "Try_remove " ^ string_of_int x
+    | Remove_opt x -> "Remove_opt " ^ string_of_int x
+    | Set_opt x -> "Set_opt " ^ string_of_int x
     | To_keys -> "To_keys"
     | Remove_all -> "Remove_all"
 
   module State = Set.Make (Int)
 
   type state = State.t
-  type sut = (int, unit) Htbl.t
+  type sut = (int, int) Htbl.t
 
   let arb_cmd _s =
     [
       Gen.int_bound 10 |> Gen.map (fun x -> Try_add x);
       Gen.int_bound 10 |> Gen.map (fun x -> Mem x);
-      Gen.int_bound 10 |> Gen.map (fun x -> Try_remove x);
+      Gen.int_bound 10 |> Gen.map (fun x -> Remove_opt x);
+      Gen.int_bound 10 |> Gen.map (fun x -> Set_opt x);
       Gen.return To_keys;
       Gen.return Remove_all;
     ]
@@ -64,7 +67,8 @@ module Spec = struct
     match c with
     | Try_add x -> State.add x s
     | Mem _ -> s
-    | Try_remove x -> State.remove x s
+    | Remove_opt x -> State.remove x s
+    | Set_opt _ -> s
     | To_keys -> s
     | Remove_all -> State.empty
 
@@ -72,14 +76,25 @@ module Spec = struct
 
   let run c d =
     match c with
-    | Try_add x -> Res (bool, Htbl.try_add d x ())
+    | Try_add x -> Res (bool, Htbl.try_add d x x)
     | Mem x ->
         Res
           ( bool,
             match Htbl.find_exn d x with
             | _ -> true
             | exception Not_found -> false )
-    | Try_remove x -> Res (bool, Htbl.try_remove d x)
+    | Remove_opt x ->
+        Res
+          ( option int,
+            match Htbl.remove_exn d x with
+            | x -> Some x
+            | exception Not_found -> None )
+    | Set_opt x ->
+        Res
+          ( option int,
+            match Htbl.set_exn d x x with
+            | x -> Some x
+            | exception Not_found -> None )
     | To_keys -> Res (seq int, Htbl.to_seq d |> Seq.map fst)
     | Remove_all -> Res (seq int, Htbl.remove_all d |> Seq.map fst)
 
@@ -87,7 +102,16 @@ module Spec = struct
     match (c, res) with
     | Try_add x, Res ((Bool, _), res) -> res <> State.mem x s
     | Mem x, Res ((Bool, _), res) -> res = State.mem x s
-    | Try_remove x, Res ((Bool, _), res) -> res = State.mem x s
+    | Remove_opt x, Res ((Option Int, _), res) -> begin
+        match res with
+        | None -> not (State.mem x s)
+        | Some x' -> x == x' && State.mem x s
+      end
+    | Set_opt x, Res ((Option Int, _), res) -> begin
+        match res with
+        | None -> not (State.mem x s)
+        | Some x' -> x == x' && State.mem x s
+      end
     | To_keys, Res ((Seq Int, _), res) -> State.equal (State.of_seq res) s
     | Remove_all, Res ((Seq Int, _), res) -> State.equal (State.of_seq res) s
     | _, _ -> false
