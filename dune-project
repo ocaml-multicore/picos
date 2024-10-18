@@ -205,7 +205,7 @@
     :with-test))
   (multicore-bench
    (and
-    (>= 0.1.5)
+    (>= 0.1.7)
     :with-test))
   (multicore-magic
    (and
