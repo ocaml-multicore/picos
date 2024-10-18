@@ -409,6 +409,47 @@ module Stream : sig
       the [cursor] position. *)
 end
 
+module Awaitable : sig
+  (** *)
+
+  (** {1 Atomic API} *)
+
+  type 'a t
+  (** *)
+
+  val make : ?padded:bool -> 'a -> 'a t
+  (** *)
+
+  val get : 'a t -> 'a
+  (** *)
+
+  val compare_and_set : 'a t -> 'a -> 'a -> bool
+  (** *)
+
+  val exchange : 'a t -> 'a -> 'a
+  (** *)
+
+  val set : 'a t -> 'a -> unit
+  (** *)
+
+  val fetch_and_add : int t -> int -> int
+  (** *)
+
+  val incr : int t -> unit
+  (** *)
+
+  val decr : int t -> unit
+  (** *)
+
+  (** {1 Futex API} *)
+
+  val await : 'a t -> 'a -> unit
+  (** *)
+
+  val signal : 'a t -> unit
+  (** *)
+end
+
 (** {1 Examples}
 
     {2 A simple bounded queue}
