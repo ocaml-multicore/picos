@@ -1,9 +1,10 @@
 open Multicore_bench
 open Picos_std_structured
-open Picos_std_sync
 module Queue = Stdlib.Queue
 
 let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
+
+open Futexy
 
 module Bounded_q : sig
   type 'a t
@@ -120,30 +121,34 @@ let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 10 * Util.iter_factor) () =
   in
   let wrap _ () = Scheduler.run in
   let work domain_index () =
-    Flock.join_after ~on_return:`Terminate @@ fun () ->
-    if not is_ocaml4 then Flock.fork yielder;
-    if domain_index < n_adders then
-      let rec work () =
-        let n = Countdown.alloc n_msgs_to_add ~domain_index ~batch:100 in
-        if 0 < n then begin
-          for i = 1 to n do
-            Bounded_q.push t i
-          done;
-          work ()
-        end
-      in
-      work ()
-    else
-      let rec work () =
-        let n = Countdown.alloc n_msgs_to_take ~domain_index ~batch:100 in
-        if n <> 0 then begin
-          for _ = 1 to n do
-            ignore (Bounded_q.pop t)
-          done;
-          work ()
-        end
-      in
-      work ()
+    try
+      Flock.join_after ~on_return:`Terminate @@ fun () ->
+      (*if not is_ocaml4 then Flock.fork yielder;*)
+      if domain_index < n_adders then
+        let rec work () =
+          let n = Countdown.alloc n_msgs_to_add ~domain_index ~batch:100 in
+          if 0 < n then begin
+            for i = 1 to n do
+              Bounded_q.push t i
+            done;
+            work ()
+          end
+        in
+        work ()
+      else
+        let rec work () =
+          let n = Countdown.alloc n_msgs_to_take ~domain_index ~batch:100 in
+          if n <> 0 then begin
+            for _ = 1 to n do
+              ignore (Bounded_q.pop t)
+            done;
+            work ()
+          end
+        in
+        work ()
+    with exn ->
+      Printf.printf "%s\n%!" @@ Printexc.to_string exn;
+      raise exn
   in
 
   let config =
