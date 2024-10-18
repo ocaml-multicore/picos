@@ -400,12 +400,95 @@ let[@inline] try_add t key value = try_add t key value Backoff.default
 
 (* *)
 
+type ('v, _) condition =
+  | Compare : ('v, 'v) condition
+  | True : ('v, _) condition
+
+let[@tail_mod_cons] rec reassoc :
+    type v c.
+    ('k -> 'k -> bool) ->
+    'k ->
+    c ->
+    v ->
+    (v, c) condition ->
+    ('k, v, [< `Nil | `Cons ]) tdt ->
+    ('k, v, _) tdt =
+ fun equal key present future condition -> function
+  | Nil -> raise_notrace Not_found
+  | Cons r ->
+      if equal key r.key then
+        match condition with
+        | True -> Cons { r with value = future }
+        | Compare ->
+            if r.value == present then Cons { r with value = future }
+            else raise_notrace Not_found
+      else
+        Cons { r with rest = reassoc equal key present future condition r.rest }
+
+(* *)
+
+let rec try_reassoc :
+    type v c. ('k, v) t -> 'k -> c -> v -> (v, c) condition -> _ -> bool =
+ fun t key present future condition backoff ->
+  let r = Atomic.get t in
+  let h = r.hash key in
+  let mask = Atomic_array.length r.buckets - 1 in
+  let i = h land mask in
+  match Atomic_array.unsafe_fenceless_get r.buckets i with
+  | B Nil -> false
+  | B (Cons cons_r as before) -> begin
+      if r.equal cons_r.key key then
+        if
+          match condition with
+          | True -> true
+          | Compare -> cons_r.value == present
+        then
+          let after = Cons { key; value = future; rest = cons_r.rest } in
+          let success =
+            Atomic_array.unsafe_compare_and_set r.buckets i (B before) (B after)
+          in
+          if success then success
+          else try_reassoc t key present future condition (Backoff.once backoff)
+        else false
+      else
+        match reassoc r.equal key present future condition cons_r.rest with
+        | rest ->
+            let after = Cons { cons_r with rest } in
+            let success =
+              Atomic_array.unsafe_compare_and_set r.buckets i (B before)
+                (B after)
+            in
+            if success then success
+            else
+              try_reassoc t key present future condition (Backoff.once backoff)
+        | exception Not_found -> false
+    end
+  | B (Resize _) ->
+      let _ = finish t (Atomic.get t) in
+      try_reassoc t key present future condition Backoff.default
+
+let[@inline] try_set t key future =
+  try_reassoc t key future future True Backoff.default
+
+let[@inline] try_compare_and_set t key present future =
+  try_reassoc t key present future Compare Backoff.default
+
+(* *)
+
 let[@tail_mod_cons] rec dissoc t key = function
   | Nil -> raise_notrace Not_found
   | Cons r ->
       if t key r.key then r.rest else Cons { r with rest = dissoc t key r.rest }
 
-let rec remove_node t key backoff =
+let rec try_dissoc :
+    type v c.
+    ('k, v) t ->
+    'k ->
+    c ->
+    (v, c) condition ->
+    _ ->
+    ('k, v, [ `Nil | `Cons ]) tdt =
+ fun t key present condition backoff ->
   let r = Atomic.get t in
   let h = r.hash key in
   let mask = Atomic_array.length r.buckets - 1 in
@@ -415,10 +498,16 @@ let rec remove_node t key backoff =
   | B (Cons cons_r as before) -> begin
       if r.equal cons_r.key key then
         if
-          Atomic_array.unsafe_compare_and_set r.buckets i (B before)
-            (B cons_r.rest)
-        then adjust_estimated_size t r mask (-1) before
-        else remove_node t key (Backoff.once backoff)
+          match condition with
+          | True -> true
+          | Compare -> cons_r.value == present
+        then
+          if
+            Atomic_array.unsafe_compare_and_set r.buckets i (B before)
+              (B cons_r.rest)
+          then adjust_estimated_size t r mask (-1) before
+          else try_dissoc t key present condition (Backoff.once backoff)
+        else Nil
       else
         match dissoc r.equal key cons_r.rest with
         | (Nil | Cons _) as rest ->
@@ -428,17 +517,20 @@ let rec remove_node t key backoff =
             then
               assoc_node r.equal key cons_r.rest
               |> adjust_estimated_size t r mask (-1)
-            else remove_node t key (Backoff.once backoff)
+            else try_dissoc t key present condition (Backoff.once backoff)
         | exception Not_found -> Nil
     end
   | B (Resize _) ->
       let _ = finish t (Atomic.get t) in
-      remove_node t key Backoff.default
+      try_dissoc t key present condition Backoff.default
 
-let try_remove t key = remove_node t key Backoff.default != Nil
+let try_compare_and_remove t key present =
+  try_dissoc t key present Compare Backoff.default != Nil
+
+let try_remove t key = try_dissoc t key () True Backoff.default != Nil
 
 let remove_exn t key =
-  match remove_node t key Backoff.default with
+  match try_dissoc t key () True Backoff.default with
   | Nil -> raise_notrace Not_found
   | Cons r -> r.value
 
