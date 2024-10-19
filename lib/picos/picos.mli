@@ -278,7 +278,10 @@ module Trigger : sig
 
       ⚠️ Do not call [signal] from an effect handler in a scheduler. *)
 
-  (** {2 Interface for schedulers} *)
+  (** {2 Interface for schedulers}
+
+      ⚠️ The operations in this section are for more advanced use cases and their
+      use requires a deeper understanding of how schedulers work. *)
 
   val is_initial : t -> bool
   (** [is_initial trigger] determines whether the trigger is in the initial
@@ -326,6 +329,10 @@ module Trigger : sig
        [@alert \"-handler\"]."]
   (** [from_action x y resume] is equivalent to
       {{!on_signal} [let t = create () in assert (on_signal t x y resume); t]}.
+
+      ℹ️ This can useful when you just want to have an arbitrary callback
+      executed when a trigger you attach to a {{!Computation} computation} is
+      signaled.
 
       ⚠️ The action that you attach to a trigger must be safe to call from any
       context that might end up signaling the trigger directly or indirectly
