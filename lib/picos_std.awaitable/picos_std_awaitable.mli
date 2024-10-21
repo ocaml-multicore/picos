@@ -153,7 +153,7 @@ end
 
     {2 [Condition]}
 
-    Let's also implement a condition variable.  For that we'll also make use
+    Let's also implement a condition variable.  For that we'll also make use of
     low level operations in the {!Picos} core library:
 
     {[
