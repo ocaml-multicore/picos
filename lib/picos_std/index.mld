@@ -5,6 +5,7 @@ the modules are intentionally designed to mimic modules from the OCaml Stdlib.
 
 {!modules:
   Picos_std_finally
+  Picos_std_awaitable
   Picos_std_event
   Picos_std_structured
   Picos_std_sync
