@@ -1,0 +1,11 @@
+(library
+ (name picos_std_awaitable)
+ (public_name picos_std.awaitable)
+ (libraries picos picos_aux.htbl backoff multicore-magic))
+
+(mdx
+ (package picos_meta)
+ (enabled_if
+  (>= %{ocaml_version} 5.0.0))
+ (libraries picos picos_std.awaitable)
+ (files picos_std_awaitable.mli))

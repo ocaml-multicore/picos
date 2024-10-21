@@ -38,6 +38,7 @@
   picos_aux.mpscq
   picos_io
   picos_io.select
+  picos_std.awaitable
   picos_std.finally
   picos_std.structured
   picos_std.sync

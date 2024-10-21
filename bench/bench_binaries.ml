@@ -25,6 +25,7 @@ let paths =
     lib "picos_mux.multififo";
     lib "picos_mux.random";
     lib "picos_mux.thread";
+    lib "picos_std.awaitable";
     lib "picos_std.event";
     lib "picos_std.finally";
     lib "picos_std.structured";
