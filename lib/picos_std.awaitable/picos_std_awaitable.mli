@@ -145,10 +145,11 @@ end
     ]}
 
     The above mutex outperforms most other mutexes under both no/low and high
-    contention scenarios.  In no/low contention scenarios the use
-    [fetch_and_add] provides low overhead.  In high contention scenarios the
-    above mutex allows unfairness, which avoids
-    {{:https://en.wikipedia.org/wiki/Lock_convoy} lock convoy}.
+    contention scenarios.  In no/low contention scenarios the use of
+    {{!Awaitable.fetch_and_add} [fetch_and_add]} provides low overhead.  In high
+    contention scenarios the above mutex allows unfairness, which avoids
+    performance degradation due to the
+    {{:https://en.wikipedia.org/wiki/Lock_convoy} lock convoy} phenomena.
 
     {2 [Condition]}
 
