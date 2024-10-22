@@ -996,11 +996,8 @@ module Fiber : sig
         with fibers. *)
 
     val create : unit -> 'a t
-    (** [new_key initial] allocates a new key for associating values in storage
-        associated with fibers.  The [initial] value for every fiber is either
-        the given {!Constant} or is {!Computed} with the given function.  If the
-        initial value is a constant, no value needs to be stored unless the
-        value is explicitly updated.
+    (** [create ()] allocates a new key for associating values in storage
+        associated with fibers.
 
         ⚠️ New keys should not be created dynamically. *)
 
