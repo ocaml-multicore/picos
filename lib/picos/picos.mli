@@ -734,9 +734,9 @@ module Computation : sig
       [from] one computation [into] another on {{:Trigger.signal} signal}.  The
       returned trigger is not attached to any computation.
 
-      The returned trigger is usually attached to the computation [from] which
-      cancelation is to be propagated and the trigger should usually also be
-      detached after it is no longer needed.
+      The caller usually attaches the returned trigger to the computation [from]
+      which cancelation is to be propagated and the trigger should usually also
+      be detached after it is no longer needed.  See also {!attach_canceler}.
 
       The intended use case of [canceler] is as a low level building block of
       structured concurrency mechanisms.  Picos does not require concurrent
