@@ -125,17 +125,13 @@ end
 
         let create ?padded () = Awaitable.make ?padded 0
 
-        let rec lock t old =
-          if old <> 0 then begin
-            Awaitable.await t 2;
-            lock t (Awaitable.exchange t 2)
-          end
-
         let lock t =
           if not (Awaitable.compare_and_set t 0 1) then
-            lock t (Awaitable.exchange t 2)
+            while Awaitable.exchange t 2 <> 0 do
+              Awaitable.await t 2
+            done
 
-        let unlock ?checked:_ t =
+        let unlock t =
           let before = Awaitable.fetch_and_add t (-1) in
           if before = 2 then begin
             Awaitable.set t 0;
