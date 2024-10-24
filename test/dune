@@ -64,6 +64,17 @@
    (run %{test} -- "Mutex and Condition" 1)
    (run %{test} -- "Mutex and Condition" 2))))
 
+(test
+ (package picos_meta)
+ (name test_sync_queue)
+ (modules test_sync_queue)
+ (libraries
+  picos_std.sync
+  qcheck-core
+  qcheck-multicoretests-util
+  qcheck-stm.stm
+  stm_run))
+
 ;;
 
 (test
