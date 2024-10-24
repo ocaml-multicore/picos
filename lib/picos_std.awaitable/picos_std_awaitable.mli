@@ -55,17 +55,31 @@ module Awaitable : sig
 
   val signal : 'a t -> unit
   (** [signal awaitable] tries to wake up one fiber {!await}in on the awaitable
-      location. *)
+      location.
+
+      🐌 Generally speaking one should avoid calling [signal] too frequently,
+      because the queue of awaiters is stored separately from the awaitable
+      location and it takes a bit of effort to locate it.  For example, calling
+      [signal] every time a value is added to an empty data structure might not
+      be optimal.  In many cases it is faster to explicitly mark the potential
+      presence of awaiters in the data structure and avoid calling [signal] when
+      it is definitely known that there are no awaiters. *)
 
   val broadcast : 'a t -> unit
   (** [broadcast awaitable] tries to wake up all fibers {!await}ing on the
-      awaitable location. *)
+      awaitable location.
+
+      🐌 The same advice as with {!signal} applies to [broadcast].  In addition,
+      it is typically a good idea to avoid potentially waking up large numbers
+      of fibers as it can easily lead to the
+      {{:https://en.wikipedia.org/wiki/Thundering_herd_problem} thundering herd}
+      phenomana. *)
 
   val await : 'a t -> 'a -> unit
   (** [await awaitable before] suspends the current fiber until the awaitable is
       explicitly {!signal}ed and has a value other than [before].
 
-      ⚠️ This operation is subject to
+      ⚠️ This operation is subject to the
       {{:https://en.wikipedia.org/wiki/ABA_problem} ABA} problems.  An [await]
       for value other than [A] may not return after the awaitable is signaled
       while having the value [B], because at a later point the awaitable has
