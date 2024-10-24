@@ -753,6 +753,25 @@ module Stream : sig
       the [cursor] position. *)
 end
 
+module Stack : sig
+  (** *)
+
+  type !'a t
+  (** *)
+
+  val create : ?padded:bool -> ?capacity:int -> unit -> 'a t
+  (** *)
+
+  val push : 'a t -> 'a -> unit
+  (** *)
+
+  exception Empty
+  (** *)
+
+  val pop_exn : 'a t -> 'a
+  (** *)
+end
+
 (** {1 Examples}
 
     {2 A simple bounded queue}

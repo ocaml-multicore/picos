@@ -9,3 +9,4 @@ module Latch = Latch
 module Barrier = Barrier
 module Ivar = Ivar
 module Stream = Stream
+module Stack = Stack
