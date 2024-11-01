@@ -3,6 +3,8 @@
 &middot;
 [Stdlib Benchmarks](https://bench.ci.dev/ocaml-multicore/multicore-bench/branch/main?worker=pascal&image=bench.Dockerfile)
 
+<p align="center"><a href="#readme"><img width="70%" src="https://raw.githubusercontent.com/ocaml-multicore/picos/main/doc/picos-logo.svg"></a></p>
+
 # **Picos** &mdash; Interoperable effects based concurrency
 
 Picos is a
