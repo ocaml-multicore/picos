@@ -10,7 +10,8 @@ bug-reports: "https://github.com/ocaml-multicore/picos/issues"
 depends: [
   "dune" {>= "3.14"}
   "picos" {= version}
-  "backoff" {>= "0.1.0"}
+  "picos_aux" {= version}
+  "backoff" {>= "0.1.1"}
   "multicore-magic" {>= "2.3.0"}
   "odoc" {with-doc}
 ]

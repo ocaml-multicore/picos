@@ -11,7 +11,7 @@ homepage: "https://github.com/ocaml-multicore/picos"
 bug-reports: "https://github.com/ocaml-multicore/picos/issues"
 depends: [
   "dune" {>= "3.14"}
-  "backoff" {>= "0.1.0"}
+  "backoff" {>= "0.1.1"}
   "thread-local-storage" {>= "0.2"}
   "odoc" {with-doc}
 ]
