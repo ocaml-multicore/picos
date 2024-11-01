@@ -29,7 +29,7 @@
    (>= 4.14.0))
   ;;
   (backoff
-   (>= 0.1.0))
+   (>= 0.1.1))
   (multicore-magic
    (>= 2.3.0))
   ;;
@@ -42,7 +42,7 @@
   "A systems programming interface between effects based schedulers and concurrent abstractions.")
  (depends
   (backoff
-   (>= 0.1.0))
+   (>= 0.1.1))
   (thread-local-storage
    (>= 0.2))
   ;;
@@ -54,9 +54,11 @@
  (depends
   (picos
    (= :version))
+  (picos_aux
+   (= :version))
   ;;
   (backoff
-   (>= 0.1.0))
+   (>= 0.1.1))
   (multicore-magic
    (>= 2.3.0))
   ;;
@@ -72,7 +74,7 @@
    (= :version))
   ;;
   (backoff
-   (>= 0.1.0))
+   (>= 0.1.1))
   (mtime
    (>= 2.0.0))
   (multicore-magic
@@ -108,7 +110,7 @@
    (= :version))
   ;;
   (backoff
-   (>= 0.1.0))
+   (>= 0.1.1))
   (multicore-magic
    (>= 2.3.0))
   ;;

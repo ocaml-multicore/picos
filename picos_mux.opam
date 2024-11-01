@@ -11,7 +11,7 @@ depends: [
   "dune" {>= "3.14"}
   "picos_aux" {= version}
   "picos_std" {= version}
-  "backoff" {>= "0.1.0"}
+  "backoff" {>= "0.1.1"}
   "multicore-magic" {>= "2.3.0"}
   "odoc" {with-doc}
 ]
