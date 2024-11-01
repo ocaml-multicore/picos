@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Picos_io_cohttp (picos_io_cohttp.Picos_io_cohttp)</title><meta charset="utf-8"/><link rel="stylesheet" href="../../odoc.support/odoc.css"/><meta name="generator" content="odoc 2.4.3"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../odoc.support/highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script><script>let base_url = '../../';
+let search_urls = ['../db.js','../../sherlodoc.js'];
+</script><script src="../../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../index.html">picos_io_cohttp</a> &#x00BB; Picos_io_cohttp</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1>Module <code><span>Picos_io_cohttp</span></code></h1><p>Minimalistic <a href="https://github.com/mirage/ocaml-cohttp/">Cohttp</a> implementation using <a href="../../picos_io/Picos_io/index.html"><code>Picos_io</code></a> for <a href="../../picos/Picos/index.html"><code>Picos</code></a>.</p><p>⚠️ This library is currently minimalistic and experimental and is highly likely to change. Feedback from potential users is welcome!</p></header><nav class="odoc-toc"><ul><li><a href="#modules">Modules</a></li><li><a href="#examples">Examples</a><ul><li><a href="#a-server-and-client">A server and client</a></li></ul></li></ul></nav><div class="odoc-content"><h2 id="modules"><a href="#modules" class="anchor"></a>Modules</h2><div class="odoc-spec"><div class="spec module anchored" id="module-Client"><a href="#module-Client" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Client/index.html">Client</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>Convenience functions for constructing requests and processing responses.</p></div></div><div class="odoc-spec"><div class="spec module anchored" id="module-Server"><a href="#module-Server" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Server/index.html">Server</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>Convenience functions for processing requests and constructing responses.</p></div></div><h2 id="examples"><a href="#examples" class="anchor"></a>Examples</h2><p>First we open some modules for convenience:</p><pre class="language-ocaml"><code>open Cohttp
+open Picos_io
+open Picos_io_cohttp
+open Picos_std_finally
+open Picos_std_structured</code></pre><h3 id="a-server-and-client"><a href="#a-server-and-client" class="anchor"></a>A server and client</h3><p>Let's build a simple hello server. We first define a function that creates and configures a socket for the server:</p><pre class="language-ocaml"><code>let server_create ?(max_pending_reqs = 8) addr =
+  let socket =
+    Unix.socket ~cloexec:true PF_INET SOCK_STREAM 0
+  in
+  match
+    Unix.set_nonblock socket;
+    Unix.bind socket addr;
+    Unix.listen socket max_pending_reqs
+  with
+  | () -&gt; socket
+  | exception exn -&gt;
+    Unix.close socket;
+    raise exn</code></pre><p>The reason for doing it like this, as we'll see later, is that we want the OS to decide the port for our server. Also note that we explicitly set the socket to non-blocking mode, which is what we should do with <a href="../../picos_io/Picos_io/index.html"><code>Picos_io</code></a> whenever possible.</p><p>Then we'll define a function that runs a server given a socket:</p><pre class="language-ocaml"><code>let server_run socket =
+  let callback _conn _req body =
+    let body =
+      Printf.sprintf &quot;Hello, %s!&quot;
+        (Body.to_string body)
+    in
+    Server.respond_string ~status:`OK ~body ()
+  in
+  Server.run (Server.make ~callback ()) socket</code></pre><p>The idea is that the body of the request is the name to be greeted in the body of the response.</p><p>A client then posts to the specified uri and returns the response body:</p><pre class="language-ocaml"><code>let client uri name =
+  let resp, body =
+    Client.post ~body:(`String name) uri
+  in
+  if Response.status resp != `OK then
+    failwith &quot;Not OK&quot;;
+  Body.to_string body</code></pre><p>Now we are ready to put everything together:</p><pre class="language-ocaml"><code># Picos_mux_random.run_on ~n_domains:2 @@ fun () -&gt;
+
+  let@ server_socket =
+    finally Unix.close @@ fun () -&gt;
+    server_create
+      Unix.(ADDR_INET (inet_addr_loopback, 0))
+  in
+
+  let server_port =
+    match Unix.getsockname server_socket with
+    | ADDR_UNIX _ -&gt; failwith &quot;impossible&quot;
+    | ADDR_INET (_, port) -&gt; port
+  in
+
+  let server_uri =
+    Uri.make
+      ~scheme:&quot;http&quot;
+      ~host:&quot;127.0.0.1&quot;
+      ~port:server_port
+      ()
+  in
+
+  Flock.join_after ~on_return:`Terminate @@ fun () -&gt;
+
+  Flock.fork begin fun () -&gt;
+    server_run server_socket
+  end;
+
+  client server_uri &quot;World&quot;
+- : string = &quot;Hello, World!&quot;</code></pre><p>We first create the <code>server_socket</code> and obtain the <code>server_port</code> and ultimately the <code>server_uri</code> from it — typically one can avoid this complexity and use a fixed port. We then create a <a href="../../picos_std/Picos_std_structured/Flock/index.html" title="Picos_std_structured.Flock">flock</a> for running the server as a concurrent fiber, which we arrange to terminate at the end of the scope. Finally we act as the client to get a greeting from the server.</p></div></body></html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Picos_std_awaitable (picos_std.Picos_std_awaitable)</title><meta charset="utf-8"/><link rel="stylesheet" href="../../odoc.support/odoc.css"/><meta name="generator" content="odoc 2.4.3"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../odoc.support/highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script><script>let base_url = '../../';
+let search_urls = ['../db.js','../../sherlodoc.js'];
+</script><script src="../../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../index.html">picos_std</a> &#x00BB; Picos_std_awaitable</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1>Module <code><span>Picos_std_awaitable</span></code></h1><p>Basic <a href="https://en.wikipedia.org/wiki/Futex">futex</a>-like awaitable atomic location for <a href="../../picos/Picos/index.html"><code>Picos</code></a>.</p></header><nav class="odoc-toc"><ul><li><a href="#modules">Modules</a></li><li><a href="#examples">Examples</a><ul><li><a href="#mutex"><code>Mutex</code></a></li><li><a href="#condition"><code>Condition</code></a></li></ul></li></ul></nav><div class="odoc-content"><h2 id="modules"><a href="#modules" class="anchor"></a>Modules</h2><div class="odoc-spec"><div class="spec module anchored" id="module-Awaitable"><a href="#module-Awaitable" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Awaitable/index.html">Awaitable</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div><div class="spec-doc"><p>An awaitable atomic location.</p></div></div><h2 id="examples"><a href="#examples" class="anchor"></a>Examples</h2><p>We first open the library to bring the <a href="Awaitable/index.html"><code>Awaitable</code></a> module into scope:</p><pre class="language-ocaml"><code># open Picos_std_awaitable</code></pre><h3 id="mutex"><a href="#mutex" class="anchor"></a><code>Mutex</code></h3><p>Here is a basic mutex implementation using awaitables:</p><pre class="language-ocaml"><code>module Mutex = struct
+  type t = int Awaitable.t
+
+  let create ?padded () = Awaitable.make ?padded 0
+
+  let lock t =
+    if not (Awaitable.compare_and_set t 0 1) then
+      while Awaitable.exchange t 2 &lt;&gt; 0 do
+        Awaitable.await t 2
+      done
+
+  let unlock t =
+    let before = Awaitable.fetch_and_add t (-1) in
+    if before = 2 then begin
+      Awaitable.set t 0;
+      Awaitable.signal t
+    end
+end</code></pre><p>The above mutex outperforms most other mutexes under both no/low and high contention scenarios. In no/low contention scenarios the use of <a href="Awaitable/index.html#val-fetch_and_add" title="Awaitable.fetch_and_add"><code>fetch_and_add</code></a> provides low overhead. In high contention scenarios the above mutex allows unfairness, which avoids performance degradation due to the <a href="https://en.wikipedia.org/wiki/Lock_convoy">lock convoy</a> phenomena.</p><h3 id="condition"><a href="#condition" class="anchor"></a><code>Condition</code></h3><p>Let's also implement a condition variable. For that we'll also make use of low level abstractions and operations from the <a href="../../picos/Picos/index.html"><code>Picos</code></a> core library:</p><pre class="language-ocaml"><code># open Picos</code></pre><p>To implement a condition variable, we'll use the <a href="Awaitable/Awaiter/index.html" title="Awaitable.Awaiter"><code>Awaiter</code></a> API:</p><pre class="language-ocaml"><code>module Condition = struct
+  type t = unit Awaitable.t
+
+  let create () = Awaitable.make ()
+
+  let wait t mutex =
+    let trigger = Trigger.create () in
+    let awaiter = Awaitable.Awaiter.add t trigger in
+    Mutex.unlock mutex;
+    let lock_forbidden mutex =
+      let fiber = Fiber.current () in
+      let forbid = Fiber.exchange fiber ~forbid:true in
+      Mutex.lock mutex;
+      Fiber.set fiber ~forbid
+    in
+    match Trigger.await trigger with
+    | None -&gt; lock_forbidden mutex
+    | Some exn_bt -&gt;
+        Awaitable.Awaiter.remove awaiter;
+        lock_forbidden mutex;
+        Printexc.raise_with_backtrace (fst exn_bt) (snd exn_bt)
+
+  let signal = Awaitable.signal
+  let broadcast = Awaitable.broadcast
+end</code></pre><p>Notice that the awaitable location used in the above condition variable implementation is never mutated. We just reuse the signaling mechanism of awaitables.</p></div></body></html>
