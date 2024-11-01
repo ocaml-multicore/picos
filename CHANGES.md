@@ -1,7 +1,20 @@
-## Next version
+## 0.6.0
 
+- Added a futex-like `Awaitable` abstraction as the `picos_std.awaitable`
+  library (@polytypic)
+- Changed the core Picos library to be internally built from a single `.ml` file
+  (@polytypic)
+- Optimized heap and stack usage of fibers and resource cleanup mechanisms and
+  added workarounds for compiler generated space leaks due to closures
+  (@polytypic)
+- Added `lastly` as a safe alternative to `Fun.protect` (@polytypic)
+- Workarounds for the `Uri` library not being threadsafe (@polytypic)
+- Fixed to raise proper error when `Picos_io_select` has not been configured
+  properly (@polytypic)
 - Forbid cancelation propagation during `release` calls in the
   `picos_std.finally` library (@polytypic)
+  - This is a change in behaviour and could be seen as a breaking change, but it
+    should really be considered a bug fix.
 - Renamed `(Ivar|Stream).poison` to `(Ivar|Stream).poison_at` and added
   `(Ivar|Stream).poison` with optional `?callstack:int` (@polytypic)
 
