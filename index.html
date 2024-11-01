@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>Picos — Interoperable effects based concurrency</title>
+    <link rel="stylesheet" href="index/reset.css" />
+    <link rel="stylesheet" href="index/main.css" />
+    <link
+      rel="icon"
+      href="https://raw.githubusercontent.com/ocaml-multicore/picos/main/doc/picos-logo.svg"
+    />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <meta
+      property="og:image"
+      content="https://raw.githubusercontent.com/ocaml-multicore/picos/main/doc/picos-logo.svg"
+    />
+    <meta
+      property="og:description"
+      content="An open ecosystem of interoperable and interchangeable elements of concurrency"
+    />
+  </head>
+  <body>
+    <header class="header">
+      <a href="/picos/">
+        <img
+          alt="Picos"
+          decoding="sync"
+          height="50%"
+          src="https://raw.githubusercontent.com/ocaml-multicore/picos/main/doc/picos-logo.svg"
+      /></a>
+      <nav class="links">
+        <a href="https://github.com/ocaml-multicore/picos#introduction"
+          >Introduction</a
+        >
+        <div id="api">
+          <a href="doc/">API</a>
+        </div>
+        <a href="https://github.com/ocaml-multicore/picos">GitHub</a>
+      </nav>
+    </header>
+    <section class="intro">
+      <a href="https://github.com/ocaml-multicore/picos#readme">
+        <img
+          style="margin: auto"
+          alt="Picos"
+          decoding="sync"
+          width="70%"
+          src="https://raw.githubusercontent.com/ocaml-multicore/picos/main/doc/picos-logo.svg"
+      /></a>
+      <p class="secondary">Interoperable Effects-Based Concurrency</p>
+    </section>
+    <section class="benefits">
+      <section class="block">
+        <h2>Interoperability</h2>
+        <p>
+          Picos is
+          <a
+            href="https://ocaml-multicore.github.io/picos/doc/picos/index.html#introduction"
+          >
+            an interface between <em>schedulers</em> and
+            <em>concurrent abstractions</em></a
+          >. Two phrases,
+          <a
+            href="https://ocaml-multicore.github.io/picos/doc/picos/index.html#picos-compatible"
+            >Picos compatible</a
+          >
+          and
+          <a
+            href="https://ocaml-multicore.github.io/picos/doc/picos/index.html#implemented-in-picos"
+            >Implemented in Picos</a
+          >, are used to describe the opposing sides of this contract.
+        </p>
+      </section>
+      <section class="block">
+        <h2>Cancelation</h2>
+        <p>
+          The
+          <a
+            href="https://ocaml-multicore.github.io/picos/doc/picos/Picos/index.html#understanding-cancelation"
+          >
+            two main motivating problems</a
+          >
+          for the design of Picos have been
+          <em>Cancelable synchronization</em> and
+          <em>Structured concurrency</em>.
+        </p>
+      </section>
+      <section class="block">
+        <h2>Mix and Match</h2>
+        <p>
+          Picos allows a single application to use
+          <a
+            href="https://ocaml-multicore.github.io/picos/doc/picos_mux/index.html"
+          >
+            multiple schedulers</a
+          >
+          and libraries internally using different
+          <a
+            href="https://ocaml-multicore.github.io/picos/doc/picos_std/Picos_std_structured/index.html"
+          >
+            concurrent programming models</a
+          >.
+        </p>
+      </section>
+      <section class="block">
+        <h2>IO</h2>
+        <p>
+          Picos allows
+          <a
+            href="https://ocaml-multicore.github.io/picos/doc/picos_io/Picos_io/index.html"
+          >
+            IO to be implemented as scheduler agnostic libraries</a
+          >.
+        </p>
+      </section>
+    </section>
+    <section class="outro">
+      <h2>Additional resources</h2>
+      <p>
+        <a
+          href="https://icfp24.sigplan.org/details/ocaml-2024-papers/5/Picos-Interoperable-effects-based-concurrency"
+          >Picos — Interoperable effects based concurrency</a
+        >
+      </p>
+      <hr />
+    </section>
+    <script type="module" src="index/main.js"></script>
+  </body>
+</html>
