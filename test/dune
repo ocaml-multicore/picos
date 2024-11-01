@@ -217,6 +217,7 @@
   (flags --enable=effects))
  (build_if
   (and
+   (<> %{os_type} Win32)
    (<> %{architecture} i386)
    (<> %{architecture} riscv)))
  (libraries picos))
