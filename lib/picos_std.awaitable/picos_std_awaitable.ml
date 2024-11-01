@@ -355,13 +355,14 @@ module Awaitable = struct
   let update t ~signal ~count =
     try
       let signal = ref signal in
+      let count = ref count in
       let backoff = ref Backoff.default in
       while
         not
           (let before = Htbl.find_exn awaiters t in
            match
-             if !signal then Awaiters.signal before ~count
-             else Awaiters.cleanup before ~count
+             if !signal then Awaiters.signal before ~count:!count
+             else Awaiters.cleanup before ~count:!count
            with
            | Zero -> Htbl.try_compare_and_remove awaiters t before
            | One r ->
@@ -373,51 +374,59 @@ module Awaitable = struct
                before == after
                || Htbl.try_compare_and_set awaiters t before after)
       do
+        (* Even if the hash table update after signal fails, the trigger(s) have
+           been signaled. *)
         signal := false;
+        (* If a single awaiter and multi awaiter cleanup are attempted in
+           parallel it might be that a multi awaiter cleanup "succeeds" and yet
+           some awaiters are left in the queue.  For this reason we perform a
+           multi awaiter cleanup after failure.  It might be possible to improve
+           upon this with some more clever approach. *)
+        count := Int.max_int;
         backoff := Backoff.once !backoff
       done
     with Not_found -> ()
 
-  let add_as (type a) (t : a awaitable) value =
-    let trigger = Trigger.create () in
-    let one : Awaiters.is1 =
-      One { awaitable = t; value; trigger; counter = 0; next = Min0 Zero }
-    in
-    let backoff = ref Backoff.default in
-    while
-      not
-        (match Htbl.find_exn awaiters (Packed t) with
-        | before ->
-            let many = Awaiters.snoc before one in
-            Htbl.try_compare_and_set awaiters (Packed t) before (Min1 many)
-        | exception Not_found -> Htbl.try_add awaiters (Packed t) (Min1 one))
-    do
-      backoff := Backoff.once !backoff
-    done;
-    one
-
   module Awaiter = struct
     type t = Awaiters.is1
 
-    let add (type a) (t : a awaitable) =
-      add_as t (Sys.opaque_identity (Obj.magic awaiters : a))
+    let add_as (type a) (t : a awaitable) trigger value =
+      let one : Awaiters.is1 =
+        One { awaitable = t; value; trigger; counter = 0; next = Min0 Zero }
+      in
+      let backoff = ref Backoff.default in
+      while
+        not
+          (match Htbl.find_exn awaiters (Packed t) with
+          | before ->
+              let many = Awaiters.snoc before one in
+              Htbl.try_compare_and_set awaiters (Packed t) before (Min1 many)
+          | exception Not_found -> Htbl.try_add awaiters (Packed t) (Min1 one))
+      do
+        backoff := Backoff.once !backoff
+      done;
+      one
+
+    let add (type a) (t : a awaitable) trigger =
+      let unique_value = Sys.opaque_identity (Obj.magic awaiters : a) in
+      add_as t trigger unique_value
 
     let remove one =
       Awaiters.signal_and_clear one;
       update (Awaiters.awaitable_of one) ~signal:false ~count:1
+  end
 
-    let await one =
+  let await t value =
+    let trigger = Trigger.create () in
+    let one = Awaiter.add_as t trigger value in
+    if Awaiters.is_signalable one then Awaiter.remove one
+    else
       match Awaiters.await one with
       | None -> ()
       | Some exn_bt ->
           Awaiters.clear one;
           update (Awaiters.awaitable_of one) ~signal:true ~count:1;
           Printexc.raise_with_backtrace (fst exn_bt) (snd exn_bt)
-  end
-
-  let await t value =
-    let one = add_as t value in
-    if Awaiters.is_signalable one then Awaiter.remove one else Awaiter.await one
 
   let[@inline] broadcast t = update (Packed t) ~signal:true ~count:Int.max_int
   let[@inline] signal t = update (Packed t) ~signal:true ~count:1
@@ -425,6 +434,10 @@ module Awaitable = struct
   let () =
     Stdlib.at_exit @@ fun () ->
     match Htbl.find_random_exn awaiters with
-    | _ -> failwith "leaked awaitable"
+    | _ ->
+        (* This should not normally happen, but might happen due to the program
+           being forced to exit without proper cleanup.  Otherwise this may
+           indicate a bug in the cleanup of awaiters. *)
+        Printf.eprintf "Awaitable leaked\n%!"
     | exception Not_found -> ()
 end

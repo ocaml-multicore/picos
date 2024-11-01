@@ -1,6 +1,8 @@
 (** Basic {{:https://en.wikipedia.org/wiki/Futex} futex}-like awaitable atomic
     location for {!Picos}. *)
 
+open Picos
+
 (** {1 Modules} *)
 
 module Awaitable : sig
@@ -18,7 +20,7 @@ module Awaitable : sig
 
   (** {1 Atomic API} *)
 
-  type 'a t
+  type !'a t
   (** Represents an awaitable atomic location. *)
 
   val make : ?padded:bool -> 'a -> 'a t
@@ -80,7 +82,7 @@ module Awaitable : sig
       explicitly {!signal}ed and has a value other than [before].
 
       ⚠️ This operation is subject to the
-      {{:https://en.wikipedia.org/wiki/ABA_problem} ABA} problems.  An [await]
+      {{:https://en.wikipedia.org/wiki/ABA_problem} ABA} problem.  An [await]
       for value other than [A] may not return after the awaitable is signaled
       while having the value [B], because at a later point the awaitable has
       again the value [A].  Furthermore, by the time an [await] for value other
@@ -90,12 +92,7 @@ module Awaitable : sig
       implicitly wake up awaiters. *)
 
   module Awaiter : sig
-    (** Ability to await for a signal from the past.
-
-        {!Awaitable.await} only receives a signal at or after the point of
-        calling it.  This API allows the awaiting process to be broken into two
-        steps, {!add} and {!await}, such that a signal after {!add} can be
-        received by {!await}. *)
+    (** Low level interface for more flexible waiting. *)
 
     type 'a awaitable := 'a t
     (** An erased type alias for {!Awaitable.t}. *)
@@ -103,21 +100,18 @@ module Awaitable : sig
     type t
     (** Represents a single use awaiter of a signal to an {!awaitable}. *)
 
-    val add : 'a awaitable -> t
-    (** [add awaitable] create a single use awaiter, adds it to the FIFO
-        associated with the awaitable, and returns the awaiter. *)
-
-    val await : t -> unit
-    (** [await awaiter] awaits for the association awaitable to be signaled. *)
+    val add : 'a awaitable -> Trigger.t -> t
+    (** [add awaitable trigger] creates a single use awaiter, adds it to the
+        FIFO associated with the awaitable, and returns the awaiter. *)
 
     val remove : t -> unit
     (** [remove awaiter] marks the awaiter as having been signaled and removes it
         from the FIFO associated with the awaitable.
 
-        ⚠️ An explicit call of [remove] is needed when an {!add}ed awaiter is not
-        {!await}ed for.  In such a case, from the point of view of lost signals,
-        the caller of [remove] should be considered to have received or consumed
-        a signal before the call of [remove]. *)
+        ℹ️ If the associated trigger is used with only one awaiter and the
+        {!Trigger.await await} on the trigger returns [None], there is no need
+        to explicitly remove the awaiter, because it has already been
+        removed. *)
   end
 end
 
@@ -164,7 +158,7 @@ end
     {2 [Condition]}
 
     Let's also implement a condition variable.  For that we'll also make use of
-    low level operations in the {!Picos} core library:
+    low level abstractions and operations from the {!Picos} core library:
 
     {[
       # open Picos
@@ -180,7 +174,8 @@ end
         let create () = Awaitable.make ()
 
         let wait t mutex =
-          let awaiter = Awaitable.Awaiter.add t in
+          let trigger = Trigger.create () in
+          let awaiter = Awaitable.Awaiter.add t trigger in
           Mutex.unlock mutex;
           let lock_forbidden mutex =
             let fiber = Fiber.current () in
@@ -188,12 +183,12 @@ end
             Mutex.lock mutex;
             Fiber.set fiber ~forbid
           in
-          match Awaitable.Awaiter.await awaiter with
-          | () -> lock_forbidden mutex
-          | exception exn ->
-              let bt = Printexc.get_raw_backtrace () in
+          match Trigger.await trigger with
+          | None -> lock_forbidden mutex
+          | Some exn_bt ->
+              Awaitable.Awaiter.remove awaiter;
               lock_forbidden mutex;
-              Printexc.raise_with_backtrace exn bt
+              Printexc.raise_with_backtrace (fst exn_bt) (snd exn_bt)
 
         let signal = Awaitable.signal
         let broadcast = Awaitable.broadcast
