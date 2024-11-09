@@ -31,56 +31,47 @@ struct
       match bt with Some bt -> bt | None -> Printexc.get_callstack 15
     in
     if
-      Htbl.try_add ht t
-        (Atomic.make { count_and_bits = count_1 lor Bool.to_int dispose; bt })
+      Htbl.try_add ht t { count_and_bits = count_1 lor Bool.to_int dispose; bt }
     then t
-    else begin
-      (* We assume resources may only be reused after they have been
-         disposed. *)
-      created ()
-    end
+    else created ()
+
+  let rec incr t backoff =
+    match Htbl.find_exn ht t with
+    | before ->
+        if before.count_and_bits land closed_bit <> 0 then disposed ()
+        else
+          let count_and_bits = before.count_and_bits + count_1 in
+          let after = { before with count_and_bits } in
+          if not (Htbl.try_compare_and_set ht t before after) then
+            incr t (Backoff.once backoff)
+    | exception Not_found -> disposed ()
+
+  let rec decr closed_bit t backoff =
+    match Htbl.find_exn ht t with
+    | before ->
+        if before.count_and_bits < count_1 * 2 then
+          if Htbl.try_compare_and_remove ht t before then begin
+            if before.count_and_bits land dispose_bit <> 0 then
+              Resource.dispose t
+          end
+          else decr closed_bit t (Backoff.once backoff)
+        else
+          let count_and_bits =
+            (before.count_and_bits - count_1) lor closed_bit
+          in
+          let after = { before with count_and_bits } in
+          if not (Htbl.try_compare_and_set ht t before after) then
+            decr closed_bit t (Backoff.once backoff)
+    | exception Not_found -> disposed ()
+
+  let[@inline] incr t = incr t Backoff.default
+
+  let[@inline] decr ?close t =
+    decr
+      (match close with None | Some false -> 0 | Some true -> closed_bit)
+      t Backoff.default
 
   let unsafe_get = Fun.id
-
-  let rec incr t entry backoff =
-    let before = Atomic.get entry in
-    if
-      before.count_and_bits < count_1
-      || before.count_and_bits land closed_bit <> 0
-    then disposed ()
-    else
-      let count_and_bits = before.count_and_bits + count_1 in
-      let after = { before with count_and_bits } in
-      if not (Atomic.compare_and_set entry before after) then
-        incr t entry (Backoff.once backoff)
-
-  let incr t =
-    match Htbl.find_exn ht t with
-    | exception Not_found -> disposed ()
-    | entry -> incr t entry Backoff.default
-
-  let rec decr closed_bit t entry backoff =
-    let before = Atomic.get entry in
-    let count_and_bits = (before.count_and_bits - count_1) lor closed_bit in
-    if count_and_bits < 0 then disposed ()
-    else
-      let after = { before with count_and_bits } in
-      if not (Atomic.compare_and_set entry before after) then
-        decr closed_bit t entry (Backoff.once backoff)
-      else if count_and_bits < count_1 then begin
-        Htbl.try_remove ht t |> ignore;
-        (* We must dispose the resource as the last step, because the value
-           might be reused after it has been disposed. *)
-        if after.count_and_bits land dispose_bit <> 0 then Resource.dispose t
-      end
-
-  let decr ?close t =
-    match Htbl.find_exn ht t with
-    | exception Not_found -> disposed ()
-    | entry ->
-        decr
-          (match close with None | Some false -> 0 | Some true -> closed_bit)
-          t entry Backoff.default
 
   type info = {
     resource : Resource.t;
@@ -92,8 +83,7 @@ struct
 
   let infos () =
     Htbl.to_seq ht
-    |> Seq.map @@ fun (resource, entry) ->
-       let { count_and_bits; bt } = Atomic.get entry in
+    |> Seq.map @@ fun (resource, { count_and_bits; bt }) ->
        let count = count_and_bits lsr count_shift in
        let closed = count_and_bits land closed_bit <> 0 in
        let dispose = count_and_bits land dispose_bit <> 0 in
