@@ -149,11 +149,17 @@ val find_random_exn : ('k, 'v) t -> 'k
 
 (** {1 Examples}
 
-    An example top-level session:
-    {[
-      # module Htbl = Picos_aux_htbl
-      module Htbl = Picos_aux_htbl
+    For the examples we first make a convenience binding:
 
+    {[
+      module Htbl = Picos_aux_htbl
+    ]}
+
+    {2 A simple top-level session}
+
+    Here is a top-level session using a hash table:
+
+    {[
       # let t : (int, string) Htbl.t =
           Htbl.create
             ~hashed_type:(module Int) ()
@@ -173,4 +179,47 @@ val find_random_exn : ('k, 'v) t -> 'k
 
       # Htbl.remove_all t |> List.of_seq
       - : (int * string) list = [(101, "Basics"); (42, "The answer")]
-    ]} *)
+    ]}
+
+    {2 A randomized lock-free bag}
+
+    Below is an example of a randomized lock-free bag implemented using a hash
+    table:
+
+    {[
+      module Bag : sig
+        type !'v t
+
+        val create : unit -> 'v t
+        val push : 'v t -> 'v -> unit
+        val pop_exn : 'v t -> 'v
+      end = struct
+        type 'v t = (int, 'v) Htbl.t
+
+        module Key = struct
+          type t = int
+          let equal = Int.equal
+          let hash = Fun.id
+        end
+
+        let create () =
+          Htbl.create ~hashed_type:(module Key) ()
+
+        let rec push t value =
+          let key = Int64.to_int (Random.bits64 ()) in
+          if not (Htbl.try_add t key value) then
+            push t value
+
+        let rec pop_exn t =
+          let key = Htbl.find_random_exn t in
+          try
+            Htbl.remove_exn t key
+          with Not_found ->
+            pop_exn t
+      end
+    ]}
+
+    First of all, as we use random bits as keys, we can use {!Fun.id} as the
+    [hash] function.  However, the main idea demonstrated above is that the
+    {!try_add} and {!remove_exn} operations can be used as building blocks of
+    lock-free algorithms. *)
