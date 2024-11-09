@@ -222,4 +222,76 @@ val find_random_exn : ('k, 'v) t -> 'k
     First of all, as we use random bits as keys, we can use {!Fun.id} as the
     [hash] function.  However, the main idea demonstrated above is that the
     {!try_add} and {!remove_exn} operations can be used as building blocks of
-    lock-free algorithms. *)
+    lock-free algorithms.
+
+    {2 External reference counting}
+
+    Let's create a simplified version of {{!Picos_aux_rc} an external reference
+    counting mechanism}.
+
+    A [Resource] is hashed type whose values need to be disposed:
+
+    {[
+      module type Resource = sig
+        include Hashtbl.HashedType
+        val dispose : t -> unit
+      end
+    ]}
+
+    The [Reference_counted] functor creates an external reference counting table
+    for resources:
+
+    {[
+      module Reference_counted (Resource : Resource) : sig
+        type t
+
+        val create : Resource.t -> t
+        val unsafe_get : t -> Resource.t
+        val incr : t -> unit
+        val decr : t -> unit
+      end = struct
+        type t = Resource.t
+
+        let rc_of = Htbl.create ~hashed_type:(module Resource) ()
+
+        let create t =
+          if Htbl.try_add rc_of t 1 then t
+          else invalid_arg "already created"
+
+        let unsafe_get = Fun.id
+
+        let incr t =
+          try
+            let backoff = ref Backoff.default in
+            while
+              let n = Htbl.find_exn rc_of t in
+              not (Htbl.try_compare_and_set rc_of t n (n + 1))
+            do
+              backoff := Backoff.once !backoff
+            done
+          with Not_found ->
+            invalid_arg "already disposed"
+
+        let rec decr t backoff =
+          match Htbl.find_exn rc_of t with
+          | n ->
+            if n < 2 then
+              if Htbl.try_compare_and_remove rc_of t n then
+                Resource.dispose t
+              else
+                decr t (Backoff.once backoff)
+            else
+              if not (Htbl.try_compare_and_set rc_of t n (n - 1)) then
+                decr t (Backoff.once backoff)
+          | exception Not_found ->
+            invalid_arg "already disposed"
+
+        let decr t = decr t Backoff.default
+      end
+    ]}
+
+    Once again we use lock-free retry loops to update the hash table holding
+    reference counts of resources.  Notice that in [decr] we can conveniently
+    remove the entire binding from the hash table and avoid leaks.  This time we
+    also use a backoff mechanism, because, unlike with the lock-free bag, we
+    don't use randomized keys. *)
