@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml"><head><title>Picos_aux_htbl (picos_aux.Picos_aux_htbl)</title><meta charset="utf-8"/><link rel="stylesheet" href="../../odoc.support/odoc.css"/><meta name="generator" content="odoc 2.4.3"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../odoc.support/highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script><script>let base_url = '../../';
 let search_urls = ['../db.js','../../sherlodoc.js'];
-</script><script src="../../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../index.html">picos_aux</a> &#x00BB; Picos_aux_htbl</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1>Module <code><span>Picos_aux_htbl</span></code></h1><p>Lock-free hash table.</p><p>The operations provided by this hash table are designed to work as building blocks of non-blocking algorithms. Specifically, the operation signatures and semantics are designed to allow building <a href="https://dl.acm.org/doi/10.1145/62546.62593">consensus protocols over arbitrary numbers of processes</a>.</p><p>🏎️ Single key reads with this hash table are actually wait-free rather than just lock-free. Internal resizing automatically uses all the threads that are trying to write to the hash table.</p></header><nav class="odoc-toc"><ul><li><a href="#api">API</a><ul><li><a href="#looking-up-bindings">Looking up bindings</a></li><li><a href="#adding-bindings">Adding bindings</a></li><li><a href="#updating-bindings">Updating bindings</a></li><li><a href="#removing-bindings">Removing bindings</a></li><li><a href="#examining-contents">Examining contents</a></li></ul></li><li><a href="#examples">Examples</a><ul><li><a href="#a-simple-top-level-session">A simple top-level session</a></li><li><a href="#a-randomized-lock-free-bag">A randomized lock-free bag</a></li></ul></li></ul></nav><div class="odoc-content"><h2 id="api"><a href="#api" class="anchor"></a>API</h2><div class="odoc-spec"><div class="spec type anchored" id="type-t"><a href="#type-t" class="anchor"></a><code><span><span class="keyword">type</span> <span>(!'k, !'v) t</span></span></code></div><div class="spec-doc"><p>Represents a lock-free hash table mapping keys of type <code>'k</code> to values of type <code>'v</code>.</p></div></div><div class="odoc-spec"><div class="spec type anchored" id="type-hashed_type"><a href="#type-hashed_type" class="anchor"></a><code><span><span class="keyword">type</span> <span>'k hashed_type</span></span><span> = <span>(<span class="keyword">module</span> <span class="xref-unresolved">Stdlib</span>.Hashtbl.HashedType <span class="keyword">with</span> <span class="keyword">type</span> <span class="xref-unresolved">t</span> = <span class="type-var">'k</span>)</span></span></code></div><div class="spec-doc"><p>First-class module type abbreviation.</p></div></div><div class="odoc-spec"><div class="spec value anchored" id="val-create"><a href="#val-create" class="anchor"></a><code><span><span class="keyword">val</span> create : 
+</script><script src="../../odoc.support/odoc_search.js" defer="defer"></script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../index.html">picos_aux</a> &#x00BB; Picos_aux_htbl</nav><div class="odoc-search"><div class="search-inner"><input class="search-bar" placeholder="🔎 Search..."/><div class="search-snake"></div><div class="search-result"></div></div></div><header class="odoc-preamble"><h1>Module <code><span>Picos_aux_htbl</span></code></h1><p>Lock-free hash table.</p><p>The operations provided by this hash table are designed to work as building blocks of non-blocking algorithms. Specifically, the operation signatures and semantics are designed to allow building <a href="https://dl.acm.org/doi/10.1145/62546.62593">consensus protocols over arbitrary numbers of processes</a>.</p><p>🏎️ Single key reads with this hash table are actually wait-free rather than just lock-free. Internal resizing automatically uses all the threads that are trying to write to the hash table.</p></header><nav class="odoc-toc"><ul><li><a href="#api">API</a><ul><li><a href="#looking-up-bindings">Looking up bindings</a></li><li><a href="#adding-bindings">Adding bindings</a></li><li><a href="#updating-bindings">Updating bindings</a></li><li><a href="#removing-bindings">Removing bindings</a></li><li><a href="#examining-contents">Examining contents</a></li></ul></li><li><a href="#examples">Examples</a><ul><li><a href="#a-simple-top-level-session">A simple top-level session</a></li><li><a href="#a-randomized-lock-free-bag">A randomized lock-free bag</a></li><li><a href="#external-reference-counting">External reference counting</a></li></ul></li></ul></nav><div class="odoc-content"><h2 id="api"><a href="#api" class="anchor"></a>API</h2><div class="odoc-spec"><div class="spec type anchored" id="type-t"><a href="#type-t" class="anchor"></a><code><span><span class="keyword">type</span> <span>(!'k, !'v) t</span></span></code></div><div class="spec-doc"><p>Represents a lock-free hash table mapping keys of type <code>'k</code> to values of type <code>'v</code>.</p></div></div><div class="odoc-spec"><div class="spec type anchored" id="type-hashed_type"><a href="#type-hashed_type" class="anchor"></a><code><span><span class="keyword">type</span> <span>'k hashed_type</span></span><span> = <span>(<span class="keyword">module</span> <span class="xref-unresolved">Stdlib</span>.Hashtbl.HashedType <span class="keyword">with</span> <span class="keyword">type</span> <span class="xref-unresolved">t</span> = <span class="type-var">'k</span>)</span></span></code></div><div class="spec-doc"><p>First-class module type abbreviation.</p></div></div><div class="odoc-spec"><div class="spec value anchored" id="val-create"><a href="#val-create" class="anchor"></a><code><span><span class="keyword">val</span> create : 
   <span><span class="optlabel">?hashed_type</span>:<span><span class="type-var">'k</span> <a href="#type-hashed_type">hashed_type</a></span> <span class="arrow">&#45;&gt;</span></span>
   <span><span class="optlabel">?min_buckets</span>:int <span class="arrow">&#45;&gt;</span></span>
   <span><span class="optlabel">?max_buckets</span>:int <span class="arrow">&#45;&gt;</span></span>
@@ -53,4 +53,52 @@ end = struct
       Htbl.remove_exn t key
     with Not_found -&gt;
       pop_exn t
-end</code></pre><p>First of all, as we use random bits as keys, we can use <code>Fun.id</code> as the <code>hash</code> function. However, the main idea demonstrated above is that the <a href="#val-try_add"><code>try_add</code></a> and <a href="#val-remove_exn"><code>remove_exn</code></a> operations can be used as building blocks of lock-free algorithms.</p></div></body></html>
+end</code></pre><p>First of all, as we use random bits as keys, we can use <code>Fun.id</code> as the <code>hash</code> function. However, the main idea demonstrated above is that the <a href="#val-try_add"><code>try_add</code></a> and <a href="#val-remove_exn"><code>remove_exn</code></a> operations can be used as building blocks of lock-free algorithms.</p><h3 id="external-reference-counting"><a href="#external-reference-counting" class="anchor"></a>External reference counting</h3><p>Let's create a simplified version of <a href="../Picos_aux_rc/index.html" title="Picos_aux_rc">an external reference counting mechanism</a>.</p><p>A <code>Resource</code> is hashed type whose values need to be disposed:</p><pre class="language-ocaml"><code>module type Resource = sig
+  include Hashtbl.HashedType
+  val dispose : t -&gt; unit
+end</code></pre><p>The <code>Reference_counted</code> functor creates an external reference counting table for resources:</p><pre class="language-ocaml"><code>module Reference_counted (Resource : Resource) : sig
+  type t
+
+  val create : Resource.t -&gt; t
+  val unsafe_get : t -&gt; Resource.t
+  val incr : t -&gt; unit
+  val decr : t -&gt; unit
+end = struct
+  type t = Resource.t
+
+  let rc_of = Htbl.create ~hashed_type:(module Resource) ()
+
+  let create t =
+    if Htbl.try_add rc_of t 1 then t
+    else invalid_arg &quot;already created&quot;
+
+  let unsafe_get = Fun.id
+
+  let incr t =
+    try
+      let backoff = ref Backoff.default in
+      while
+        let n = Htbl.find_exn rc_of t in
+        not (Htbl.try_compare_and_set rc_of t n (n + 1))
+      do
+        backoff := Backoff.once !backoff
+      done
+    with Not_found -&gt;
+      invalid_arg &quot;already disposed&quot;
+
+  let rec decr t backoff =
+    match Htbl.find_exn rc_of t with
+    | n -&gt;
+      if n &lt; 2 then
+        if Htbl.try_compare_and_remove rc_of t n then
+          Resource.dispose t
+        else
+          decr t (Backoff.once backoff)
+      else
+        if not (Htbl.try_compare_and_set rc_of t n (n - 1)) then
+          decr t (Backoff.once backoff)
+    | exception Not_found -&gt;
+      invalid_arg &quot;already disposed&quot;
+
+  let decr t = decr t Backoff.default
+end</code></pre><p>Once again we use lock-free retry loops to update the hash table holding reference counts of resources. Notice that in <code>decr</code> we can conveniently remove the entire binding from the hash table and avoid leaks. This time we also use a backoff mechanism, because, unlike with the lock-free bag, we don't use randomized keys.</p></div></body></html>
