@@ -542,7 +542,7 @@ end
     down concurrent fibers in case of errors.  Indeed, one of the basic ideas
     behind the {!Flock} abstraction is that in case any fiber forked to the
     flock raises an unhandled exception, the whole flock will be terminated and
-    the error will raised from the flock, which allows you to understand what
+    the error will be raised from the flock, which allows you to understand what
     went wrong, instead of having to debug a program that mysteriously gets
     stuck, for example.
 
