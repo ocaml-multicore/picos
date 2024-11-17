@@ -922,7 +922,7 @@ module Fiber : sig
       propagated to the fiber during the execution of [thunk].
 
       It is possible to {!spawn} a fiber with cancelation forbidden, which means
-      that cancelation won't be propagated to fiber unless it is explicitly
+      that cancelation won't be propagated to the fiber unless it is explicitly
       {{!permit} permitted} by the fiber at some point.
 
       ⚠️ It is only safe to call [permit] from the fiber itself. *)
