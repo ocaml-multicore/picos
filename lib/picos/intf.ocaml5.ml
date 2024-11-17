@@ -142,8 +142,8 @@ module type Fiber = sig
       not spawn a new fiber.  If cancelation happens during the handling of
       {!Spawn} the scheduler is free to either spawn a new fiber, in which case
       the current fiber must be continued normally, or not spawn a fiber, in
-      which case the current fibers must be discontinued, i.e. {!spawn} raises
-      an exception.
+      which case the current fiber must be discontinued, i.e. {!spawn} raises an
+      exception.
 
       ⚠️ The scheduler should guarantee that, when the {!Spawn} handler continues
       the fiber normally, the given [main] will eventually be called by the
