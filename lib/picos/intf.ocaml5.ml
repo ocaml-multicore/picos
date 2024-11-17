@@ -133,22 +133,29 @@ module type Fiber = sig
   (** Schedulers must handle the {!Spawn} effect to implement the behavior of
       {!spawn}.
 
-      In case the fiber permits propagation of cancelation and the computation
-      associated with the fiber has been canceled the scheduler is free to
-      discontinue the fiber immediately before spawning new fibers.
+      The scheduler is free to run the newly created fiber on any domain or
+      thread and decide which fiber to give priority to.
 
-      The scheduler is free to run the newly created fiber on any domain and
-      decide which fiber to give priority to.
+      ⚠️ In case the fiber performing {!Spawn} permits propagation of cancelation
+      and the computation associated with the fiber has been canceled before it
+      performed {!Spawn}, the scheduler should discontinue the current fiber and
+      not spawn a new fiber.  If cancelation happens during the handling of
+      {!Spawn} the scheduler is free to either spawn a new fiber, in which case
+      the current fiber must be continued normally, or not spawn a fiber, in
+      which case the current fibers must be discontinued, i.e. {!spawn} raises
+      an exception.
 
-      ⚠️ The scheduler should guarantee that, when [Spawn] returns normally, the
-      given [main] will eventually be called by the scheduler and, when [Spawn]
-      raises an exception, the [main] will not be called.  In other words,
-      [Spawn] should check cancelation just once and be all or nothing.
-      Furthermore, in case a newly spawned fiber is canceled before its main is
-      called, the scheduler must still call the main.  This allows a program to
-      ensure, i.e. keep track of, that all fibers it spawns are terminated
-      properly and any resources transmitted to spawned fibers will be disposed
-      properly. *)
+      ⚠️ The scheduler should guarantee that, when the {!Spawn} handler continues
+      the fiber normally, the given [main] will eventually be called by the
+      scheduler and, when spawn discontinues the fiber, the [main] will not be
+      called.
+
+      In other words, spawn should (effectively) check cancelation at least once
+      and be all or nothing.  Furthermore, in case a newly spawned fiber is
+      canceled before its [main] is called, the scheduler must still call the
+      [main].  This allows a program to ensure, i.e. keep track of, that all
+      fibers it spawns are terminated properly and any resources transmitted to
+      spawned fibers will be disposed properly. *)
   type _ Effect.t +=
     private
     | Spawn : { fiber : t; main : t -> unit } -> unit Effect.t
