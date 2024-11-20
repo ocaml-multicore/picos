@@ -75,7 +75,7 @@ module Awaitable : sig
       it is typically a good idea to avoid potentially waking up large numbers
       of fibers as it can easily lead to the
       {{:https://en.wikipedia.org/wiki/Thundering_herd_problem} thundering herd}
-      phenomana. *)
+      phenomena. *)
 
   val await : 'a t -> 'a -> unit
   (** [await awaitable before] suspends the current fiber until the awaitable is
