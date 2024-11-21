@@ -86,13 +86,16 @@
 
 (package
  (name picos_io_cohttp)
+ (allow_empty)
  (synopsis "Cohttp running on Picos IO")
  (depends
   (picos_io
    (= :version))
   ;;
   (cohttp
-   (>= 6.0.0~beta2))
+   (and
+    (>= 6.0.0~beta2)
+    (<> :os "openbsd")))
   (fmt
    (>= 0.9.0))
   (uri
@@ -150,7 +153,9 @@
   (picos_io
    (= :version))
   (picos_io_cohttp
-   (= :version))
+   (and
+    (= :version)
+    (<> :os "openbsd")))
   (picos_mux
    (= :version))
   (picos_lwt
@@ -176,16 +181,19 @@
   (cohttp
    (and
     (>= 6.0.0~beta2)
+    (<> :os "openbsd")
     :with-test))
   (cohttp-lwt-unix
    (and
     (>= 6.0.0~beta2)
     (<> :os "win32")
+    (<> :os "openbsd")
     :with-test))
   (conduit-lwt-unix
    (and
     (>= 6.2.2)
     (<> :os "win32")
+    (<> :os "openbsd")
     :with-test))
   (conf-npm
    (and
@@ -224,6 +232,7 @@
   (cohttp-lwt
    (and
     (>= 6.0.0~beta2)
+    (<> :os "openbsd")
     :with-test))
   (qcheck-multicoretests-util
    (and

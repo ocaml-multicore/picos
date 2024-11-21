@@ -1,6 +1,7 @@
 (library
  (name picos_io_cohttp)
  (public_name picos_io_cohttp)
+ (optional)
  (libraries
   (re_export cohttp)
   (re_export picos_io)
@@ -13,6 +14,7 @@
  (package picos_meta)
  (enabled_if
   (and
+   (<> %{system} "openbsd")
    (>= %{ocaml_version} 5.1.0)
    (= %{env:OPAM_REPO_CI=false} false)))
  (libraries

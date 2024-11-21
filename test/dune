@@ -120,6 +120,7 @@
  (package picos_meta)
  (name test_io_cohttp)
  (modules test_io_cohttp)
+ (build_if %{lib-available:picos_io_cohttp})
  (libraries
   picos_io_cohttp
   picos_std.finally
@@ -273,6 +274,7 @@
  (build_if
   (and
    (>= %{ocaml_version} 5)
+   %{lib-available:cohttp-lwt-unix}
    %{lib-available:conduit-lwt-unix}))
  (libraries
   cohttp
