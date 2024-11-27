@@ -242,7 +242,7 @@ module Server = struct
     let callback conn req body = `Response (callback conn req body) in
     make_response_action ?conn_closed ~callback ()
 
-  let respond ?headers ?flush ~status ~body () =
+  let respond ?headers ~status ~body () =
     let encoding =
       match headers with
       | None -> Cohttp.Body.transfer_encoding body
@@ -251,12 +251,12 @@ module Server = struct
           | Http.Transfer.Unknown -> Cohttp.Body.transfer_encoding body
           | t -> t)
     in
-    let res = Cohttp.Response.make ~status ?flush ~encoding ?headers () in
+    let res = Cohttp.Response.make ~status ~encoding ?headers () in
     (res, body)
 
-  let respond_string ?headers ?flush ~status ~body () =
+  let respond_string ?headers ~status ~body () =
     let res =
-      Cohttp.Response.make ~status ?flush
+      Cohttp.Response.make ~status
         ~encoding:(Http.Transfer.Fixed (Int64.of_int (String.length body)))
         ?headers ()
     in
@@ -288,7 +288,9 @@ module Server = struct
                 (if keep_alive then "keep-alive" else "close")
             in
             let res = { res with headers } in
-            Response.write (Body.write_with Response.write_body body) res oc;
+            Response.write ~flush:false
+              (Body.write_with Response.write_body body)
+              res oc;
             if keep_alive then handle t conn ic oc
       end
 

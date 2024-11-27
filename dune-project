@@ -92,7 +92,7 @@
    (= :version))
   ;;
   (cohttp
-   (>= 6.0.0~beta2))
+   (>= 6.0.0))
   (fmt
    (>= 0.9.0))
   (uri
@@ -175,11 +175,11 @@
     :with-test))
   (cohttp
    (and
-    (>= 6.0.0~beta2)
+    (>= 6.0.0)
     :with-test))
   (cohttp-lwt-unix
    (and
-    (>= 6.0.0~beta2)
+    (>= 6.0.0)
     (<> :os "win32")
     :with-test))
   (conduit-lwt-unix
@@ -223,7 +223,7 @@
     :with-test))
   (cohttp-lwt
    (and
-    (>= 6.0.0~beta2)
+    (>= 6.0.0)
     :with-test))
   (qcheck-multicoretests-util
    (and
