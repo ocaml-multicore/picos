@@ -62,7 +62,9 @@
    (run %{test} -- "Non-cancelable ops" 0)
    (run %{test} -- "Mutex and Condition" 0)
    (run %{test} -- "Mutex and Condition" 1)
-   (run %{test} -- "Mutex and Condition" 2))))
+   (run %{test} -- "Mutex and Condition" 2)
+   ;;
+   )))
 
 ;;
 
