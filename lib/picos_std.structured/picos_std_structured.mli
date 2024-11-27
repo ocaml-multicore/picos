@@ -223,7 +223,11 @@ module Bundle : sig
   (** Represents a bundle of fibers. *)
 
   val join_after :
-    ?callstack:int -> ?on_return:[ `Terminate | `Wait ] -> (t -> 'a) -> 'a
+    ?callstack:int ->
+    ?on_return:[ `Terminate | `Wait ] ->
+    ?on_terminate:[ `Raise | `Ignore ] ->
+    (t -> 'a) ->
+    'a
   (** [join_after scope] calls [scope] with a {{!t} bundle}. A call of
       [join_after] returns or raises only after [scope] has returned or raised
       and all {{!fork} forked} fibers have terminated. If [scope] raises an
@@ -298,7 +302,11 @@ module Flock : sig
   *)
 
   val join_after :
-    ?callstack:int -> ?on_return:[ `Terminate | `Wait ] -> (unit -> 'a) -> 'a
+    ?callstack:int ->
+    ?on_return:[ `Terminate | `Wait ] ->
+    ?on_terminate:[ `Raise | `Ignore ] ->
+    (unit -> 'a) ->
+    'a
   (** [join_after scope] creates a new flock for fibers, calls [scope] after
       setting current flock to the new flock, and restores the previous flock,
       if any after [scope] exits. The flock will be implicitly propagated to all
@@ -356,42 +364,43 @@ module Flock : sig
 end
 
 module Run : sig
-  (** Operations for running fibers in specific patterns. *)
+  (** Operations for running actions concurrently.
 
-  val all : (unit -> unit) list -> unit
-  (** [all actions] starts the actions as separate fibers and waits until they
-      all return. If any of the actions raises an exception other than
-      {{!Control.Terminate} [Terminate]} the remaining fibers will be canceled
-      and the exception, if any, will be raised.
+      ⚠️ In general, when an action expected to return the unit value [()]
+      started by an operation in this module raises an unhandled exception,
+      other than {{!Control.Terminate} [Terminate]}, which is not counted as an
+      error, the whole operation will be canceled and the exception will be
+      raised.
 
-      ⚠️ One of the actions may be run on the current fiber.
+      ⚠️ The operations in this module run their actions such that any action may
+      block to await without preventing other actions from being run. At the
+      limit every action may need to be run in a distinct fiber. However, it is
+      not guaranteed that every action always runs in a distinct fiber. The
+      actual number of fibers used can be much less than the number of actions
+      executed in case the actions do not block, complete quickly, and/or the
+      scheduler doesn't provide parallelism.
 
-      ⚠️ It is not guaranteed that any of the actions in the list are called. In
-      particular, after any action raises an exception other than
-      {{!Control.Terminate} [Terminate]} or after the main fiber is canceled,
-      the actions that have not yet started may be skipped entirely.
+      ⚠️ The operations in this module do not guaranteed that any of the actions
+      are executed. In particular, after any action raises an unhandled
+      exception or after the main fiber is canceled, the actions that have not
+      yet started may be skipped entirely. *)
 
-      [all] is roughly equivalent to
+  val all : ?on_terminate:[ `Raise | `Ignore ] -> (unit -> unit) list -> unit
+  (** [all actions] starts the actions and waits until they all complete.
+
+      [all] is roughly equivalent to:
       {[
-        let all actions =
-          Bundle.join_after @@ fun bundle ->
-          List.iter (Bundle.fork bundle) actions
-      ]}
-      but treats the list of actions as a single computation. *)
+        let all ?on_terminate actions =
+          Bundle.join_after ?on_terminate @@ fun bundle ->
+          try actions |> List.iter @@ fun action -> Bundle.fork bundle action
+          with exn -> Bundle.error bundle exn (Printexc.get_raw_backtrace ())
+      ]} *)
 
   val any : (unit -> unit) list -> unit
   (** [any actions] starts the actions as separate fibers and waits until one of
       them returns or raises an exception other than
       {{!Control.Terminate} [Terminate]} after which the remaining started
       fibers will be canceled and the exception, if any, will be raised.
-
-      ⚠️ One of the actions may be run on the current fiber.
-
-      ⚠️ It is not guaranteed that any of the actions in the list are called. In
-      particular, after the first action returns successfully or after any
-      action raises an exception other than {{!Control.Terminate} [Terminate]}
-      or after the main fiber is canceled, the actions that have not yet started
-      may be skipped entirely.
 
       [any] is roughly equivalent to
       {[
@@ -403,7 +412,7 @@ module Run : sig
                Bundle.fork bundle @@ fun () ->
                action ();
                Bundle.terminate bundle
-          with Control.Terminate -> ()
+          with exn -> Bundle.error bundle exn (Printexc.get_raw_backtrace ())
       ]}
       but treats the list of actions as a single computation. *)
 
@@ -441,13 +450,47 @@ module Run : sig
                  let value = action () in
                  if Atomic.compare_and_set result None (Some value) then
                    Bundle.terminate bundle
-            with Control.Terminate -> ()
+            with exn ->
+              Bundle.error bundle exn (Printexc.get_raw_backtrace ())
           end;
           match Atomic.get result with
           | None -> raise Control.Terminate
           | Some value -> value
       ]}
       but treats the list of actions as a single computation. *)
+
+  val for_n : ?on_terminate:[ `Raise | `Ignore ] -> int -> (int -> unit) -> unit
+  (** [for_n n action], when [0 < n], starts [action i] for each integer [i]
+      from [0] to [n-1] and waits until they all complete.
+
+      [for_n] is roughly equivalent to:
+      {[
+        let for_n ?on_terminate n action =
+          Bundle.join_after ?on_terminate @@ fun bundle ->
+          for i = 0 to n - 1 do
+            Bundle.fork bundle @@ fun () -> action i
+          done
+      ]} *)
+
+  val find_opt_n : int -> (int -> 'a option) -> 'a list
+  (** *)
+
+  module Array : sig
+    (** Concurrent operations over arrays. *)
+
+    type 'a t = 'a array
+    (** Type alias for [array]. *)
+
+    val iter :
+      ?on_terminate:[ `Raise | `Ignore ] -> ('a -> unit) -> 'a t -> unit
+    (** [iter action array] starts [action array.(i)] for each index of the
+        [array] and waits until they all complete. *)
+
+    val map : ('a -> 'b) -> 'a t -> 'b t
+    (** [map fn array] starts [fn array.(i)] for each index of the [array],
+        waits until they all complete, and return a new array with the return
+        values from those calls. *)
+  end
 end
 
 (** {1 Examples}

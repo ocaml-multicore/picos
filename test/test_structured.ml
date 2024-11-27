@@ -3,9 +3,10 @@ open Picos_std_finally
 open Picos_std_structured
 open Picos_std_sync
 module Mpscq = Picos_aux_mpscq
+module Atomic_array = Multicore_magic.Atomic_array
 
 (** Helper to check that computation is restored *)
-let check join_after ?callstack ?on_return scope =
+let check join_after ?callstack ?on_return ?on_terminate scope =
   let open Picos in
   let fiber = Fiber.current () in
   let before = Fiber.get_computation fiber in
@@ -14,7 +15,7 @@ let check join_after ?callstack ?on_return scope =
     assert (before == after)
   in
   lastly check_computation_was_scoped @@ fun () ->
-  join_after ?callstack ?on_return @@ fun bundle ->
+  join_after ?callstack ?on_return ?on_terminate @@ fun bundle ->
   let during = Fiber.get_computation fiber in
   assert (before != during);
   scope bundle
@@ -219,7 +220,10 @@ let test_any_and_all_returns () =
   |> List.iter @@ fun n_terminates ->
      [ 0; 1; 2 ]
      |> List.iter @@ fun n_incr ->
-        [ (Run.all, n_incr, n_incr); (Run.any, Int.min 1 n_incr, n_incr) ]
+        [
+          (Run.all ?on_terminate:None, n_incr, n_incr);
+          (Run.any, Int.min 1 n_incr, n_incr);
+        ]
         |> List.iter @@ fun (run_op, min, max) ->
            Test_scheduler.run ~max_domains:(n_terminates + n_incr + 1)
            @@ fun () ->
@@ -258,6 +262,52 @@ let test_race_any () =
   (* This is non-deterministic and may need to changed if flaky *)
   assert (Atomic.get winner = 1)
 
+let test_for_n_basic () =
+  Test_scheduler.run ~max_domains:(Picos_domain.recommended_domain_count ())
+  @@ fun () ->
+  [ `Ignore; `Raise ]
+  |> List.iter @@ fun on_terminate ->
+     for n = 0 to 128 do
+       let elems = Atomic_array.make n 0 in
+       let incremented = Atomic.make 0 in
+       let terminated = Atomic.make 0 in
+       match
+         Run.for_n ~on_terminate n @@ fun i ->
+         if Random.bool () then Control.yield ();
+         if Random.int n = i then begin
+           Atomic.incr terminated;
+           raise Control.Terminate
+         end;
+         Atomic.incr incremented;
+         while
+           let before = Atomic_array.unsafe_fenceless_get elems i in
+           let after = before + 1 in
+           not (Atomic_array.unsafe_compare_and_set elems i before after)
+         do
+           Backoff.once Backoff.default |> ignore
+         done
+       with
+       | () ->
+           if on_terminate != `Ignore then begin
+             assert (0 = Atomic.get terminated);
+             assert (n = Atomic.get incremented)
+           end;
+           for i = 0 to n - 1 do
+             let n = Atomic_array.unsafe_fenceless_get elems i in
+             assert (0 <= n && n <= 1);
+             if n = 0 then Atomic.decr terminated else Atomic.decr incremented
+           done;
+           assert (0 = Atomic.get terminated);
+           assert (0 = Atomic.get incremented)
+       | exception Control.Terminate ->
+           assert (on_terminate == `Raise);
+           assert (1 <= Atomic.get terminated);
+           for i = 0 to n - 1 do
+             let n = Atomic_array.unsafe_fenceless_get elems i in
+             assert (0 <= n && n <= 1)
+           done
+     done
+
 let () =
   [
     ( "Bundle",
@@ -286,6 +336,7 @@ let () =
         Alcotest.test_case "any and all errors" `Quick test_any_and_all_errors;
         Alcotest.test_case "any and all returns" `Quick test_any_and_all_returns;
         Alcotest.test_case "race any" `Quick test_race_any;
+        Alcotest.test_case "for_n basic" `Quick test_for_n_basic;
       ] );
   ]
   |> Alcotest.run "Picos_structured"
