@@ -27,13 +27,35 @@ let rec spawn (Bundle r as t : Bundle.t) wrap = function
       Fiber.spawn fiber (wrap t main);
       spawn t wrap mains
 
-let run actions wrap =
-  Bundle.join_after @@ fun (Bundle _ as t : Bundle.t) ->
+let run ?on_terminate actions wrap =
+  Bundle.join_after ?on_terminate @@ fun (Bundle _ as t : Bundle.t) ->
   try spawn t wrap actions
   with exn ->
     let bt = Printexc.get_raw_backtrace () in
     Bundle.decr t;
     Bundle.error t exn bt
 
-let all actions = run actions wrap_all
+let all ?on_terminate actions = run ?on_terminate actions wrap_all
 let any actions = run actions wrap_any
+
+(* *)
+
+let for_n = For.for_n
+
+module Array = struct
+  type 'a t = 'a array
+
+  let iter ?on_terminate action xs =
+    for_n ?on_terminate (Array.length xs) @@ fun i ->
+    action (Array.unsafe_get xs i)
+
+  let[@inline never] map fn xs =
+    let n = Array.length xs in
+    if n = 0 then [||]
+    else
+      let ys = Array.make n (Obj.magic ()) in
+      for_n ~on_terminate:`Raise n (fun i ->
+          Array.unsafe_set ys i (fn (Array.unsafe_get xs i)));
+      if Obj.double_tag != Obj.tag (Obj.repr (Array.unsafe_get ys 0)) then ys
+      else Array.map Fun.id ys
+end
