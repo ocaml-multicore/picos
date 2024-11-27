@@ -280,6 +280,9 @@ let () =
           test_error_in_promise_terminates;
         Alcotest.test_case "can wait promises" `Quick test_can_wait_promises;
         Alcotest.test_case "can select promises" `Quick test_can_select_promises;
+      ] );
+    ( "Run",
+      [
         Alcotest.test_case "any and all errors" `Quick test_any_and_all_errors;
         Alcotest.test_case "any and all returns" `Quick test_any_and_all_returns;
         Alcotest.test_case "race any" `Quick test_race_any;
