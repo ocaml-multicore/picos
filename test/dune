@@ -222,6 +222,12 @@
    (<> %{os_type} Win32)
    (<> %{architecture} i386)
    (<> %{architecture} riscv)))
+ (action
+  ;; It is fine if 'node:fs' cannot be found.  js_of_ocaml>=5.9 does not like
+  ;; old node versions.
+  (with-accepted-exit-codes
+   (or 0 1)
+   (run node %{test})))
  (libraries picos))
 
 ;;
