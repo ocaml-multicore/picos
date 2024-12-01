@@ -12,10 +12,11 @@ type _ tdt =
     }
       -> [> `Bundle ] tdt
 
-let config_terminated_bit = 0x01
-and config_callstack_mask = 0x3E
-and config_callstack_shift = 1
-and config_one = 0x40 (* memory runs out before overflow *)
+let config_on_return_terminate_bit = 0x01
+and config_on_terminate_raise_bit = 0x02
+and config_callstack_mask = 0x6C
+and config_callstack_shift = 2
+and config_one = 0x80 (* memory runs out before overflow *)
 
 let flock_key : [ `Bundle | `Nothing ] tdt Fiber.FLS.t = Fiber.FLS.create ()
 
@@ -35,18 +36,22 @@ let error ?callstack (Bundle r as t : t) exn bt =
     terminate ?callstack t;
     Control.Errors.push r.errors exn bt
   end
+  else if Atomic.get r.config land config_on_terminate_raise_bit <> 0 then
+    terminate ?callstack t
 
 let decr (Bundle r : t) =
   let n = Atomic.fetch_and_add r.config (-config_one) in
   if n < config_one * 2 then begin
-    let (Packed bundle) = r.bundle in
-    Computation.cancel bundle Control.Terminate Control.empty_bt;
     Trigger.signal r.finished
   end
 
 type _ pass = FLS : unit pass | Arg : t pass
 
 let[@inline never] no_flock () = invalid_arg "no flock"
+
+let[@inline] on_terminate = function
+  | None | Some `Ignore -> `Ignore
+  | Some `Raise -> `Raise
 
 let get_flock fiber =
   match Fiber.FLS.get fiber flock_key ~default:Nothing with
@@ -56,14 +61,24 @@ let get_flock fiber =
 let await (Bundle r as t : t) fiber packed canceler outer =
   decr t;
   Fiber.set_computation fiber packed;
+  if Fiber.FLS.get fiber flock_key ~default:Nothing != outer then
+    Fiber.FLS.set fiber flock_key outer;
   let forbid = Fiber.exchange fiber ~forbid:true in
   Trigger.await r.finished |> ignore;
   Fiber.set fiber ~forbid;
-  if Fiber.FLS.get fiber flock_key ~default:Nothing != outer then
-    Fiber.FLS.set fiber flock_key outer;
   let (Packed parent) = packed in
   Computation.detach parent canceler;
   Control.Errors.check r.errors;
+  begin
+    let (Packed bundle) = r.bundle in
+    match Computation.peek_exn bundle with
+    | _ -> ()
+    | exception Computation.Running ->
+        Computation.cancel bundle Control.Terminate Control.empty_bt
+    | exception Control.Terminate
+      when Atomic.get r.config land config_on_terminate_raise_bit = 0 ->
+        ()
+  end;
   Fiber.check fiber
 
 let[@inline never] raised exn t fiber packed canceler outer =
@@ -75,7 +90,7 @@ let[@inline never] raised exn t fiber packed canceler outer =
 let[@inline never] returned value (Bundle r as t : t) fiber packed canceler
     outer =
   let config = Atomic.get r.config in
-  if config land config_terminated_bit <> 0 then begin
+  if config land config_on_return_terminate_bit <> 0 then begin
     let callstack =
       let n = (config land config_callstack_mask) lsr config_callstack_shift in
       if n = 0 then None else Some n
@@ -90,25 +105,31 @@ let join_after_realloc x fn t fiber packed canceler outer =
   | value -> returned value t fiber packed canceler outer
   | exception exn -> raised exn t fiber packed canceler outer
 
-let join_after_pass (type a) ?callstack ?on_return (fn : a -> _) (pass : a pass)
-    =
+let join_after_pass (type a) ?callstack ?on_return ?on_terminate (fn : a -> _)
+    (pass : a pass) =
   (* The sequence of operations below ensures that nothing is leaked. *)
   let (Bundle r as t : t) =
-    let terminated =
+    let config =
       match on_return with
-      | None | Some `Wait -> 0
-      | Some `Terminate -> config_terminated_bit
+      | None | Some `Wait -> config_one
+      | Some `Terminate -> config_one lor config_on_return_terminate_bit
     in
-    let callstack =
+    let config =
+      match on_terminate with
+      | None | Some `Ignore -> config
+      | Some `Raise -> config lor config_on_terminate_raise_bit
+    in
+    let config =
       match callstack with
-      | None -> 0
+      | None -> config
       | Some n ->
-          if n <= 0 then 0
+          if n <= 0 then config
           else
-            Int.min n (config_callstack_mask lsr config_callstack_shift)
-            lsl config_callstack_shift
+            config
+            lor Int.min n (config_callstack_mask lsr config_callstack_shift)
+                lsl config_callstack_shift
     in
-    let config = Atomic.make (config_one lor callstack lor terminated) in
+    let config = Atomic.make config in
     let bundle = Computation.Packed (Computation.create ~mode:`LIFO ()) in
     let errors = Control.Errors.create () in
     let finished = Trigger.create () in
@@ -208,8 +229,8 @@ let fork_pass (type a) (Bundle r as t : t) thunk (pass : a pass) =
 let is_running (Bundle { bundle = Packed bundle; _ } : t) =
   Computation.is_running bundle
 
-let join_after ?callstack ?on_return fn =
-  join_after_pass ?callstack ?on_return fn Arg
+let join_after ?callstack ?on_return ?on_terminate fn =
+  join_after_pass ?callstack ?on_return ?on_terminate fn Arg
 
 let fork t thunk = fork_pass t thunk Arg
 let fork_as_promise t thunk = fork_as_promise_pass t thunk Arg
