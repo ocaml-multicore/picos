@@ -1,13 +1,13 @@
 (** Lock-free hash table.
 
     The operations provided by this hash table are designed to work as building
-    blocks of non-blocking algorithms.  Specifically, the operation signatures
+    blocks of non-blocking algorithms. Specifically, the operation signatures
     and semantics are designed to allow building
     {{:https://dl.acm.org/doi/10.1145/62546.62593} consensus protocols over
-    arbitrary numbers of processes}.
+     arbitrary numbers of processes}.
 
     🏎️ Single key reads with this hash table are actually wait-free rather than
-    just lock-free.  Internal resizing automatically uses all the threads that
+    just lock-free. Internal resizing automatically uses all the threads that
     are trying to write to the hash table. *)
 
 (** {1 API} *)
@@ -29,9 +29,10 @@ val create :
     table.
 
     - The optional [hashed_type] argument can and usually should be used to
-      specify the [equal] and [hash] operations on keys.  Slow polymorphic
-      equality [(=)] and slow polymorphic {{!Stdlib.Hashtbl.seeded_hash} [seeded_hash (Bits64.to_int (Random.bits64 ()))]}
-      is used by default.
+      specify the [equal] and [hash] operations on keys. Slow polymorphic
+      equality [(=)] and slow polymorphic
+      {{!Stdlib.Hashtbl.seeded_hash}
+       [seeded_hash (Bits64.to_int (Random.bits64 ()))]} is used by default.
     - The default [min_buckets] is unspecified and a given [min_buckets] may be
       adjusted by the implementation.
     - The default [max_buckets] is unspecified and a given [max_buckets] may be
@@ -59,8 +60,8 @@ val find_exn : ('k, 'v) t -> 'k -> 'v
 (** [find_exn htbl key] returns the current binding of [key] in the hash table
     [htbl] or raises {!Not_found} if no such binding exists.
 
-    @raise Not_found in case no binding of [key] exists in the hash table
-      [htbl]. *)
+    @raise Not_found
+      in case no binding of [key] exists in the hash table [htbl]. *)
 
 val mem : ('k, 'v) t -> 'k -> bool
 (** [mem htbl key] determines whether the hash table [htbl] has a binding for
@@ -70,57 +71,57 @@ val mem : ('k, 'v) t -> 'k -> bool
 
 val try_add : ('k, 'v) t -> 'k -> 'v -> bool
 (** [try_add htbl key value] tries to add a new binding of [key] to [value] to
-    the hash table [htbl].  Returns [true] on success and [false] in case the
+    the hash table [htbl]. Returns [true] on success and [false] in case the
     hash table already contained a binding for [key]. *)
 
 (** {2 Updating bindings} *)
 
 val try_set : ('k, 'v) t -> 'k -> 'v -> bool
 (** [try_set htbl key value] tries to update an existing binding of [key] to
-    [value] in the hash table [htbl].  Returns [true] on success and [false] in
+    [value] in the hash table [htbl]. Returns [true] on success and [false] in
     case the hash table did not contain a binding for [key]. *)
 
 val try_compare_and_set : ('k, 'v) t -> 'k -> 'v -> 'v -> bool
 (** [try_compare_and_set htbl key before after] tries to update an existing
     binding of [key] from the [before] value to the [after] value in the hash
-    table [htbl].  Returns [true] on success and [false] in case the hash table
+    table [htbl]. Returns [true] on success and [false] in case the hash table
     did not contain a binding of [key] to the [before] value.
 
-    ℹ️ The values are compared using physical equality, i.e. the [==]
-    operator. *)
+    ℹ️ The values are compared using physical equality, i.e. the [==] operator.
+*)
 
 val set_exn : ('k, 'v) t -> 'k -> 'v -> 'v
 (** [set_exn htbl key after] tries to update an existing binding of [key] from
-    some [before] value to the [after] value in the hash table [htbl].  Returns
+    some [before] value to the [after] value in the hash table [htbl]. Returns
     the [before] value on success or raises {!Not_found} if no such binding
     exists.
 
-    @raise Not_found in case no binding of [key] exists in the hash table
-      [htbl]. *)
+    @raise Not_found
+      in case no binding of [key] exists in the hash table [htbl]. *)
 
 (** {2 Removing bindings} *)
 
 val try_remove : ('k, 'v) t -> 'k -> bool
 (** [try_remove htbl key] tries to remove a binding of [key] from the hash table
-    [htbl].  Returns [true] on success and [false] in case the hash table did
-    not contain a binding for [key]. *)
+    [htbl]. Returns [true] on success and [false] in case the hash table did not
+    contain a binding for [key]. *)
 
 val try_compare_and_remove : ('k, 'v) t -> 'k -> 'v -> bool
 (** [try_compare_and_remove htbl key before] tries to remove a binding of [key]
-    to the [before] value from the hash table [htbl].  Returns [true] on success
+    to the [before] value from the hash table [htbl]. Returns [true] on success
     and [false] in case the hash table did not contain a binding of [key] to the
     [before] value.
 
-    ℹ️ The values are compared using physical equality, i.e. the [==]
-    operator. *)
+    ℹ️ The values are compared using physical equality, i.e. the [==] operator.
+*)
 
 val remove_exn : ('k, 'v) t -> 'k -> 'v
 (** [remove_exn htbl key] tries to remove a binding of [key] to some [before]
-    value from the hash table [htbl].  Returns the [before] value on success or
+    value from the hash table [htbl]. Returns the [before] value on success or
     raises {!Not_found} if no such binding exists.
 
-    @raise Not_found in case no binding of [key] exists in the hash table
-      [htbl]. *)
+    @raise Not_found
+      in case no binding of [key] exists in the hash table [htbl]. *)
 
 (** {2 Examining contents} *)
 
@@ -198,42 +199,39 @@ val find_random_exn : ('k, 'v) t -> 'k
 
         module Key = struct
           type t = int
+
           let equal = Int.equal
           let hash = Fun.id
         end
 
-        let create () =
-          Htbl.create ~hashed_type:(module Key) ()
+        let create () = Htbl.create ~hashed_type:(module Key) ()
 
         let rec push t value =
           let key = Int64.to_int (Random.bits64 ()) in
-          if not (Htbl.try_add t key value) then
-            push t value
+          if not (Htbl.try_add t key value) then push t value
 
         let rec pop_exn t =
           let key = Htbl.find_random_exn t in
-          try
-            Htbl.remove_exn t key
-          with Not_found ->
-            pop_exn t
+          try Htbl.remove_exn t key with Not_found -> pop_exn t
       end
     ]}
 
     First of all, as we use random bits as keys, we can use {!Fun.id} as the
-    [hash] function.  However, the main idea demonstrated above is that the
+    [hash] function. However, the main idea demonstrated above is that the
     {!try_add} and {!remove_exn} operations can be used as building blocks of
     lock-free algorithms.
 
     {2 External reference counting}
 
-    Let's create a simplified version of {{!Picos_aux_rc} an external reference
-    counting mechanism}.
+    Let's create a simplified version of
+    {{!Picos_aux_rc} an external reference counting mechanism}.
 
     A [Resource] is hashed type whose values need to be disposed:
 
     {[
       module type Resource = sig
         include Hashtbl.HashedType
+
         val dispose : t -> unit
       end
     ]}
@@ -255,8 +253,7 @@ val find_random_exn : ('k, 'v) t -> 'k
         let rc_of = Htbl.create ~hashed_type:(module Resource) ()
 
         let create t =
-          if Htbl.try_add rc_of t 1 then t
-          else invalid_arg "already created"
+          if Htbl.try_add rc_of t 1 then t else invalid_arg "already created"
 
         let unsafe_get = Fun.id
 
@@ -269,29 +266,24 @@ val find_random_exn : ('k, 'v) t -> 'k
             do
               backoff := Backoff.once !backoff
             done
-          with Not_found ->
-            invalid_arg "already disposed"
+          with Not_found -> invalid_arg "already disposed"
 
         let rec decr t backoff =
           match Htbl.find_exn rc_of t with
           | n ->
-            if n < 2 then
-              if Htbl.try_compare_and_remove rc_of t n then
-                Resource.dispose t
-              else
+              if n < 2 then
+                if Htbl.try_compare_and_remove rc_of t n then Resource.dispose t
+                else decr t (Backoff.once backoff)
+              else if not (Htbl.try_compare_and_set rc_of t n (n - 1)) then
                 decr t (Backoff.once backoff)
-            else
-              if not (Htbl.try_compare_and_set rc_of t n (n - 1)) then
-                decr t (Backoff.once backoff)
-          | exception Not_found ->
-            invalid_arg "already disposed"
+          | exception Not_found -> invalid_arg "already disposed"
 
         let decr t = decr t Backoff.default
       end
     ]}
 
     Once again we use lock-free retry loops to update the hash table holding
-    reference counts of resources.  Notice that in [decr] we can conveniently
-    remove the entire binding from the hash table and avoid leaks.  This time we
+    reference counts of resources. Notice that in [decr] we can conveniently
+    remove the entire binding from the hash table and avoid leaks. This time we
     also use a backoff mechanism, because, unlike with the lock-free bag, we
     don't use randomized keys. *)

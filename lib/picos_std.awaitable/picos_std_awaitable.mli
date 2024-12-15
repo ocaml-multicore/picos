@@ -9,8 +9,8 @@ module Awaitable : sig
   (** An awaitable atomic location.
 
       This module provides a superset of the Stdlib {!Atomic} API with more or
-      less identical performance.  The main difference is that a non-padded
-      awaitable location takes an extra word of memory.  Additionally a
+      less identical performance. The main difference is that a non-padded
+      awaitable location takes an extra word of memory. Additionally a
       {{:https://en.wikipedia.org/wiki/Futex} futex}-like API provides the
       ability to {!await} until an awaitable location is explicitly {!signal}ed
       to potentially have a different value.
@@ -28,7 +28,8 @@ module Awaitable : sig
       [initial] value. *)
 
   val make_contended : 'a -> 'a t
-  (** [make_contended initial] is equivalent to {{!make} [make ~padded:true initial]}. *)
+  (** [make_contended initial] is equivalent to
+      {{!make} [make ~padded:true initial]}. *)
 
   val get : 'a t -> 'a
   (** [get awaitable] is essentially equivalent to [Atomic.get awaitable]. *)
@@ -38,20 +39,24 @@ module Awaitable : sig
       [Atomic.compare_and_set awaitable before after]. *)
 
   val exchange : 'a t -> 'a -> 'a
-  (** [exchange awaitable after] is essentially equivalent to [Atomic.exchange awaitable after]. *)
+  (** [exchange awaitable after] is essentially equivalent to
+      [Atomic.exchange awaitable after]. *)
 
   val set : 'a t -> 'a -> unit
-  (** [set awaitable value] is equivalent to {{!exchange} [exchange awaitable value |> ignore]}. *)
+  (** [set awaitable value] is equivalent to
+      {{!exchange} [exchange awaitable value |> ignore]}. *)
 
   val fetch_and_add : int t -> int -> int
   (** [fetch_and_add awaitable delta] is essentially equivalent to
       [Atomic.fetch_and_add awaitable delta]. *)
 
   val incr : int t -> unit
-  (** [incr awaitable] is equivalent to {{!fetch_and_add} [fetch_and_add awaitable (+1) |> ignore]}. *)
+  (** [incr awaitable] is equivalent to
+      {{!fetch_and_add} [fetch_and_add awaitable (+1) |> ignore]}. *)
 
   val decr : int t -> unit
-  (** [incr awaitable] is equivalent to {{!fetch_and_add} [fetch_and_add awaitable (-1) |> ignore]}. *)
+  (** [incr awaitable] is equivalent to
+      {{!fetch_and_add} [fetch_and_add awaitable (-1) |> ignore]}. *)
 
   (** {1 Futex API} *)
 
@@ -61,9 +66,9 @@ module Awaitable : sig
 
       🐌 Generally speaking one should avoid calling [signal] too frequently,
       because the queue of awaiters is stored separately from the awaitable
-      location and it takes a bit of effort to locate it.  For example, calling
+      location and it takes a bit of effort to locate it. For example, calling
       [signal] every time a value is added to an empty data structure might not
-      be optimal.  In many cases it is faster to explicitly mark the potential
+      be optimal. In many cases it is faster to explicitly mark the potential
       presence of awaiters in the data structure and avoid calling [signal] when
       it is definitely known that there are no awaiters. *)
 
@@ -71,7 +76,7 @@ module Awaitable : sig
   (** [broadcast awaitable] tries to wake up all fibers {!await}ing on the
       awaitable location.
 
-      🐌 The same advice as with {!signal} applies to [broadcast].  In addition,
+      🐌 The same advice as with {!signal} applies to [broadcast]. In addition,
       it is typically a good idea to avoid potentially waking up large numbers
       of fibers as it can easily lead to the
       {{:https://en.wikipedia.org/wiki/Thundering_herd_problem} thundering herd}
@@ -82,11 +87,11 @@ module Awaitable : sig
       explicitly {!signal}ed and has a value other than [before].
 
       ⚠️ This operation is subject to the
-      {{:https://en.wikipedia.org/wiki/ABA_problem} ABA} problem.  An [await]
-      for value other than [A] may not return after the awaitable is signaled
-      while having the value [B], because at a later point the awaitable has
-      again the value [A].  Furthermore, by the time an [await] for value other
-      than [A] returns, the awaitable might already again have the value [A].
+      {{:https://en.wikipedia.org/wiki/ABA_problem} ABA} problem. An [await] for
+      value other than [A] may not return after the awaitable is signaled while
+      having the value [B], because at a later point the awaitable has again the
+      value [A]. Furthermore, by the time an [await] for value other than [A]
+      returns, the awaitable might already again have the value [A].
 
       ⚠️ Atomic operations that change the value of an awaitable do not
       implicitly wake up awaiters. *)
@@ -105,13 +110,13 @@ module Awaitable : sig
         FIFO associated with the awaitable, and returns the awaiter. *)
 
     val remove : t -> unit
-    (** [remove awaiter] marks the awaiter as having been signaled and removes it
-        from the FIFO associated with the awaitable.
+    (** [remove awaiter] marks the awaiter as having been signaled and removes
+        it from the FIFO associated with the awaitable.
 
         ℹ️ If the associated trigger is used with only one awaiter and the
         {!Trigger.await await} on the trigger returns [None], there is no need
-        to explicitly remove the awaiter, because it has already been
-        removed. *)
+        to explicitly remove the awaiter, because it has already been removed.
+    *)
   end
 end
 
@@ -149,23 +154,23 @@ end
     ]}
 
     The above mutex outperforms most other mutexes under both no/low and high
-    contention scenarios.  In no/low contention scenarios the use of
-    {{!Awaitable.fetch_and_add} [fetch_and_add]} provides low overhead.  In high
+    contention scenarios. In no/low contention scenarios the use of
+    {{!Awaitable.fetch_and_add} [fetch_and_add]} provides low overhead. In high
     contention scenarios the above mutex allows unfairness, which avoids
     performance degradation due to the
     {{:https://en.wikipedia.org/wiki/Lock_convoy} lock convoy} phenomena.
 
     {2 [Condition]}
 
-    Let's also implement a condition variable.  For that we'll also make use of
+    Let's also implement a condition variable. For that we'll also make use of
     low level abstractions and operations from the {!Picos} core library:
 
     {[
       # open Picos
     ]}
 
-    To implement a condition variable, we'll use the {{!Awaitable.Awaiter}
-    [Awaiter]} API:
+    To implement a condition variable, we'll use the
+    {{!Awaitable.Awaiter} [Awaiter]} API:
 
     {[
       module Condition = struct
@@ -196,5 +201,5 @@ end
     ]}
 
     Notice that the awaitable location used in the above condition variable
-    implementation is never mutated.  We just reuse the signaling mechanism of
+    implementation is never mutated. We just reuse the signaling mechanism of
     awaitables. *)

@@ -18,8 +18,8 @@ module Event : sig
 
   type 'a event = 'a t
   (** An alias for the {!Event.t} type to match the
-      {{:https://ocaml.org/manual/5.2/api/Event.html} [Event]} module
-      signature. *)
+      {{:https://ocaml.org/manual/5.2/api/Event.html} [Event]} module signature.
+  *)
 
   val always : 'a -> 'a t
   (** [always value] returns an event that can always be committed to resulting
@@ -33,8 +33,8 @@ module Event : sig
 
   val wrap : 'b t -> ('b -> 'a) -> 'a t
   (** [wrap event fn] returns an event that acts as the given [event] and then
-      applies the given function to the value in case the event is committed
-      to. *)
+      applies the given function to the value in case the event is committed to.
+  *)
 
   val map : ('b -> 'a) -> 'b t -> 'a t
   (** [map fn event] is equivalent to {{!wrap} [wrap event fn]}. *)
@@ -44,10 +44,10 @@ module Event : sig
       the [thunk], and then behaves like the resulting event.
 
       ⚠️ Raising an exception from a [guard thunk] will result in raising that
-      exception out of the {!sync}.  This may result in dropping the result of
-      an event that committed just after the exception was raised.  This means
-      that you should treat an unexpected exception raised from {!sync} as a
-      fatal error. *)
+      exception out of the {!sync}. This may result in dropping the result of an
+      event that committed just after the exception was raised. This means that
+      you should treat an unexpected exception raised from {!sync} as a fatal
+      error. *)
 
   (** {2 Consuming events} *)
 
@@ -56,16 +56,15 @@ module Event : sig
 
       Synchronizing on an event executes in three phases:
 
-      {ol
-        {- In the first phase offers or requests are made to communicate.}
-        {- One of the offers or requests is committed to and all the other
-           offers and requests are canceled.}
-        {- A final result is computed from the value produced by the event.}}
+      + In the first phase offers or requests are made to communicate.
+      + One of the offers or requests is committed to and all the other offers
+        and requests are canceled.
+      + A final result is computed from the value produced by the event.
 
       ⚠️ [sync event] does not wait for the canceled concurrent requests to
-      terminate.  This means that you should arrange for guaranteed cleanup
-      through other means such as the use of {{!Picos_std_structured} structured
-      concurrency}. *)
+      terminate. This means that you should arrange for guaranteed cleanup
+      through other means such as the use of
+      {{!Picos_std_structured} structured concurrency}. *)
 
   val select : 'a t list -> 'a
   (** [select events] is equivalent to {{!sync} [sync (choose events)]}. *)
@@ -73,8 +72,8 @@ module Event : sig
   (** {2 Primitive events}
 
       ℹ️ The {{!Picos.Computation} [Computation]} concept of {!Picos} can be seen
-      as a basic single-shot atomic event.  This module builds on that concept
-      to provide a composable API to concurrent services exposed through
+      as a basic single-shot atomic event. This module builds on that concept to
+      provide a composable API to concurrent services exposed through
       computations. *)
 
   open Picos
@@ -87,16 +86,16 @@ module Event : sig
       {{!Picos.Computation} computation}.
 
       ℹ️ The computation passed to a request may be completed by some other event
-      at any point.  All primitive requests should be implemented carefully to
-      take that into account.  If the computation is completed by some other
+      at any point. All primitive requests should be implemented carefully to
+      take that into account. If the computation is completed by some other
       event, then the request should be considered as canceled, take no effect,
       and not leak any resources.
 
       ⚠️ Raising an exception from a [request] function will result in raising
-      that exception out of the {!sync}.  This may result in dropping the result
-      of an event that committed just after the exception was raised.  This
-      means that you should treat an unexpected exception raised from {!sync} as
-      a fatal error.  In addition, you should arrange for concurrent services to
+      that exception out of the {!sync}. This may result in dropping the result
+      of an event that committed just after the exception was raised. This means
+      that you should treat an unexpected exception raised from {!sync} as a
+      fatal error. In addition, you should arrange for concurrent services to
       report unexpected errors independently of the computation being passed to
       the service. *)
 
@@ -108,6 +107,6 @@ module Event : sig
   (** [from_computation source] creates an {{!Event} event} that can be
       committed to once the given [source] computation has completed.
 
-      ℹ️ Committing to some other event does not cancel the [source]
-      computation. *)
+      ℹ️ Committing to some other event does not cancel the [source] computation.
+  *)
 end

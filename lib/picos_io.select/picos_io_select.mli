@@ -3,11 +3,11 @@
     The operations in this module automatically manage a {!Thread} per domain
     that runs a {!Unix.select} loop to support the operations.
 
-    ⚠️ Signal handlers are unfortunately fundamentally non-compositional.  The
-    use of signal handlers in this module has been designed to be {{!configure}
-    configurable}, which should allow co-operating with other libraries using
-    signals as long as care is taken at application startup to {!configure}
-    things.
+    ⚠️ Signal handlers are unfortunately fundamentally non-compositional. The use
+    of signal handlers in this module has been designed to be
+    {{!configure} configurable}, which should allow co-operating with other
+    libraries using signals as long as care is taken at application startup to
+    {!configure} things.
 
     ⚠️ All the usual limitations of the {!Unix} module apply. *)
 
@@ -22,7 +22,7 @@ val cancel_after :
   _ Computation.t -> seconds:float -> exn -> Printexc.raw_backtrace -> unit
 (** [cancel_after computation ~seconds exn bt] arranges for [computation] to be
     {{!Picos.Computation.cancel} canceled} with given exception and backtrace
-    after given time in [seconds].  Completion of the [computation] before the
+    after given time in [seconds]. Completion of the [computation] before the
     specified time effectively cancels the timeout.
 
     ℹ️ You can use [cancel_after] to implement the handler for the
@@ -39,7 +39,7 @@ val return_on :
   'a Computation.t -> Picos_io_fd.t -> [ `R | `W | `E ] -> 'a -> unit
 (** [return_on computation fd op value] arranges for [computation] to be
     {{!Picos.Computation.return} returned} with given [value] when [fd] becomes
-    available for [op].  Completion of the [computation] before the [fd] becomes
+    available for [op]. Completion of the [computation] before the [fd] becomes
     available for [op] effectively cancels the arrangement.
 
     ℹ️ Using {!Unix.set_nonblock} and [return_on] you can implement direct-style
@@ -59,28 +59,28 @@ module Intr : sig
       other purposes.
 
       ⚠️ Beware that signal handling in OCaml 5.0.0 is known to be broken and
-      several fixes were included in OCaml {{:https://ocaml.org/releases/5.1.0}
-      5.1.0}. *)
+      several fixes were included in OCaml
+      {{:https://ocaml.org/releases/5.1.0} 5.1.0}. *)
 
   type t
   (** Represents an optional interrupt request. *)
 
   val nothing : t
-  (** A constant for a no request.  {{!clr} [clr nothing]} does nothing. *)
+  (** A constant for a no request. {{!clr} [clr nothing]} does nothing. *)
 
   val req : seconds:float -> t
   (** [req ~seconds] requests an interrupt in the form of a signal delivered to
       the thread that made the request within the specified number of [seconds].
-      Blocking {!Unix} IO calls typically raise an error with the {{!Unix.EINTR}
-      [Unix.EINTR]} error code when they are interrupted by a signal.
-      Regardless of whether the signal gets triggered or a system call gets
-      interrupted, the request must be {{!clr} cleared} exactly once!
+      Blocking {!Unix} IO calls typically raise an error with the
+      {{!Unix.EINTR} [Unix.EINTR]} error code when they are interrupted by a
+      signal. Regardless of whether the signal gets triggered or a system call
+      gets interrupted, the request must be {{!clr} cleared} exactly once!
 
       ⚠️ Due to limitations of the OCaml system modules and unlike with typical
       timeout mechanisms, the interrupt may also be triggered sooner. *)
 
   val clr : t -> unit
-  (** [clr req] either cancels or acknowledges the interrupt request.  Every
+  (** [clr req] either cancels or acknowledges the interrupt request. Every
       {!req} must be cleared exactly once! *)
 end
 
@@ -89,7 +89,7 @@ end
 val return_on_sigchld : 'a Computation.t -> 'a -> unit
 (** [return_on_sigchld computation value] arranges for [computation] to be
     {{!Picos.Computation.return} returned} with given [value] on next
-    {!Sys.sigchld}.  Completion of the [computation] before a {!Sys.sigchld} is
+    {!Sys.sigchld}. Completion of the [computation] before a {!Sys.sigchld} is
     received effectively cancels the arrangement.
 
     ⚠️ The mechanism uses the {!Sys.sigchld} signal which should not be used for
@@ -107,21 +107,21 @@ val configure :
     by an application to configure the use of signals by this module.
 
     The optional [intr_sig] argument can be used to specify the signal used by
-    the {{!Intr} interrupt} mechanism.  The default is to use {!Sys.sigusr2}.
+    the {{!Intr} interrupt} mechanism. The default is to use {!Sys.sigusr2}.
 
     The optional [handle_sigchld] argument can be used to specify whether this
-    module should setup handling of {!Sys.sigchld}.  The default is [true].
-    When explicitly specified as [~handle_sigchld:false], the application should
+    module should setup handling of {!Sys.sigchld}. The default is [true]. When
+    explicitly specified as [~handle_sigchld:false], the application should
     arrange to call {!handle_signal} whenever a {!Sys.sigchld} signal occurs.
 
     The optional [ignore_sigpipe] argument can be used to specify whether
-    {!Sys.sigpipe} will be configured to be ignored or not.  The default is
+    {!Sys.sigpipe} will be configured to be ignored or not. The default is
     [true].
 
-    ⚠️ This module must always be configured before use.  Unless this module has
+    ⚠️ This module must always be configured before use. Unless this module has
     been explicitly configured, calling a method of this module from the main
     thread on the main domain will automatically configure this module with
-    default options.  In case the application uses multiple threads or multiple
+    default options. In case the application uses multiple threads or multiple
     domains, the application should arrange to call [configure] from the main
     thread on the main domain before any threads or domains besides the main are
     created or spawned. *)
@@ -129,14 +129,14 @@ val configure :
 val check_configured : unit -> unit
 (** [check_configured ()] checks whether this module has already been
     {{!configure} configured} or not and, if not, calls {!configure} with
-    default arguments.  In either case, calling [check_configured ()] will
+    default arguments. In either case, calling [check_configured ()] will
     (re)configure signal handling for the current thread and perform other
     required initialization for the thread to use this module.
 
     ⚠️ This should be called at the start of every thread using this module.
 
     ℹ️ The intended use case for [check_configured ()] is at the point of entry
-    of schedulers and other facilities that use this module.  In other words,
+    of schedulers and other facilities that use this module. In other words,
     application code should ideally not need to call this directly. *)
 
 val handle_signal : int -> unit

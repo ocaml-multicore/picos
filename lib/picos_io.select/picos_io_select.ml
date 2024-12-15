@@ -248,7 +248,7 @@ let rec select_thread s timeout rd wr ex =
       else begin
         assert (0 < state.value);
         Unix.kill (Unix.getpid ()) config.intr_sig;
-        let idle = 0.000_001 (* 1μs *) in
+        let idle = (* 1μs *) 0.000_001 in
         if timeout < 0.0 || idle <= timeout then idle else timeout
       end
     in

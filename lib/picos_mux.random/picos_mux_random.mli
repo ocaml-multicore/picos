@@ -4,15 +4,15 @@
     ℹ️ This scheduler implementation is specifically intended for testing
     libraries implemented in Picos.
 
-    ⚠️ This scheduler uses {!Picos_io_select} internally.  If running multiple
+    ⚠️ This scheduler uses {!Picos_io_select} internally. If running multiple
     threads that each run this scheduler, {!Picos_io_select.configure} must be
     called by the main thread before creating other threads.
 
     {!Picos} is an interface that allows schedulers to make scheduling decisions
-    freely.  After each effect this scheduler picks the next fiber to run
-    randomly from the collection of ready fibers.  This can help to discover
-    bugs in programs implemented in Picos that make invalid scheduling
-    assumptions. *)
+    freely. After each effect this scheduler picks the next fiber to run
+    randomly from the collection of ready fibers. This can help to discover bugs
+    in programs implemented in Picos that make invalid scheduling assumptions.
+*)
 
 open Picos
 
@@ -20,12 +20,12 @@ type t
 (** Represents a shared context for randomized runners. *)
 
 val context : ?fatal_exn_handler:(exn -> unit) -> unit -> t
-(** [context ()] creates a new context for randomized runners.  The context
+(** [context ()] creates a new context for randomized runners. The context
     should be consumed by a call of {{!run} [run ~context ...]}. *)
 
 val runner_on_this_thread : t -> unit
 (** [runner_on_this_thread context] starts a runner on the current thread to run
-    fibers on the context.  The runner returns when {{!run} [run ~context ...]}
+    fibers on the context. The runner returns when {{!run} [run ~context ...]}
     returns. *)
 
 val run_fiber : ?context:t -> Fiber.t -> (Fiber.t -> unit) -> unit
@@ -33,11 +33,11 @@ val run_fiber : ?context:t -> Fiber.t -> (Fiber.t -> unit) -> unit
     returns [main] and all of the fibers spawned by [main] have returned.
 
     The optional [context] argument specifies a context in which to run the
-    [main] program.  If unspecified, a new context is automatically created and
-    the scheduler will be single-threaded.  By {{!context} creating a context},
+    [main] program. If unspecified, a new context is automatically created and
+    the scheduler will be single-threaded. By {{!context} creating a context},
     spawning concurrent or parallel {{!runner_on_this_thread} runners} on to the
     context, and then explicitly passing the context to [run ~context ...] one
-    can create a multi-threaded scheduler.  Only a single call of {!run} per
+    can create a multi-threaded scheduler. Only a single call of {!run} per
     context is allowed. *)
 
 val run : ?context:t -> ?forbid:bool -> (unit -> 'a) -> 'a

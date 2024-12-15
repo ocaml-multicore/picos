@@ -2,7 +2,7 @@
     implementation using {!Picos_io} for {!Picos}.
 
     ⚠️ This library is currently minimalistic and experimental and is highly
-    likely to change.  Feedback from potential users is welcome! *)
+    likely to change. Feedback from potential users is welcome! *)
 
 open Picos_io
 
@@ -11,7 +11,8 @@ open Picos_io
 (** Convenience functions for constructing requests and processing responses.
 
     Please consult the
-    {{:https://ocaml.org/p/cohttp/latest/doc/Cohttp/Generic/Client/module-type-S/index.html} CoHTTP documentation}. *)
+    {{:https://ocaml.org/p/cohttp/latest/doc/Cohttp/Generic/Client/module-type-S/index.html}
+     CoHTTP documentation}. *)
 module Client : sig
   include
     Cohttp.Generic.Client.S
@@ -23,7 +24,8 @@ end
 (** Convenience functions for processing requests and constructing responses.
 
     Please consult the
-    {{:https://ocaml.org/p/cohttp/latest/doc/Cohttp/Generic/Server/module-type-S/index.html} CoHTTP documentation}. *)
+    {{:https://ocaml.org/p/cohttp/latest/doc/Cohttp/Generic/Server/module-type-S/index.html}
+     CoHTTP documentation}. *)
 module Server : sig
   include
     Cohttp.Generic.Server.S
@@ -33,7 +35,7 @@ module Server : sig
 
   val run : t -> IO.conn -> unit
   (** [run server socket] starts running a server that {{!Unix.accept} accepts}
-      clients on the specified [socket].  This never returns normally. *)
+      clients on the specified [socket]. This never returns normally. *)
 end
 
 (** {1 Examples}
@@ -50,14 +52,12 @@ end
 
     {2 A server and client}
 
-    Let's build a simple hello server.  We first define a function that creates
+    Let's build a simple hello server. We first define a function that creates
     and configures a socket for the server:
 
     {[
       let server_create ?(max_pending_reqs = 8) addr =
-        let socket =
-          Unix.socket ~cloexec:true PF_INET SOCK_STREAM 0
-        in
+        let socket = Unix.socket ~cloexec:true PF_INET SOCK_STREAM 0 in
         match
           Unix.set_nonblock socket;
           Unix.bind socket addr;
@@ -65,12 +65,12 @@ end
         with
         | () -> socket
         | exception exn ->
-          Unix.close socket;
-          raise exn
+            Unix.close socket;
+            raise exn
     ]}
 
     The reason for doing it like this, as we'll see later, is that we want the
-    OS to decide the port for our server.  Also note that we explicitly set the
+    OS to decide the port for our server. Also note that we explicitly set the
     socket to non-blocking mode, which is what we should do with {!Picos_io}
     whenever possible.
 
@@ -79,27 +79,21 @@ end
     {[
       let server_run socket =
         let callback _conn _req body =
-          let body =
-            Printf.sprintf "Hello, %s!"
-              (Body.to_string body)
-          in
+          let body = Printf.sprintf "Hello, %s!" (Body.to_string body) in
           Server.respond_string ~status:`OK ~body ()
         in
         Server.run (Server.make ~callback ()) socket
     ]}
 
-    The idea is that the body of the request is the name to be greeted
-    in the body of the response.
+    The idea is that the body of the request is the name to be greeted in the
+    body of the response.
 
     A client then posts to the specified uri and returns the response body:
 
     {[
       let client uri name =
-        let resp, body =
-          Client.post ~body:(`String name) uri
-        in
-        if Response.status resp != `OK then
-          failwith "Not OK";
+        let resp, body = Client.post ~body:(`String name) uri in
+        if Response.status resp != `OK then failwith "Not OK";
         Body.to_string body
     ]}
 
@@ -140,7 +134,7 @@ end
 
     We first create the [server_socket] and obtain the [server_port] and
     ultimately the [server_uri] from it — typically one can avoid this
-    complexity and use a fixed port.  We then create a
+    complexity and use a fixed port. We then create a
     {{!Picos_std_structured.Flock} flock} for running the server as a concurrent
-    fiber, which we arrange to terminate at the end of the scope.  Finally we
-    act as the client to get a greeting from the server. *)
+    fiber, which we arrange to terminate at the end of the scope. Finally we act
+    as the client to get a greeting from the server. *)

@@ -6,7 +6,7 @@ open Picos
 val run_fiber : Fiber.t -> (Fiber.t -> unit) -> unit Lwt.t
 (** [run_fiber fiber main] runs the [main] program as the specified [fiber] as a
     promise with {!Lwt} as the scheduler using a {!Lwt_unix} based
-    {{!Picos_lwt.System} [System]} module.  In other words, the [main] program
+    {{!Picos_lwt.System} [System]} module. In other words, the [main] program
     will be run as a {!Lwt} promise or fiber.
 
     ⚠️ This may only be called on the main thread on which {!Lwt} runs. *)

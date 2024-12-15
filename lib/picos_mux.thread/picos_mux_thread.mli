@@ -3,12 +3,12 @@
     ℹ️ This scheduler implementation is mostly meant as an example and for use in
     testing libraries implemented in {!Picos}.
 
-    ⚠️ This scheduler uses {!Picos_io_select} internally.  If running multiple
+    ⚠️ This scheduler uses {!Picos_io_select} internally. If running multiple
     threads that each run this scheduler, {!Picos_io_select.configure} must be
     called by the main thread before creating other threads.
 
     ⚠️ This scheduler is probably suitable for simple applications that do not
-    spawn a lot of fibers.  If an application uses a lot of short lived fibers,
+    spawn a lot of fibers. If an application uses a lot of short lived fibers,
     then a more sophisticated scheduler implementation using some sort of thread
     pool will likely perform significantly better.
 

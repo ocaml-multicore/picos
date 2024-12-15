@@ -2,12 +2,12 @@
     interface between effects based schedulers and concurrent abstractions.
 
     This is essentially an interface between schedulers and concurrent
-    abstractions that need to communicate with a scheduler.  Perhaps an
+    abstractions that need to communicate with a scheduler. Perhaps an
     enlightening analogy is to say that this is the
     {{:https://en.wikipedia.org/wiki/POSIX} POSIX} of effects based schedulers.
 
     ℹ️ Picos, i.e. {i this module}, is not intended to be an application level
-    concurrent programming library or framework.  If you are looking for a
+    concurrent programming library or framework. If you are looking for a
     library or framework for programming concurrent applications, then this
     module is probably not what you are looking for.
 
@@ -40,24 +40,23 @@
     Consider the following motivating example:
 
     {@ocaml skip[
-      Mutex.protect mutex begin fun () ->
-        while true do
-          Condition.wait condition mutex
-        done
-      end
+      Mutex.protect mutex @@ fun () ->
+      while true do
+        Condition.wait condition mutex
+      done
     ]}
 
     Assume that the fiber executing the above computation might be canceled, at
-    any point, by another fiber running in parallel.  How could that be done
+    any point, by another fiber running in parallel. How could that be done
     ensuring both safety and liveness?
 
     - For safety, cancelation should not leave the program in an invalid state
-      or cause the program to leak memory.  In this case, the ownership of the
+      or cause the program to leak memory. In this case, the ownership of the
       mutex must be transferred to the next fiber or be left unlocked and no
       references to unused objects must be left in the mutex or the condition
       variable.
 
-    - For liveness, cancelation should take effect as soon as possible.  In this
+    - For liveness, cancelation should take effect as soon as possible. In this
       case, cancelation should take effect even during the
       {{!Picos_std_sync.Mutex.lock} [Mutex.lock]} inside
       {{!Picos_std_sync.Mutex.protect} [Mutex.protect]} and the
@@ -81,8 +80,8 @@
     ]}
 
     The idea is that the main or parent fiber allocates some resources, which
-    are then used by child fibers running in parallel.  What should happen when
-    the main fiber gets canceled?  We again have both safety and liveness
+    are then used by child fibers running in parallel. What should happen when
+    the main fiber gets canceled? We again have both safety and liveness
     concerns:
 
     - For safety, to ensure that resources are not finalized prematurely, the
@@ -98,40 +97,42 @@
     {2 Cancelation in Picos}
 
     The {!Fiber} concept in Picos corresponds to an independent thread of
-    execution.  A fiber may explicitly {{!Fiber.forbid} forbid} or
+    execution. A fiber may explicitly {{!Fiber.forbid} forbid} or
     {{!Fiber.permit} permit} the scheduler from propagating cancelation to it.
     This is important for the implementation of some key concurrent abstractions
     such as condition variables, where it is necessary to forbid cancelation
     when the associated mutex is reacquired.
 
-    Each fiber has an associated {!Computation} at all times.  A computation is
-    something that needs to be completed either by {{!Computation.return}
-    returning} a value through it or by {{!Computation.cancel} canceling} it
-    with an exception.  To cancel a fiber one cancels the computation associated
-    with the fiber or any computation whose {{!Computation.canceler} cancelation
-    is propagated} to the computation associated with the fiber.
+    Each fiber has an associated {!Computation} at all times. A computation is
+    something that needs to be completed either by
+    {{!Computation.return} returning} a value through it or by
+    {{!Computation.cancel} canceling} it with an exception. To cancel a fiber
+    one cancels the computation associated with the fiber or any computation
+    whose {{!Computation.canceler} cancelation is propagated} to the computation
+    associated with the fiber.
 
     Before a computation has been completed, it is also possible to
     {{!Computation.try_attach} attach} a {!Trigger} to the computation and also
-    to later {{!Computation.detach} detach} the trigger from the computation.  A
+    to later {{!Computation.detach} detach} the trigger from the computation. A
     trigger attached to a computation is {{!Trigger.signal} signaled} as the
     computation is completed.
 
     The {!Trigger} concept in Picos is what allows a fiber to be suspended and
-    later resumed.  A fiber can create a trigger, add it to any shared data
+    later resumed. A fiber can create a trigger, add it to any shared data
     structure(s), and {{!Trigger.await} await} for the trigger to be signaled.
-    The await operation, which is {{!Trigger.Await} implemented by the
-    scheduler}, also, in case the fiber permits cancelation, attaches the
-    trigger to the computation of the fiber when it suspends the fiber.  This is
-    what allows a fiber to be resumed via cancelation of the computation.
+    The await operation, which is
+    {{!Trigger.Await} implemented by the scheduler}, also, in case the fiber
+    permits cancelation, attaches the trigger to the computation of the fiber
+    when it suspends the fiber. This is what allows a fiber to be resumed via
+    cancelation of the computation.
 
     The return value of {{!Trigger.await} await} tells whether the fiber was
     resumed normally or due to being canceled and the caller then needs to
-    properly handle either case.  After being canceled, depending on the
-    concurrent abstraction being implemented, the caller might need to
-    e.g. remove references to the trigger from the shared data structures,
-    cancel asynchronous IO operations, or transfer ownership of a mutex to the
-    next fiber in the queue of the mutex. *)
+    properly handle either case. After being canceled, depending on the
+    concurrent abstraction being implemented, the caller might need to e.g.
+    remove references to the trigger from the shared data structures, cancel
+    asynchronous IO operations, or transfer ownership of a mutex to the next
+    fiber in the queue of the mutex. *)
 
 (** {1 Modules reference}
 
@@ -175,23 +176,21 @@ module Trigger : sig
       Here is a simple example:
 
       {[
-        run begin fun () ->
-          Flock.join_after @@ fun () ->
+        run @@ fun () ->
+        Flock.join_after @@ fun () ->
+        let trigger = Trigger.create () in
 
-          let trigger = Trigger.create () in
+        begin
+          Flock.fork @@ fun () -> Trigger.signal trigger
+        end;
 
-          Flock.fork begin fun () ->
-            Trigger.signal trigger
-          end;
-
-          match Trigger.await trigger with
-          | None ->
+        match Trigger.await trigger with
+        | None ->
             (* We were resumed normally. *)
             ()
-          | Some (exn, bt) ->
+        | Some (exn, bt) ->
             (* We were canceled. *)
             Printexc.raise_with_backtrace exn bt
-        end
       ]}
 
       ⚠️ Typically we need to cleanup after {!await}, but in the above example we
@@ -199,14 +198,14 @@ module Trigger : sig
       {{!Computation.try_attach} attach} the trigger to any computation.
 
       All operations on triggers are wait-free, with the obvious exception of
-      {!await}.  The {!signal} operation inherits the properties of the action
+      {!await}. The {!signal} operation inherits the properties of the action
       attached with {!on_signal} to the trigger. *)
 
   (** {2 Interface for suspending} *)
 
   type t
-  (** Represents a trigger.  A trigger can be in one of three states: {i
-      initial}, {i awaiting}, or {i signaled}.
+  (** Represents a trigger. A trigger can be in one of three states:
+      {i initial}, {i awaiting}, or {i signaled}.
 
       ℹ️ Once a trigger becomes signaled it no longer changes state.
 
@@ -221,7 +220,7 @@ module Trigger : sig
       state.
 
       This can be useful, for example, when a [trigger] is being inserted to
-      multiple locations and might be signaled concurrently while doing so.  In
+      multiple locations and might be signaled concurrently while doing so. In
       such a case one can periodically check with [is_signaled trigger] whether
       it makes sense to continue.
 
@@ -233,10 +232,10 @@ module Trigger : sig
   (** [await trigger] waits for the trigger to be {!signal}ed.
 
       The return value is [None] in case the trigger has been signaled and the
-      {{!Fiber} fiber} was resumed normally.  Otherwise the return value is
+      {{!Fiber} fiber} was resumed normally. Otherwise the return value is
       [Some (exn, bt)], which indicates that the fiber has been canceled and the
-      caller should raise the exception.  In either case the caller is
-      responsible for cleaning up.  Usually this means making sure that no
+      caller should raise the exception. In either case the caller is
+      responsible for cleaning up. Usually this means making sure that no
       references to the trigger remain to avoid space leaks.
 
       ⚠️ As a rule of thumb, if you inserted the trigger to some data structure
@@ -245,36 +244,36 @@ module Trigger : sig
       trigger after [await].
 
       ℹ️ A trigger in the signaled state only takes a small constant amount of
-      memory.  Make sure that it is not possible for a program to accumulate
+      memory. Make sure that it is not possible for a program to accumulate
       unbounded numbers of signaled triggers under any circumstance.
 
-      ⚠️ Only the owner or creator of a trigger may call [await].  It is
+      ⚠️ Only the owner or creator of a trigger may call [await]. It is
       considered an error to make multiple calls to [await].
 
       ℹ️ The behavior is that, {i unless [await] can return immediately},
 
       - on OCaml 5, [await] will perform the {!Await} effect, and
-      - on OCaml 4, [await] will call the [await] operation of the {{!Handler}
-        current handler}.
+      - on OCaml 4, [await] will call the [await] operation of the
+        {{!Handler} current handler}.
 
-      @raise Invalid_argument if the trigger was in the awaiting state, which
-        means that multiple concurrent calls of [await] are being made. *)
+      @raise Invalid_argument
+        if the trigger was in the awaiting state, which means that multiple
+        concurrent calls of [await] are being made. *)
 
   (** {2 Interface for resuming} *)
 
   val signal : t -> unit
-  (** [signal trigger] puts the [trigger] into the signaled state and calls
-      the resume action, if any, attached using {!on_signal}.
+  (** [signal trigger] puts the [trigger] into the signaled state and calls the
+      resume action, if any, attached using {!on_signal}.
 
       The intention is that calling [signal trigger] guarantees that any fiber
-      {{!await} awaiting} the [trigger] will be resumed.  However, when and
+      {{!await} awaiting} the [trigger] will be resumed. However, when and
       whether a fiber having called {!await} will be resumed normally or as
       canceled is determined by the scheduler that handles the {!Await} effect.
 
       ℹ️ Note that under normal circumstances, [signal] should never raise an
-      exception.  If an exception is raised by [signal], it means that the
-      handler of {!Await} has a bug or some catastrophic failure has
-      occurred.
+      exception. If an exception is raised by [signal], it means that the
+      handler of {!Await} has a bug or some catastrophic failure has occurred.
 
       ⚠️ Do not call [signal] from an effect handler in a scheduler. *)
 
@@ -284,8 +283,8 @@ module Trigger : sig
       use requires a deeper understanding of how schedulers work. *)
 
   val is_initial : t -> bool
-  (** [is_initial trigger] determines whether the trigger is in the initial
-      or in the signaled state.
+  (** [is_initial trigger] determines whether the trigger is in the initial or
+      in the signaled state.
 
       ℹ️ Consider using {!is_signaled} instead of [is_initial] as in some
       contexts a trigger might reasonably be either in the initial or the
@@ -308,7 +307,7 @@ module Trigger : sig
 
       ⚠️ The action that you attach to a trigger must be safe to call from any
       context that might end up signaling the trigger directly or indirectly
-      through {{!Computation.canceler} propagation}.  Unless you know, then you
+      through {{!Computation.canceler} propagation}. Unless you know, then you
       should assume that the [resume] action might be called from a different
       domain running in parallel with neither effect nor exception handlers and
       that if the attached action doesn't return the system may deadlock or if
@@ -317,9 +316,10 @@ module Trigger : sig
       ⚠️ It is considered an error to make multiple calls to [on_signal] with a
       specific [trigger].
 
-      @raise Invalid_argument if the trigger was in the awaiting state, which
-        means that either the owner or creator of the trigger made concurrent
-        calls to {!await} or the handler called [on_signal] more than once. *)
+      @raise Invalid_argument
+        if the trigger was in the awaiting state, which means that either the
+        owner or creator of the trigger made concurrent calls to {!await} or the
+        handler called [on_signal] more than once. *)
 
   val from_action : 'x -> 'y -> (t -> 'x -> 'y -> unit) -> t
   [@@alert
@@ -336,7 +336,7 @@ module Trigger : sig
 
       ⚠️ The action that you attach to a trigger must be safe to call from any
       context that might end up signaling the trigger directly or indirectly
-      through {{!Computation.canceler} propagation}.  Unless you know, then you
+      through {{!Computation.canceler} propagation}. Unless you know, then you
       should assume that the [resume] action might be called from a different
       domain running in parallel with neither effect nor exception handlers and
       that if the attached action doesn't return the system may deadlock or if
@@ -361,66 +361,65 @@ module Trigger : sig
 
       A key idea behind this design is that the handler for {!Await} does not
       need to run arbitrary user defined code while suspending a fiber: the
-      handler calls {!on_signal} by itself.  This should make it easier to get
+      handler calls {!on_signal} by itself. This should make it easier to get
       both the handler and the user code correct.
 
       Another key idea is that the {!signal} operation provides no feedback as
-      to the outcome regarding cancelation.  Calling {!signal} merely guarantees
-      that the caller of {!await} will return.  This means that the point at
-      which cancelation must be determined can be as late as possible.  A
+      to the outcome regarding cancelation. Calling {!signal} merely guarantees
+      that the caller of {!await} will return. This means that the point at
+      which cancelation must be determined can be as late as possible. A
       scheduler can check the cancelation status just before calling [continue]
       and it is, of course, possible to check the cancelation status earlier.
       This allows maximal flexibility for the handler of {!Await}.
 
       The consequence of this is that the only place to handle cancelation is at
-      the point of {!await}.  This makes the design simpler and should make it
-      easier for the user to get the handling of cancelation right.  A minor
+      the point of {!await}. This makes the design simpler and should make it
+      easier for the user to get the handling of cancelation right. A minor
       detail is that {!await} returns an option instead of raising an exception.
       The reason for this is that matching against an option is slightly faster
-      than setting up an exception handler.  Returning an option also clearly
+      than setting up an exception handler. Returning an option also clearly
       communicates the two different cases to handle.
 
       On the other hand, the trigger mechanism does not have a way to specify a
       user-defined callback to perform cancelation immediately before the fiber
-      is resumed.  Such an immediately called callback could be useful for e.g.
-      canceling an underlying IO request.  One justification for not having such
+      is resumed. Such an immediately called callback could be useful for e.g.
+      canceling an underlying IO request. One justification for not having such
       a callback is that cancelation is allowed to take place from outside of
       the scheduler, i.e. from another system level thread, and, in such a case,
-      the callback could not be called immediately.  Instead, the scheduler is
+      the callback could not be called immediately. Instead, the scheduler is
       free to choose how to schedule canceled and continued fibers and, assuming
       that fibers can be trusted, a scheduler may give priority to canceled
       fibers.
 
       This design also separates the allocation of the atomic state for the
       trigger, or {!create}, from {!await}, and allows the state to be polled
-      using {!is_signaled} before calling {!await}.  This is particularly useful
+      using {!is_signaled} before calling {!await}. This is particularly useful
       when the trigger might need to be inserted to multiple places and be
       {!signal}ed in parallel before the call of {!await}.
 
-      No mechanism is provided to communicate any result with the signal.  That
-      can be done outside of the mechanism and is often not needed.  This
+      No mechanism is provided to communicate any result with the signal. That
+      can be done outside of the mechanism and is often not needed. This
       simplifies the design.
 
       Once {!signal} has been called, a trigger no longer refers to any other
-      object and takes just two words of memory.  This e.g. allows lazy removal
+      object and takes just two words of memory. This e.g. allows lazy removal
       of triggers, assuming the number of attached triggers can be bounded,
       because nothing except the trigger itself would be leaked.
 
       To further understand the problem domain, in this design, in a
       suspend-resume scenario, there are three distinct pieces of state:
 
-      {ol
-        {- The state of shared data structure(s) used for communication and / or
-           synchronization.}
-        {- The state of the trigger.}
-        {- The cancelation status of the fiber.}}
+      + The state of shared data structure(s) used for communication and / or
+        synchronization.
+      + The state of the trigger.
+      + The cancelation status of the fiber.
 
       The trigger and cancelation status are both updated independently and
-      atomically through code in this interface.  The key requirement left for
+      atomically through code in this interface. The key requirement left for
       the user is to make sure that the state of the shared data structure is
-      updated correctly independently of what {!await} returns.  So, for
-      example, a mutex implementation must check, after getting [Some (exn, bt)],
-      what the state of the mutex is and how it should be updated. *)
+      updated correctly independently of what {!await} returns. So, for example,
+      a mutex implementation must check, after getting [Some (exn, bt)], what
+      the state of the mutex is and how it should be updated. *)
 end
 
 module Computation : sig
@@ -447,9 +446,9 @@ module Computation : sig
       To define a computation, one first {{!create} creates} it and then
       arranges for the computation to be completed by {{!return} returning} a
       value through it or by {{!cancel} canceling} it with an exception at some
-      point in the future.  There are no restrictions on what it means for a
-      computation to be running.  The cancelation status of a computation can be
-      polled or {{!check} checked} explicitly.  Observers can also
+      point in the future. There are no restrictions on what it means for a
+      computation to be running. The cancelation status of a computation can be
+      polled or {{!check} checked} explicitly. Observers can also
       {{!try_attach} attach} {{!Trigger}triggers} to a computation to get a
       signal when the computation is completed or {{!await} await} the
       computation.
@@ -457,60 +456,52 @@ module Computation : sig
       Here is an example:
 
       {[
-        run begin fun () ->
-          Flock.join_after @@ fun () ->
+        run @@ fun () ->
+        Flock.join_after @@ fun () ->
+        let computation = Computation.create () in
 
-          let computation =
-            Computation.create ()
+        let canceler =
+          Flock.fork_as_promise @@ fun () ->
+          Fiber.sleep ~seconds:1.0;
+
+          Computation.cancel computation Exit (Printexc.get_callstack 0)
+        in
+
+        begin
+          Flock.fork @@ fun () ->
+          let rec fib i =
+            Computation.check computation;
+            if i <= 1 then i else fib (i - 1) + fib (i - 2)
           in
+          Computation.capture computation fib 10;
 
-          let canceler = Flock.fork_as_promise @@ fun () ->
-            Fiber.sleep ~seconds:1.0;
+          Promise.terminate canceler
+        end;
 
-            Computation.cancel computation
-              Exit (Printexc.get_callstack 0)
-          in
-
-          Flock.fork begin fun () ->
-            let rec fib i =
-              Computation.check
-                computation;
-              if i <= 1 then
-                i
-              else
-                fib (i - 1) + fib (i - 2)
-            in
-            Computation.capture computation
-              fib 10;
-
-            Promise.terminate canceler
-          end;
-
-          Computation.await computation
-        end
+        Computation.await computation
       ]}
 
-      A fiber is always associated with {{!Fiber.get_computation} at least a
-      single computation}.  However, {{!Fiber.spawn} it is possible for multiple
-      fibers to share a single computation} and it is also possible for a single
-      fiber to perform multiple computations.  Furthermore, the computation
-      associated with a fiber {{!Fiber.set_computation} can be changed} by the
-      fiber.
+      A fiber is always associated with
+      {{!Fiber.get_computation} at least a single computation}. However,
+      {{!Fiber.spawn} it is possible for multiple fibers to share a single
+       computation} and it is also possible for a single fiber to perform
+      multiple computations. Furthermore, the computation associated with a
+      fiber {{!Fiber.set_computation} can be changed} by the fiber.
 
-      Computations are not hierarchical.  In other words, computations do not
-      directly implement structured concurrency.  However, it is possible to
+      Computations are not hierarchical. In other words, computations do not
+      directly implement structured concurrency. However, it is possible to
       {{!canceler} propagate cancelation} to implement structured concurrency on
       top of computations.
 
       Operations on computations are either wait-free or lock-free and designed
-      to avoid starvation and complete in amortized constant time.  The
+      to avoid starvation and complete in amortized constant time. The
       properties of operations to complete a computation depend on the
       properties of actions {{!Trigger.on_signal} attached} to the triggers. *)
 
   (** {2 Interface for creating} *)
 
   type !'a t
-  (** Represents a cancelable computation.  A computation is either {i running}
+  (** Represents a cancelable computation. A computation is either {i running}
       or has been {i completed} either with a return value or with canceling
       exception with a backtrace.
 
@@ -528,11 +519,11 @@ module Computation : sig
   (** [create ()] creates a new computation in the running state.
 
       The optional [mode] specifies the order in which {{!Trigger} triggers}
-      {{!try_attach} attached} to the computation will be {{!Trigger.signal}
-      signaled} after the computation has been completed.  [`FIFO] ordering may
-      reduce latency of IO bound computations and is the default.  [`LIFO] may
-      improve thruput of CPU bound computations and be preferable on a
-      work-stealing scheduler, for example.
+      {{!try_attach} attached} to the computation will be
+      {{!Trigger.signal} signaled} after the computation has been completed.
+      [`FIFO] ordering may reduce latency of IO bound computations and is the
+      default. [`LIFO] may improve thruput of CPU bound computations and be
+      preferable on a work-stealing scheduler, for example.
 
       ℹ️ Typically the creator of a computation object arranges for the
       computation to be completed by using the {!capture} helper, for example.
@@ -548,7 +539,7 @@ module Computation : sig
 
   val try_return : 'a t -> 'a -> bool
   (** [try_return computation value] attempts to complete the computation with
-      the specified [value] and returns [true] on success.  Otherwise returns
+      the specified [value] and returns [true] on success. Otherwise returns
       [false], which means that the computation had already been completed
       before. *)
 
@@ -567,8 +558,8 @@ module Computation : sig
   val try_capture : 'a t -> ('b -> 'a) -> 'b -> bool
   (** [try_capture computation fn x] calls [fn x] and tries to complete the
       computation with the value returned or the exception raised by the call
-      and returns [true] on success.  Otherwise returns [false], which means
-      that the computation had already been completed before. *)
+      and returns [true] on success. Otherwise returns [false], which means that
+      the computation had already been completed before. *)
 
   val capture : 'a t -> ('b -> 'a) -> 'b -> unit
   (** [capture computation fn x] is equivalent to
@@ -578,17 +569,17 @@ module Computation : sig
     (** Transactional interface for atomically completing multiple computations.
 
         ⚠️ The implementation of this mechanism is designed to avoid making the
-        single computation completing operations,
-        i.e. {{!Computation.try_return} [try_return]} and
+        single computation completing operations, i.e.
+        {{!Computation.try_return} [try_return]} and
         {{!Computation.try_cancel} [try_cancel]}, slower and to avoid making
-        computations heavier.  For this reason the transaction mechanism is only
+        computations heavier. For this reason the transaction mechanism is only
         {{:https://en.wikipedia.org/wiki/Non-blocking_algorithm#Obstruction-freedom}
-        obstruction-free}.  What this means is that a transaction may be aborted
+         obstruction-free}. What this means is that a transaction may be aborted
         by another transaction or by a single computation manipulating
         operation. *)
 
     type 'a computation := 'a t
-    (** Destructively substituted alias for {!Computation.t}.  *)
+    (** Destructively substituted alias for {!Computation.t}. *)
 
     val same : _ computation -> _ computation -> bool
     (** [same computation1 computation2] determines whether the two computations
@@ -604,7 +595,7 @@ module Computation : sig
     (** [try_return tx computation value] adds the completion of the
         [computation] as having returned the given [value] to the transaction.
         Returns [true] in case the computation had not yet been completed and
-        the transaction was still alive.  Otherwise returns [false] which means
+        the transaction was still alive. Otherwise returns [false] which means
         that transaction was aborted and it is as if none of the completions
         succesfully added to the transaction have taken place. *)
 
@@ -612,15 +603,14 @@ module Computation : sig
       t -> 'a computation -> exn -> Printexc.raw_backtrace -> bool
     (** [try_cancel tx computation exn bt] adds the completion of the
         computation as having canceled with the given exception and backtrace to
-        the transaction.  Returns [true] in case the computation had not yet
-        been completed and the transaction was still alive.  Otherwise returns
-        [false] which means that transaction was aborted and it is as if none of
-        the completions succesfully added to the transaction have taken
-        place. *)
+        the transaction. Returns [true] in case the computation had not yet been
+        completed and the transaction was still alive. Otherwise returns [false]
+        which means that transaction was aborted and it is as if none of the
+        completions succesfully added to the transaction have taken place. *)
 
     val try_commit : t -> bool
     (** [try_commit tx] attempts to mark the transaction as committed
-        successfully.  Returns [true] in case of success, which means that all
+        successfully. Returns [true] in case of success, which means that all
         the completions added to the transaction have been performed atomically.
         Otherwise returns [false] which means that transaction was aborted and
         it is as if none of the completions succesfully added to the transaction
@@ -635,7 +625,7 @@ module Computation : sig
   val try_cancel : 'a t -> exn -> Printexc.raw_backtrace -> bool
   (** [try_cancel computation exn bt] attempts to mark the computation as
       canceled with the specified exception and backtrace and returns [true] on
-      success.  Otherwise returns [false], which means that the computation had
+      success. Otherwise returns [false], which means that the computation had
       already been completed before. *)
 
   val cancel : 'a t -> exn -> Printexc.raw_backtrace -> unit
@@ -648,7 +638,7 @@ module Computation : sig
     'a t -> seconds:float -> exn -> Printexc.raw_backtrace -> unit
   (** [cancel_after ~seconds computation exn bt] arranges to {!cancel} the
       computation after the specified time with the specified exception and
-      backtrace.  Completion of the computation before the specified time
+      backtrace. Completion of the computation before the specified time
       effectively cancels the timeout.
 
       ℹ️ The behavior is that [cancel_after] first checks that [seconds] is not
@@ -658,8 +648,8 @@ module Computation : sig
       - on OCaml 4, [cancel_after] will call the [cancel_after] operation of the
         {{!Handler} current handler}.
 
-      @raise Invalid_argument if [seconds] is negative or too large as
-        determined by the scheduler. *)
+      @raise Invalid_argument
+        if [seconds] is negative or too large as determined by the scheduler. *)
 
   (** {2 Interface for polling} *)
 
@@ -678,7 +668,9 @@ module Computation : sig
 
   val check : 'a t -> unit
   (** [check computation] is equivalent to
-      {{!canceled} [Option.iter (fun (exn, bt) -> Printexc.raise_with_backtrace exn bt) (canceled computation)]}. *)
+      {{!canceled}
+       [Option.iter (fun (exn, bt) -> Printexc.raise_with_backtrace exn bt)
+        (canceled computation)]}. *)
 
   val peek : 'a t -> ('a, exn * Printexc.raw_backtrace) result option
   (** [peek computation] returns the result of the computation or [None] in case
@@ -686,13 +678,13 @@ module Computation : sig
 
   exception Running
   (** Exception raised by {!peek_exn} when it's used on a still running
-      computation.  This should never be surfaced to the user. *)
+      computation. This should never be surfaced to the user. *)
 
   val peek_exn : 'a t -> 'a
   (** [peek_exn computation] returns the result of the computation or raises an
-      exception.  It is important to catch the exception.  If the computation
-      was cancelled with exception [exn] then [exn] is re-raised with its
-      original backtrace.
+      exception. It is important to catch the exception. If the computation was
+      cancelled with exception [exn] then [exn] is re-raised with its original
+      backtrace.
 
       @raise Running if the computation has not completed. *)
 
@@ -712,7 +704,7 @@ module Computation : sig
       detaches it from the computation.
 
       🏎️ The {!try_attach} and [detach] operations essentially implement a
-      lock-free bag.  While not formally wait-free, the implementation is
+      lock-free bag. While not formally wait-free, the implementation is
       designed to avoid starvation by making sure that any potentially expensive
       operations are performed cooperatively. *)
 
@@ -731,15 +723,15 @@ module Computation : sig
 
   val canceler : from:_ t -> into:_ t -> Trigger.t
   (** [canceler ~from ~into] creates a trigger that propagates cancelation
-      [from] one computation [into] another on {{:Trigger.signal} signal}.  The
+      [from] one computation [into] another on {{:Trigger.signal} signal}. The
       returned trigger is not attached to any computation.
 
       The caller usually attaches the returned trigger to the computation [from]
       which cancelation is to be propagated and the trigger should usually also
-      be detached after it is no longer needed.  See also {!attach_canceler}.
+      be detached after it is no longer needed. See also {!attach_canceler}.
 
       The intended use case of [canceler] is as a low level building block of
-      structured concurrency mechanisms.  Picos does not require concurrent
+      structured concurrency mechanisms. Picos does not require concurrent
       programming models to be hierarchical or structured.
 
       ⚠️ The returned trigger will be in the awaiting state, which means that it
@@ -748,7 +740,7 @@ module Computation : sig
   val attach_canceler : from:_ t -> into:_ t -> Trigger.t
   (** [attach_canceler ~from ~into] tries to attach a {!canceler} to the
       computation [from] to propagate cancelation to the computation [into] and
-      returns the {!canceler} when successful.  If the computation [from] has
+      returns the {!canceler} when successful. If the computation [from] has
       already been canceled, the exception that [from] was canceled with will be
       raised.
 
@@ -772,10 +764,8 @@ module Computation : sig
   (** [with_action x y resume] is equivalent to
       {@ocaml skip[
         let computation = create () in
-        let trigger =
-          Trigger.from_action x y resume in
-        let _ : bool =
-          try_attach computation trigger in
+        let trigger = Trigger.from_action x y resume in
+        let _ : bool = try_attach computation trigger in
         computation
       ]}
 
@@ -787,37 +777,39 @@ module Computation : sig
       {{!try_attach} attach} {{!Trigger} triggers} to a computation to get
       notified when the status of the computation changes from running to
       completed and can also efficiently {{!detach} detach} such triggers in
-      case getting a notification is no longer necessary.  This allows the
-      status change to be propagated omnidirectionally and is what makes
-      computations able to support a variety of purposes such as the
-      implementation of {{!Picos_std_structured} structured concurrency}.
+      case getting a notification is no longer necessary. This allows the status
+      change to be propagated omnidirectionally and is what makes computations
+      able to support a variety of purposes such as the implementation of
+      {{!Picos_std_structured} structured concurrency}.
 
       The computation concept can be seen as a kind of single-shot atomic
       {{!Picos_std_event.Event} event} that is a generalization of both a
-      cancelation Context or token and of a {{!Picos_std_structured.Promise}
-      promise}.  Unlike a typical promise mechanism, a computation can be
-      canceled.  Unlike a typical cancelation mechanism, a computation can and
-      should also be completed in case it is not canceled.  This promotes proper
-      scoping of computations and resource cleanup at completion, which is how
-      the design evolved from a more traditional cancelation context design.
+      cancelation Context or token and of a
+      {{!Picos_std_structured.Promise} promise}. Unlike a typical promise
+      mechanism, a computation can be canceled. Unlike a typical cancelation
+      mechanism, a computation can and should also be completed in case it is
+      not canceled. This promotes proper scoping of computations and resource
+      cleanup at completion, which is how the design evolved from a more
+      traditional cancelation context design.
 
       Every fiber is {{!Fiber.get_computation} associated with a computation}.
       Being able to return a value through the computation means that no
-      separate promise is necessarily required to hold the result of a fiber.
-      On the other hand, {{!Fiber.spawn} multiple fibers may share a single
-      computation}.  This allows multiple fibers to be canceled efficiently
-      through a single atomic update.  In other words, the design allows various
-      higher level patterns to be implemented efficiently.
+      separate promise is necessarily required to hold the result of a fiber. On
+      the other hand,
+      {{!Fiber.spawn} multiple fibers may share a single computation}. This
+      allows multiple fibers to be canceled efficiently through a single atomic
+      update. In other words, the design allows various higher level patterns to
+      be implemented efficiently.
 
       Instead of directly implementing a hierarchy of computations, the design
       allows {{!try_attach} attach}ing triggers to computations and
       {{!canceler}a special trigger constructor} is provided for propagating
-      cancelation.  This helps to keep the implementation lean, i.e. not
+      cancelation. This helps to keep the implementation lean, i.e. not
       substantially heavier than a typical promise implementation.
 
       Finally, just like with {!Trigger.Await}, a key idea is that the handler
       of {!Computation.Cancel_after} does not need to run arbitrary user defined
-      code.  The action of any trigger attached to a computation either comes
+      code. The action of any trigger attached to a computation either comes
       from some scheduler calling {!Trigger.on_signal} or from
       {!Computation.canceler}. *)
 end
@@ -825,17 +817,17 @@ end
 module Fiber : sig
   (** An independent thread of execution.
 
-      A fiber corresponds to an independent thread of execution.  Fibers are
-      {!create}d by schedulers in response to {!Spawn} effects.  A fiber is
+      A fiber corresponds to an independent thread of execution. Fibers are
+      {!create}d by schedulers in response to {!Spawn} effects. A fiber is
       associated with a {{!Computation} computation} and either {!forbid}s or
       {!permit}s the scheduler from propagating cancelation when the fiber
-      performs effects.  A fiber also has an associated {{!FLS} fiber local
-      storage}.
+      performs effects. A fiber also has an associated
+      {{!FLS} fiber local storage}.
 
       ⚠️ Many operations on fibers can only be called safely from the fiber
       itself, because those operations are neither concurrency nor parallelism
-      safe.  Such operations can be safely called from a handler in a scheduler
-      when it is handling an effect performed by the fiber.  In particular, a
+      safe. Such operations can be safely called from a handler in a scheduler
+      when it is handling an effect performed by the fiber. In particular, a
       scheduler can safely check whether the fiber {!has_forbidden} cancelation
       and may access the {!FLS} of the fiber. *)
 
@@ -847,8 +839,8 @@ module Fiber : sig
       ℹ️ The behavior is that
 
       - on OCaml 5, [yield] perform the {!Yield} effect, and
-      - on OCaml 4, [yield] will call the [yield] operation of the {{!Handler}
-        current handler}. *)
+      - on OCaml 4, [yield] will call the [yield] operation of the
+        {{!Handler} current handler}. *)
 
   val sleep : seconds:float -> unit
   (** [sleep ~seconds] suspends the current fiber for the specified number of
@@ -881,7 +873,7 @@ module Fiber : sig
         {{!Handler} current handler}.
 
       ⚠️ The [current] operation must always resume the fiber without propagating
-      cancelation.  A scheduler may, of course, decide to reschedule the current
+      cancelation. A scheduler may, of course, decide to reschedule the current
       fiber to be resumed later.
 
       Because the scheduler does not discontinue a fiber calling [current], it
@@ -895,7 +887,7 @@ module Fiber : sig
       ℹ️ This is mostly useful in the effect handlers of schedulers.
 
       ⚠️ There is no "reference count" of how many times a fiber has forbidden or
-      permitted propagation of cancelation.  Calls to {!forbid} and {!permit}
+      permitted propagation of cancelation. Calls to {!forbid} and {!permit}
       directly change a single boolean flag.
 
       ⚠️ It is only safe to call [has_forbidden] from the fiber itself. *)
@@ -907,12 +899,12 @@ module Fiber : sig
       The main use case of [forbid] is the implementation of concurrent
       abstractions that may have to {{!Trigger.await} await} for something, or
       may need to perform other effects, and must not be canceled while doing
-      so.  For example, the wait operation on a condition variable typically
+      so. For example, the wait operation on a condition variable typically
       reacquires the associated mutex before returning, which may require
       awaiting for the owner of the mutex to release it.
 
       ℹ️ [forbid] does not prevent the fiber or the associated {!computation}
-      from being canceled.  It only tells the scheduler not to propagate
+      from being canceled. It only tells the scheduler not to propagate
       cancelation to the fiber when it performs effects.
 
       ⚠️ It is only safe to call [forbid] from the fiber itself. *)
@@ -930,10 +922,9 @@ module Fiber : sig
   val is_canceled : t -> bool
   (** [is_canceled fiber] is equivalent to
       {@ocaml skip[
-        not (Fiber.has_forbidden fiber) &&
-        let (Packed computation) =
-          Fiber.get_computation fiber
-        in
+        (not (Fiber.has_forbidden fiber))
+        &&
+        let (Packed computation) = Fiber.get_computation fiber in
         Computation.is_canceled computation
       ]}
 
@@ -944,12 +935,9 @@ module Fiber : sig
   val canceled : t -> (exn * Printexc.raw_backtrace) option
   (** [canceled fiber] is equivalent to:
       {@ocaml skip[
-        if Fiber.has_forbidden fiber then
-          None
+        if Fiber.has_forbidden fiber then None
         else
-          let (Packed computation) =
-            Fiber.get_computation fiber
-          in
+          let (Packed computation) = Fiber.get_computation fiber in
           Computation.canceled computation
       ]}
 
@@ -961,9 +949,7 @@ module Fiber : sig
   (** [check fiber] is equivalent to:
       {@ocaml skip[
         if not (Fiber.has_forbidden fiber) then
-          let (Packed computation) =
-            Fiber.get_computation fiber
-          in
+          let (Packed computation) = Fiber.get_computation fiber in
           Computation.check computation
       ]}
 
@@ -984,7 +970,7 @@ module Fiber : sig
     (** Fiber local storage
 
         Fiber local storage is intended for use as a low overhead storage
-        mechanism for fiber extensions.  For example, one might associate a
+        mechanism for fiber extensions. For example, one might associate a
         priority value with each fiber for a scheduler that uses a priority
         queue or one might use FLS to store unique id values for fibers. *)
 
@@ -1052,31 +1038,32 @@ module Fiber : sig
 
   val create : forbid:bool -> 'a Computation.t -> t
   (** [create ~forbid computation] is equivalent to
-      {{!create_packed} [create_packed ~forbid (Computation.Packed computation)]}. *)
+      {{!create_packed}
+       [create_packed ~forbid (Computation.Packed computation)]}. *)
 
   val spawn : t -> (t -> unit) -> unit
   (** [spawn fiber main] starts a new fiber by performing the {!Spawn} effect.
 
       ⚠️ Fiber records must be unique and the caller of [spawn] must make sure
-      that a specific {{!fiber} fiber} record is not reused.  Failure to ensure
+      that a specific {{!fiber} fiber} record is not reused. Failure to ensure
       that fiber records are unique will break concurrent abstractions written
       on top the the Picos interface.
 
-      ⚠️ If the [main] function raises an exception it is considered a {i fatal
-      error}.  A fatal error should effectively either directly exit the program
-      or stop the entire scheduler, without discontinuing existing fibers, and
-      force the invocations of the scheduler on all domains to exit.  What this
-      means is that the caller of [spawn] {i should} ideally arrange for any
-      exception to be handled by [main], but, in case that is not practical, it
-      is also possible to allow an exception to propagate out of [main], which
-      is then guaranteed to, one way or the other, to stop the entire program.
-      It is not possible to recover from a fatal error.
+      ⚠️ If the [main] function raises an exception it is considered a
+      {i fatal error}. A fatal error should effectively either directly exit the
+      program or stop the entire scheduler, without discontinuing existing
+      fibers, and force the invocations of the scheduler on all domains to exit.
+      What this means is that the caller of [spawn] {i should} ideally arrange
+      for any exception to be handled by [main], but, in case that is not
+      practical, it is also possible to allow an exception to propagate out of
+      [main], which is then guaranteed to, one way or the other, to stop the
+      entire program. It is not possible to recover from a fatal error.
 
       ℹ️ The behavior is that
 
       - on OCaml 5, [spawn] performs the {!Spawn} effect, and
-      - on OCaml 4, [spawn] will call the [spawn] operation of the {{!Handler}
-        current handler}. *)
+      - on OCaml 4, [spawn] will call the [spawn] operation of the
+        {{!Handler} current handler}. *)
 
   (** {2 Interface for structuring} *)
 
@@ -1142,19 +1129,19 @@ module Fiber : sig
     val equal : t -> t -> bool
     (** [equal l r] determines whether [l] and [r] are maybe equal.
         Specifically, if either [l] or [r] or both is {!nothing}, then they are
-        considered (maybe) equal.  Otherwise [l] and [r] are compared for
+        considered (maybe) equal. Otherwise [l] and [r] are compared for
         {{!Fiber.equal} physical equality}. *)
 
     val unequal : t -> t -> bool
     (** [equal l r] determines whether [l] and [r] are maybe unequal.
         Specifically, if either [l] or [r] or both is {!nothing}, then they are
-        considered (maybe) unequal.  Otherwise [l] and [r] are compared for
+        considered (maybe) unequal. Otherwise [l] and [r] are compared for
         {{!Fiber.equal} physical equality}. *)
 
     (** {2 Design rationale}
 
         The fiber identity is often needed only for the purpose of dynamically
-        checking against programming errors.  Unfortunately it can be relative
+        checking against programming errors. Unfortunately it can be relative
         expensive to obtain the {{!Fiber.current} current} fiber.
 
         As a data point, in a benchmark that increments an [int ref] protected
@@ -1172,9 +1159,9 @@ module Fiber : sig
   val try_suspend :
     t -> Trigger.t -> 'x -> 'y -> (Trigger.t -> 'x -> 'y -> unit) -> bool
   (** [try_suspend fiber trigger x y resume] tries to suspend the [fiber] to
-      await for the [trigger] to be {{!Trigger.signal} signaled}.  If the result
+      await for the [trigger] to be {{!Trigger.signal} signaled}. If the result
       is [false], then the [trigger] is guaranteed to be in the signaled state
-      and the fiber should be eventually resumed.  If the result is [true], then
+      and the fiber should be eventually resumed. If the result is [true], then
       the fiber was suspended, meaning that the [trigger] will have had the
       [resume] action {{!Trigger.on_signal} attached} to it and the trigger has
       potentially been {{!Computation.try_attach} attached} to the
@@ -1182,7 +1169,7 @@ module Fiber : sig
 
   val unsuspend : t -> Trigger.t -> bool
   (** [unsuspend fiber trigger] makes sure that the [trigger] will not be
-      attached to the computation of the [fiber].  Returns [false] in case the
+      attached to the computation of the [fiber]. Returns [false] in case the
       fiber has been canceled and propagation of cancelation is not forbidden.
       Otherwise returns [true].
 
@@ -1194,26 +1181,26 @@ module Fiber : sig
   (** {2 Design rationale}
 
       The idea is that fibers correspond 1-to-1 with independent threads of
-      execution.  This allows a fiber to non-atomically store state related to a
+      execution. This allows a fiber to non-atomically store state related to a
       thread of execution.
 
       The status of whether propagation of cancelation is forbidden or permitted
-      could be stored in the {{!FLS} fiber local storage}.  The justification
-      for storing it directly with the fiber is that the implementation of some
-      key synchronization and communication mechanisms, such as condition
-      variables, requires the capability.
+      could be stored in the {{!FLS} fiber local storage}. The justification for
+      storing it directly with the fiber is that the implementation of some key
+      synchronization and communication mechanisms, such as condition variables,
+      requires the capability.
 
-      No integer fiber id is provided by default.  It would seem that for most
-      intents and purposes the identity of the fiber is sufficient.  {{!FLS}
-      Fiber local storage} can be used to implement a fiber id or e.g. a fiber
-      hash.
+      No integer fiber id is provided by default. It would seem that for most
+      intents and purposes the identity of the fiber is sufficient.
+      {{!FLS} Fiber local storage} can be used to implement a fiber id or e.g. a
+      fiber hash.
 
       The {{!FLS} fiber local storage} is designed for the purpose of extending
-      fibers and to be as fast as possible.  It is not intended for application
+      fibers and to be as fast as possible. It is not intended for application
       programming.
 
       {!Yield} is provided as a separate effect to specifically communicate the
-      intent that the current fiber should be rescheduled.  This allows all the
+      intent that the current fiber should be rescheduled. This allows all the
       other effect handlers more freedom in choosing which fiber to schedule
       next. *)
 end
@@ -1239,7 +1226,7 @@ module Handler : sig
         (** See {!Picos.Trigger.await}. *)
   }
   (** A record of implementations of the primitive effects based operations of
-      Picos.  The operations take a context of type ['c] as an argument. *)
+      Picos. The operations take a context of type ['c] as an argument. *)
 
   val using : 'c t -> 'c -> (Fiber.t -> unit) -> unit
   (** [using handler context main] sets the [handler] and the [context] for the

@@ -96,10 +96,10 @@ let run_fiber ?quota ?fatal_exn_handler fiber main =
     {
       exnc = (match fatal_exn_handler with None -> raise | Some exnc -> exnc);
       effc =
-        (fun (type a) (e : a Effect.t) :
-             ((a, _) Effect.Deep.continuation -> _) option ->
+        (fun (type a) (e : a Effect.t) ->
           match e with
-          | Fiber.Current -> t.current
+          | Fiber.Current ->
+              (t.current : ((a, _) Effect.Deep.continuation -> _) option)
           | Fiber.Spawn r ->
               let fiber = Fiber.Maybe.to_fiber t.fiber in
               if Fiber.is_canceled fiber then t.discontinue

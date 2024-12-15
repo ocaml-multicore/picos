@@ -35,8 +35,7 @@ let await promise =
   | Return value -> value
   | Fail exn -> raise exn
 
-let[@alert "-handler"] rec go :
-    type a r.
+let[@alert "-handler"] rec go : type a r.
     Fiber.t ->
     (module System) ->
     (a, r) Effect.Shallow.continuation ->

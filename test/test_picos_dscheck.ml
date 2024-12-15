@@ -90,8 +90,8 @@ let test_computation_contract () =
 
 (** This covers the contract of [Computation] to remove detached triggers.
 
-    Testing this through the public API would require relying on GC
-    statistics. *)
+    Testing this through the public API would require relying on GC statistics.
+*)
 let test_computation_removes_triggers () =
   [ `FIFO; `LIFO ]
   |> List.iter @@ fun mode ->

@@ -2,7 +2,7 @@
     5.
 
     This scheduler uses a queue specifically optimized for a single-threaded
-    scheduler to implement a basic FIFO scheduler.  This scheduler also gives
+    scheduler to implement a basic FIFO scheduler. This scheduler also gives
     priority to fibers woken up due to being canceled.
 
     🐌 Due to FIFO scheduling this scheduler performs poorly on highly parallel
@@ -14,7 +14,7 @@
     ℹ️ This scheduler implementation is mostly meant as an example and for use in
     testing libraries implemented in {!Picos}.
 
-    ⚠️ This scheduler uses {!Picos_io_select} internally.  If running multiple
+    ⚠️ This scheduler uses {!Picos_io_select} internally. If running multiple
     threads that each run this scheduler, {!Picos_io_select.configure} must be
     called by the main thread before creating other threads. *)
 
