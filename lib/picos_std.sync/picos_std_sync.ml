@@ -5,3 +5,4 @@ module Lazy = Lazy
 module Latch = Latch
 module Ivar = Ivar
 module Stream = Stream
+module Stack = Stack
