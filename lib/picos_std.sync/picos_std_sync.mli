@@ -351,6 +351,35 @@ module Ivar : sig
       variable has either been assigned a value or has been poisoned. *)
 end
 
+module Ch : sig
+  (** A synchronous channel. *)
+
+  type !'a t
+  (** Represents a synchronous channel for handing over messages of type ['a].
+  *)
+
+  val create : ?padded:bool -> unit -> 'a t
+  (** [create ()] creates a new synchronous channel. *)
+
+  val give : 'a t -> 'a -> unit
+  (** [give ch value] waits until another fiber is ready to take a message on
+      the [ch]annel and gives the message to it. *)
+
+  val give_evt : 'a t -> 'a -> unit Event.t
+  (** [give_evt ch value] returns an event that can be committed to once another
+      fiber is ready to take a message on the [ch]annel. Committing to the event
+      results in giving the message to the other fiber. *)
+
+  val take : 'a t -> 'a
+  (** [take ch] waits until another fiber is ready to give a message on the
+      [ch]annel and takes the message from it. *)
+
+  val take_evt : 'a t -> 'a Event.t
+  (** [take_evt ch] returns an event that can be committed to once another fiber
+      is ready to give a message on the [ch]annel. Committing to the event
+      results in taking the message from the other fiber. *)
+end
+
 module Stream : sig
   (** A lock-free, poisonable, many-to-many, stream.
 

@@ -287,6 +287,27 @@ let test_event_basics () =
     | exception Exit -> ()
   end
 
+let test_ch () =
+  Test_scheduler.run ~max_domains:2 @@ fun () ->
+  Bundle.join_after @@ fun bundle ->
+  let ch = Ch.create () in
+  assert (
+    76
+    == Event.select
+         [
+           Event.wrap (Ch.give_evt ch 42) (fun () -> assert false);
+           Ch.take_evt ch;
+           Event.always 76;
+         ]);
+  [ (fun () -> Ch.take ch); (fun () -> Event.sync (Ch.take_evt ch)) ]
+  |> List.iter @@ fun take ->
+     [ Ch.give ch; (fun value -> Event.sync (Ch.give_evt ch value)) ]
+     |> List.iter @@ fun give ->
+        let value = Random.bits () in
+        let promise = Bundle.fork_as_promise bundle take in
+        Bundle.fork bundle (fun () -> give value);
+        assert (value == Promise.await promise)
+
 let test_non_cancelable_ops () =
   Test_scheduler.run @@ fun () ->
   let ivar = Ivar.create () in
@@ -328,6 +349,7 @@ let () =
           Alcotest.test_case "cancelation" `Quick test_lazy_cancelation;
         ] );
       ("Event", [ Alcotest.test_case "basics" `Quick test_event_basics ]);
+      ("Ch", [ Alcotest.test_case "basics" `Quick test_ch ]);
       ( "Non-cancelable ops",
         [ Alcotest.test_case "are not canceled" `Quick test_non_cancelable_ops ]
       );
