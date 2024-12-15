@@ -18,9 +18,9 @@ module type System = sig
   (** [signal trigger] resolves the promise that {{!await} [await trigger]}
       returns.
 
-      ℹ️ It must be safe to call [signal] from any thread or domain.  As a
-      special case this need not be thread-safe in case the system only allows a
-      single thread. *)
+      ℹ️ It must be safe to call [signal] from any thread or domain. As a special
+      case this need not be thread-safe in case the system only allows a single
+      thread. *)
 
   val await : trigger -> unit Lwt.t
   (** [await trigger] returns a promise thet resolves, on the main thread, after

@@ -235,7 +235,7 @@ module Computation = struct
     | S ((Canceled _ | Returned _) as completed) -> canceled completed
 
   (** [gc] is called when balance becomes negative by both [try_attach] and
-      [detach].  This ensures that the [O(n)] lazy removal done by [gc] cannot
+      [detach]. This ensures that the [O(n)] lazy removal done by [gc] cannot
       cause starvation, because the only reason that CAS fails after [gc] is
       that someone else completed the [gc]. *)
   let rec gc balance_and_mode triggers = function

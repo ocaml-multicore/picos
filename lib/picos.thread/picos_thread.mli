@@ -8,7 +8,7 @@ module TLS : sig
   (** Thread-local storage.
 
       Note that here "thread" refers to system level threads rather than fibers
-      or domains.  In case a system level thread implementation, i.e. the
+      or domains. In case a system level thread implementation, i.e. the
       [threads.posix] library, is not available, this will use
       {!Picos_domain.DLS}. *)
 
@@ -30,7 +30,7 @@ module TLS : sig
       current thread or raises {!Not_set} in case no value has been {!set} for
       the key.
 
-      ⚠️ The {!Not_set} exception is raised with no backtrace.  Always catch the
+      ⚠️ The {!Not_set} exception is raised with no backtrace. Always catch the
       exception unless it is known that a value has been set. *)
 
   val set : 'a t -> 'a -> unit

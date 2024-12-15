@@ -4,12 +4,14 @@
     it is no longer needed.
 
     ⚠️ Beware that the Stdlib {{!Fun.protect} [Fun.protect ~finally]} helper does
-    not {{!Picos_std_structured.Control.protect} protect against cancelation
-    propagation} when it calls [finally ()].  This means that cancelable
+    not
+    {{!Picos_std_structured.Control.protect} protect against cancelation
+     propagation} when it calls [finally ()]. This means that cancelable
     operations performed by [finally] may be terminated and resources might be
-    leaked.  So, if you want to avoid resource leaks, you should either use
-    {!lastly} or explicitly {{!Picos_std_structured.Control.protect} protect
-    against cancelation propagation}.
+    leaked. So, if you want to avoid resource leaks, you should either use
+    {!lastly} or explicitly
+    {{!Picos_std_structured.Control.protect} protect against cancelation
+     propagation}.
 
     We open both this library and a few other libraries
 
@@ -38,64 +40,70 @@ val finally : ('r -> unit) -> (unit -> 'r) -> ('r -> 'a) -> 'a
     calls [scope resource], and then calls [release resource] after the scope
     exits.
 
-    ℹ️ {{!Picos_std_structured.Control.protect} Cancelation propagation will be
-    forbidden} during the call of [release]. *)
+    ℹ️ Cancelation propagation will be
+    {{!Picos_std_structured.Control.protect} forbidden} during the call of
+    [release]. *)
 
 val lastly : (unit -> unit) -> (unit -> 'a) -> 'a
 (** [lastly action scope] is equivalent to
     {{!finally} [finally action Fun.id scope]}.
 
-    ℹ️ {{!Picos_std_structured.Control.protect} Cancelation propagation will be
-    forbidden} during the call of [action]. *)
+    ℹ️ Cancelation propagation will be
+    {{!Picos_std_structured.Control.protect} forbidden} during the call of
+    [action]. *)
 
 (** {2 Instances} *)
 
 type 'r instance
-(** Either contains a resource or is empty as the resource has been {{!transfer}
-    transferred}, {{!drop} dropped}, or has been {{!borrow} borrowed}
-    temporarily. *)
+(** Either contains a resource or is empty as the resource has been
+    {{!transfer} transferred}, {{!drop} dropped}, or has been
+    {{!borrow} borrowed} temporarily. *)
 
 val instantiate : ('r -> unit) -> (unit -> 'r) -> ('r instance -> 'a) -> 'a
 (** [instantiate release acquire scope] calls [acquire ()] to obtain a resource
-    and stores it as an {!instance}, calls [scope instance].  Then, if [scope]
-    returns normally, awaits until the {!instance} becomes empty.  In case
+    and stores it as an {!instance}, calls [scope instance]. Then, if [scope]
+    returns normally, awaits until the {!instance} becomes empty. In case
     [scope] raises an exception or the fiber is canceled, the instance will be
     {{!drop} dropped}.
 
-    ℹ️ {{!Picos_std_structured.Control.protect} Cancelation propagation will be
-    forbidden} during the call of [release]. *)
+    ℹ️ Cancelation propagation will be
+    {{!Picos_std_structured.Control.protect} forbidden} during the call of
+    [release]. *)
 
 val drop : 'r instance -> unit
 (** [drop instance] releases the resource, if any, contained by the {!instance}.
 
-    @raise Invalid_argument if the resource has been {{!let&} borrowed} and
-      hasn't yet been returned. *)
+    @raise Invalid_argument
+      if the resource has been {{!let&} borrowed} and hasn't yet been returned.
+*)
 
 val borrow : 'r instance -> ('r -> 'a) -> 'a
 (** [borrow instance scope] borrows the [resource] stored in the [instance],
     calls [scope resource], and then returns the [resource] to the [instance]
     after scope exits.
 
-    @raise Invalid_argument if the resource has already been {{!borrow}
-      borrowed} and hasn't yet been returned, has already been {{!drop}
-      dropped}, or has already been {{!transfer} transferred}. *)
+    @raise Invalid_argument
+      if the resource has already been {{!borrow} borrowed} and hasn't yet been
+      returned, has already been {{!drop} dropped}, or has already been
+      {{!transfer} transferred}. *)
 
 val transfer : 'r instance -> ('r instance -> 'a) -> 'a
 (** [transfer source] transfers the [resource] stored in the [source] instance
-    into a new [target] instance, calls [scope target].  Then, if [scope]
-    returns normally, awaits until the [target] instance becomes empty.  In case
-    [scope] raises an exception or the fiber is canceled, the [target] instance
-    will be {{!drop} dropped}.
+    into a new [target] instance, calls [scope target]. Then, if [scope] returns
+    normally, awaits until the [target] instance becomes empty. In case [scope]
+    raises an exception or the fiber is canceled, the [target] instance will be
+    {{!drop} dropped}.
 
-    @raise Invalid_argument if the resource has been {{!borrow} borrowed} and
-      hasn't yet been returned, has already been {{!transfer} transferred}, or
-      has been {{!drop} dropped} unless the current fiber has been canceled, in
-      which case the exception that the fiber was canceled with will be
-      raised. *)
+    @raise Invalid_argument
+      if the resource has been {{!borrow} borrowed} and hasn't yet been
+      returned, has already been {{!transfer} transferred}, or has been
+      {{!drop} dropped} unless the current fiber has been canceled, in which
+      case the exception that the fiber was canceled with will be raised. *)
 
 val move : 'r instance -> ('r -> 'a) -> 'a
 (** [move instance scope] is equivalent to
-    {{!transfer} [transfer instance (fun instance -> borrow instance scope)]}. *)
+    {{!transfer} [transfer instance (fun instance -> borrow instance scope)]}.
+*)
 
 (** {1 Examples}
 
@@ -107,13 +115,11 @@ val move : 'r instance -> ('r -> 'a) -> 'a
     {[
       let recursive_server server_fd =
         Flock.join_after @@ fun () ->
-
         (* recursive server *)
         let rec accept () =
           let@ client_fd =
             finally Unix.close @@ fun () ->
-            Unix.accept ~cloexec:true server_fd
-            |> fst
+            Unix.accept ~cloexec:true server_fd |> fst
           in
 
           (* fork to accept other clients *)
@@ -136,47 +142,42 @@ val move : 'r instance -> ('r -> 'a) -> 'a
     {[
       let looping_server server_fd =
         Flock.join_after @@ fun () ->
-
         (* loop to accept clients *)
         while true do
           let@ client_fd =
             instantiate Unix.close @@ fun () ->
-            Unix.accept ~cloexec:true server_fd
-            |> fst
+            Unix.accept ~cloexec:true server_fd |> fst
           in
 
           (* fork to handle this client *)
           Flock.fork @@ fun () ->
-            let@ client_fd = move client_fd in
+          let@ client_fd = move client_fd in
 
-            (* handle client... omitted *)
-            ()
+          (* handle client... omitted *)
+          ()
         done
     ]}
 
     {2 Move resource from child to parent}
 
     You can {{!move} move} an {{!instantiate} instantiated} resource between any
-    two fibers and {{!borrow} borrow} it before moving it.  For example, you can
+    two fibers and {{!borrow} borrow} it before moving it. For example, you can
     create a resource in a child fiber, use it there, and then move it to the
     parent fiber:
 
     {[
       let move_from_child_to_parent () =
         Flock.join_after @@ fun () ->
-
         (* for communicating a resource *)
         let shared_ivar = Ivar.create () in
 
         (* fork a child that creates a resource *)
-        Flock.fork begin fun () ->
-          let pretend_release () = ()
-          and pretend_acquire () = () in
+        begin
+          Flock.fork @@ fun () ->
+          let pretend_release () = () and pretend_acquire () = () in
 
           (* allocate a resource *)
-          let@ instance =
-            instantiate pretend_release pretend_acquire
-          in
+          let@ instance = instantiate pretend_release pretend_acquire in
 
           begin
             (* borrow the resource *)
@@ -198,5 +199,5 @@ val move : 'r instance -> ('r -> 'a) -> 'a
     ]}
 
     The above uses an {{!Picos_std_sync.Ivar} [Ivar]} to communicate the movable
-    resource from the child fiber to the parent fiber.  Any concurrency safe
+    resource from the child fiber to the parent fiber. Any concurrency safe
     mechanism could be used. *)

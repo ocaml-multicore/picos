@@ -4,7 +4,7 @@
     This scheduler uses a queue per thread to implement a mostly FIFO scheduler.
     If a thread runs out of fibers to run, it will try to take a fiber from the
     queues of other threads, which means that fibers can move from one thread to
-    another.  This scheduler also gives priority to fibers woken up due to being
+    another. This scheduler also gives priority to fibers woken up due to being
     canceled.
 
     🐌 Due to mostly FIFO scheduling this scheduler performs poorly on highly
@@ -15,7 +15,7 @@
     ℹ️ This scheduler implementation is mostly meant as an example and for use in
     testing libraries implemented in {!Picos}.
 
-    ⚠️ This scheduler uses {!Picos_io_select} internally.  If running multiple
+    ⚠️ This scheduler uses {!Picos_io_select} internally. If running multiple
     threads that each run this scheduler, {!Picos_io_select.configure} must be
     called by the main thread before creating other threads. *)
 
@@ -25,7 +25,7 @@ type t
 (** Represents a shared context for fifo runners. *)
 
 val context : ?quota:int -> ?fatal_exn_handler:(exn -> unit) -> unit -> t
-(** [context ()] creates a new context for randomized runners.  The context
+(** [context ()] creates a new context for randomized runners. The context
     should be consumed by a call of {{!run} [run ~context ...]}.
 
     The optional [quota] argument defaults to [Int.max_int] and determines the
@@ -34,13 +34,13 @@ val context : ?quota:int -> ?fatal_exn_handler:(exn -> unit) -> unit -> t
 
 val runner_on_this_thread : t -> unit
 (** [runner_on_this_thread context] starts a runner on the current thread to run
-    fibers on the context.  The runner returns when {{!run} [run ~context ...]}
+    fibers on the context. The runner returns when {{!run} [run ~context ...]}
     returns. *)
 
 val run_fiber : ?context:t -> Fiber.t -> (Fiber.t -> unit) -> unit
 (** [run_fiber fiber main] runs the [main] program as the specified [fiber] and
-    returns after [main] and all of the fibers spawned by [main] have
-    returned. *)
+    returns after [main] and all of the fibers spawned by [main] have returned.
+*)
 
 val run : ?context:t -> ?forbid:bool -> (unit -> 'a) -> 'a
 (** [run main] is equivalent to calling {!run_fiber} with a freshly created

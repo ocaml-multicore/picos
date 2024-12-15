@@ -3,21 +3,21 @@
 (** {1 Modules} *)
 
 module Unix : sig
-  (** A transparently asynchronous replacement for a subset of the {{!Deps.Unix}
-      [Unix]} module that comes with OCaml.
+  (** A transparently asynchronous replacement for a subset of the
+      {{!Deps.Unix} [Unix]} module that comes with OCaml.
 
       In this module operations on file descriptors, such as {!read} and
       {!write} and others, including {!select}, implicitly block, in a scheduler
       friendly manner, to await for the file descriptor to become available for
-      the operation.  This works best with file descriptors {{!set_nonblock} set
-      to non-blocking mode}.
+      the operation. This works best with file descriptors
+      {{!set_nonblock} set to non-blocking mode}.
 
       In addition to operations on file descriptors, in this module
 
       - {!sleep}, and
       - {!sleepf}
 
-      also block in a scheduler friendly manner.  Additionally
+      also block in a scheduler friendly manner. Additionally
 
       - {!wait},
       - {!waitpid}, and
@@ -25,16 +25,17 @@ module Unix : sig
 
       also block in a scheduler friendly manner except on Windows.
 
-      ⚠️ Shared (i.e. {{!create_process} inherited or inheritable} or {{!dup}
-      duplicated}) file descriptors, such as {!stdin}, {!stdout}, and {!stderr},
-      typically should not be put into non-blocking mode, because that affects
-      all of the parties using the shared file descriptors.  However, for
-      non-shared file descriptors {{!set_nonblock} non-blocking mode} improves
-      performance significantly with this module.
+      ⚠️ Shared (i.e. {{!create_process} inherited or inheritable} or
+      {{!dup} duplicated}) file descriptors, such as {!stdin}, {!stdout}, and
+      {!stderr}, typically should not be put into non-blocking mode, because
+      that affects all of the parties using the shared file descriptors.
+      However, for non-shared file descriptors
+      {{!set_nonblock} non-blocking mode} improves performance significantly
+      with this module.
 
       ⚠️ Beware that this does not currently try to work around any limitations
-      of the {{!Deps.Unix} [Unix]} module that comes with OCaml.  In particular,
-      on Windows, only sockets can be put into non-blocking mode.  Also, on
+      of the {{!Deps.Unix} [Unix]} module that comes with OCaml. In particular,
+      on Windows, only sockets can be put into non-blocking mode. Also, on
       Windows, scheduler friendly blocking only works properly with non-blocking
       file descriptors, i.e. sockets.
 
@@ -352,8 +353,8 @@ module Unix : sig
   (** [select rds wrs exs timeout] is like {!Deps.Unix.select}, but uses
       {!Picos_io_select} to avoid blocking the thread.
 
-      🐌 You may find composing multi file descriptor awaits via other means
-      with {!Picos_io_select} more flexible and efficient. *)
+      🐌 You may find composing multi file descriptor awaits via other means with
+      {!Picos_io_select} more flexible and efficient. *)
 
   type lock_command = Unix.lock_command =
     | F_ULOCK

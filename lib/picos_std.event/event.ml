@@ -12,8 +12,8 @@ type 'a t =
 
 type ('a, 'r) id = Yes : ('a, 'a) id | No : ('a, 'r) id
 
-let rec request_1_as :
-    type a r. (_ -> r) Computation.t -> (a -> r) -> (a, r) id -> a t -> _ =
+let rec request_1_as : type a r.
+    (_ -> r) Computation.t -> (a -> r) -> (a, r) id -> a t -> _ =
  fun target to_result id -> function
   | Request { request } -> request target to_result
   | Choose ts -> request_n_as target to_result id ts
@@ -23,8 +23,8 @@ let rec request_1_as :
       in
       request_1_as target to_result No event
 
-and request_n_as :
-    type a r. (_ -> r) Computation.t -> (a -> r) -> (a, r) id -> a t list -> _ =
+and request_n_as : type a r.
+    (_ -> r) Computation.t -> (a -> r) -> (a, r) id -> a t list -> _ =
  fun target to_result id -> function
   | [] -> ()
   | t :: ts ->

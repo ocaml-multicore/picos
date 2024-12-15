@@ -219,10 +219,10 @@ let context ?fatal_exn_handler () =
           next p t);
       exnc;
       effc =
-        (fun (type a) (e : a Effect.t) :
-             ((a, _) Effect.Deep.continuation -> _) option ->
+        (fun (type a) (e : a Effect.t) ->
           match e with
-          | Fiber.Current -> t.current
+          | Fiber.Current ->
+              (t.current : ((a, _) Effect.Deep.continuation -> _) option)
           | Fiber.Spawn r ->
               let p = Picos_thread.TLS.get_exn fiber_key in
               let fiber = Fiber.Maybe.to_fiber !p in
