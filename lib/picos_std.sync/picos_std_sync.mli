@@ -80,36 +80,13 @@ module Mutex : sig
       @raise Sys_error for the same reasons as {!lock} and {!unlock}. *)
 end
 
-module Condition : sig
-  (** A condition variable.
+module Condition : Intf.Condition with type mutex := Mutex.t
+(** A condition variable.
 
-      ℹ️ This intentionally mimics the interface of {!Stdlib.Condition}. Unlike
-      with the standard library condition variable, blocking on this condition
-      variable allows an effects based scheduler to run other fibers on the
-      thread. *)
-
-  type t
-  (** Represents a condition variable. *)
-
-  val create : ?padded:bool -> unit -> t
-  (** [create ()] return a new condition variable. *)
-
-  val wait : t -> Mutex.t -> unit
-  (** [wait condition] unlocks the [mutex], waits for the [condition], and locks
-      the [mutex] before returning or raising due to the operation being
-      canceled.
-
-      ℹ️ If the fiber has been canceled and propagation of cancelation is
-      allowed, this may raise the cancelation exception. *)
-
-  val signal : t -> unit
-  (** [signal condition] wakes up one fiber waiting on the [condition] variable
-      unless there are no such fibers. *)
-
-  val broadcast : t -> unit
-  (** [broadcast condition] wakes up all the fibers waiting on the [condition]
-      variable. *)
-end
+    ℹ️ This intentionally mimics the interface of {!Stdlib.Condition}. Unlike
+    with the standard library condition variable, blocking on this condition
+    variable allows an effects based scheduler to run other fibers on the
+    thread. *)
 
 module Semaphore : sig
   (** {!Counting} and {!Binary} semaphores.
@@ -174,6 +151,181 @@ module Semaphore : sig
     (** [try_acquire semaphore] attempts to atomically change the count of the
         semaphore from [1] to [0]. *)
   end
+end
+
+module Lock : sig
+  (** A mutual exclusion lock.
+
+      🏎️ This uses a low overhead unfair implementation that also does not
+      perform runtime ownership error checking. *)
+
+  type t
+  (** Represents a mutual exclusion lock. *)
+
+  (** {1 Basic API} *)
+
+  val create : ?padded:bool -> unit -> t
+  (** [create ()] returns a new mutual exclusion lock that is initially
+      unlocked. *)
+
+  exception Poisoned
+  (** Exception raised in case the lock has been {{!poison} poisoned}. *)
+
+  val protect : t -> (unit -> 'a) -> 'a
+  (** [protect mutex thunk] locks the [mutex] and calls [thunk ()]. In case
+      [thunk ()] returns a value, the mutex is unlocked and the value is
+      returned. Otherwise the mutex is {{!poison} poisoned} and the exception is
+      reraised.
+
+      The implementation of {!protect} in terms of the low level operations is
+      equivalent to:
+
+      {[
+        let protect t thunk =
+          Lock.lock t;
+          match thunk () with
+          | value ->
+              Lock.unlock t;
+              value
+          | exception exn ->
+              let bt = Printexc.get_raw_backtrace () in
+              Lock.poison t;
+              Printexc.raise_with_backtrace exn bt
+      ]}
+
+      @raise Poisoned in case the mutex has been {{!poison} poisoned}. *)
+
+  module Condition : Intf.Condition with type mutex := t
+  (** A condition variable. *)
+
+  (** {1 Expert API} *)
+
+  val is_locked : t -> bool
+  (** [is_locked mutex] determines whether the [mutex] is currently locked or
+      not. *)
+
+  val is_poisoned : t -> bool
+  (** [is_poisoned mutex] determines whether the [mutex] has been
+      {{!poison} poisoned}. *)
+
+  val lock : t -> unit
+  (** [lock mutex] locks the [mutex].
+
+      @raise Poisoned in case the mutex has been {{!poison} poisoned}. *)
+
+  val unlock : t -> unit
+  (** [unlock mutex] unlocks the [mutex]. *)
+
+  val poison : t -> unit
+  (** [poison mutex] marks a locked [mutex] as poisoned.
+
+      ⚠️ Do not unlock the mutex after poisoning it.
+
+      @raise Invalid_argument in case the [mutex] is not currently locked. *)
+end
+
+module Rwlock : sig
+  (** A read-write lock.
+
+      🏎️ This uses a low overhead unfair implementation that also does not
+      perform runtime ownership error checking. *)
+
+  type t
+  (** Represents a read-write lock. *)
+
+  (** {1 Basic API} *)
+
+  val create : ?padded:bool -> unit -> t
+  (** [create ()] returns a new read-write lock that is initially unlocked. *)
+
+  exception Poisoned
+  (** Exception raised in case the read-write lock has been
+      {{!poison} poisoned}. *)
+
+  val protect_ro : t -> (unit -> 'a) -> 'a
+  (** [protect_ro rwlock thunk] acquires a read lock on the [rwlock] and calls
+      [thunk ()]. Whether [thunk ()] returns a value or raises an exception, the
+      [rwlock] will be unlocked.
+
+      A single fiber may acquire a read lock on a specific [rwlock] multiple
+      times and other fibers may concurrently acquire read locks on the [rwlock]
+      as well.
+
+      @raise Poisoned in case the [rwlock] has been {{!poison} poisoned}. *)
+
+  exception Frozen
+  (** Exception raised in case the read-write lock has been {{!freeze} frozen}.
+  *)
+
+  val protect : t -> (unit -> 'a) -> 'a
+  (** [protect rwlock thunk] acquires a write lock on the [rwlock] and calls
+      [thunk ()]. In case [thunk ()] returns a value, the read-write lock is
+      unlocked and the value is returned. Otherwise the read-write lock is
+      {{!poison} poisoned} and the exception is reraised.
+
+      @raise Poisoned in case the [rwlock] has been {{!poison} poisoned}.
+      @raise Frozen in case the [rwlock] has been {{!freeze} frozen}. *)
+
+  val freeze : t -> unit
+  (** [freeze rwlock] marks a [rwlock] as frozen, which means that one can no
+      longer acquire a write lock on the [wrlock].
+
+      ℹ️ Freezing a [rwlock] does not improve the scalability of acquiring read
+      locks on the [rwlock].
+
+      @raise Poisoned in case the [rwlock] has been {{!poison} poisoned}. *)
+
+  module Condition : Intf.Condition with type mutex := t
+  (** A condition variable.
+
+      ⚠️ The associated read-write lock must be held exclusively via {!wrlock}
+      when used with a condition variable. *)
+
+  (** {1 Expert API} *)
+
+  val is_locked : t -> bool
+  (** [is_locked rwlock] determines whether the [rwlock] is currently write
+      locked or not.
+
+      ⚠️ [is_locked rwlock] will return [false] in case the [rwlock] is read
+      locked. *)
+
+  val is_poisoned : t -> bool
+  (** [is_poisoned rwlock] determines whether the [rwlock] has been
+      {{!poison} poisoned}. *)
+
+  val is_frozen : t -> bool
+  (** [is_frozen rwlock] determines whether the [rwlock] has been
+      {{!freeze} frozen}. *)
+
+  val lock_ro : t -> unit
+  (** [lock_ro rwlock] acquires a read lock on the [rwlock].
+
+      A single fiber may acquire a read lock on a specific [rwlock] multiple
+      times and other fibers may concurrently acquire read locks on the [rwlock]
+      as well.
+
+      @raise Poisoned in case the [rwlock] has been {{!poison} poisoned}. *)
+
+  val lock : t -> unit
+  (** [lock rwlock] acquires a write lock on the [rwlock].
+
+      A fiber may acquire a write lock on a specific [rwlock] once at a time.
+
+      @raise Poisoned in case the [rwlock] has been {{!poison} poisoned}.
+      @raise Frozen in case the [rwlock] has been {{!freeze} frozen}. *)
+
+  val unlock : t -> unit
+  (** [unlock rwlock] either releases the exclusive write lock or one read lock
+      on the read-write lock. *)
+
+  val poison : t -> unit
+  (** [poison rwlock] marks a write locked [rwlock] as poisoned.
+
+      ⚠️ Do not unlock the read-write lock after poisoning it.
+
+      @raise Invalid_argument
+        in case the [rwlock] is not currently write locked. *)
 end
 
 module Lazy : sig

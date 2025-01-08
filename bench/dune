@@ -17,6 +17,7 @@
    (run %{test} -brief "Picos_mpmcq")
    (run %{test} -brief "Picos_mpscq")
    (run %{test} -brief "Picos_htbl")
+   (run %{test} -brief "Hashtbl with Rwlock")
    (run %{test} -brief "Picos_stdio")
    (run %{test} -brief "Picos_sync Stream")
    (run %{test} -brief "Fib")

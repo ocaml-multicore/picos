@@ -37,13 +37,26 @@
    (run %{test} -- "Mutex and Condition" 0)
    (run %{test} -- "Mutex and Condition" 1)
    (run %{test} -- "Mutex and Condition" 2)
+   (run %{test} -- "Lock" 0)
+   (run %{test} -- "Rwlock" 0)
    ;;
    )))
 
 (test
  (package picos_meta)
+ (name test_lock)
+ (modules test_lock)
+ (libraries picos picos_std.sync stm_run stm_wrap))
+
+(test
+ (package picos_meta)
  (name test_mutex)
  (modules test_mutex)
+ (libraries picos picos_std.sync stm_run stm_wrap))
+
+(test
+ (name test_rwlock)
+ (modules test_rwlock)
  (libraries picos picos_std.sync stm_run stm_wrap))
 
 ;;

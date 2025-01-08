@@ -307,6 +307,48 @@ let test_non_cancelable_ops () =
     Semaphore.Binary.release binary
   with _ -> assert false
 
+let test_lock_basics () =
+  Test_scheduler.run ~max_domains:4 @@ fun () ->
+  let mutex = Lock.create () in
+  Flock.join_after @@ fun () ->
+  Lock.lock mutex;
+  for _ = 0 to Random.int 3 do
+    Flock.fork @@ fun () ->
+    match Lock.lock mutex with
+    | () -> assert false
+    | exception Lock.Poisoned -> ()
+  done;
+  Lock.poison mutex
+
+let test_rwlock_basics () =
+  Test_scheduler.run ~max_domains:4 @@ fun () ->
+  begin
+    let mutex = Rwlock.create () in
+    Flock.join_after @@ fun () ->
+    Rwlock.lock mutex;
+    for _ = 0 to Random.int 3 do
+      Flock.fork @@ fun () ->
+      match Rwlock.lock mutex with
+      | () -> assert false
+      | exception Rwlock.Poisoned -> ()
+    done;
+    Rwlock.poison mutex
+  end;
+  begin
+    let mutex = Rwlock.create () in
+    Flock.join_after @@ fun () ->
+    Rwlock.lock_ro mutex;
+    for _ = 0 to Random.int 3 do
+      Flock.fork @@ fun () ->
+      match Rwlock.lock mutex with
+      | () -> assert false
+      | exception Rwlock.Frozen -> ()
+    done;
+    Rwlock.freeze mutex
+  end
+
+module Rwlock_is_also_a_Lock : module type of Lock = Rwlock
+
 let () =
   try
     [
@@ -328,6 +370,8 @@ let () =
           Alcotest.test_case "cancelation" `Quick test_lazy_cancelation;
         ] );
       ("Event", [ Alcotest.test_case "basics" `Quick test_event_basics ]);
+      ("Lock", [ Alcotest.test_case "basics" `Quick test_lock_basics ]);
+      ("Rwlock", [ Alcotest.test_case "basics" `Quick test_rwlock_basics ]);
       ( "Non-cancelable ops",
         [ Alcotest.test_case "are not canceled" `Quick test_non_cancelable_ops ]
       );

@@ -1,8 +1,18 @@
+(rule
+ (package picos_std)
+ (action
+  (progn
+   (copy lock.fad.ml lock.ml)
+   (copy rwlock.slim.ml rwlock.ml)
+   ;;
+   )))
+
 (library
  (name picos_std_sync)
  (public_name picos_std.sync)
  (libraries
   (re_export picos_std.event)
+  picos_std.awaitable
   picos
   backoff
   multicore-magic))
