@@ -14,7 +14,8 @@ jobs:
         ocaml-compiler:
           - ocaml.5.0.0,ocaml-option-mingw
           - ocaml.5.1.1,ocaml-option-mingw
-          - ocaml.5.2.0,ocaml-option-mingw
+          - ocaml.5.2.1,ocaml-option-mingw
+          - ocaml.5.3.0,ocaml-option-mingw
 
     runs-on: windows-latest
 
