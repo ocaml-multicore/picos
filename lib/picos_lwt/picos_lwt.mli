@@ -17,6 +17,12 @@ val await : 'a Lwt.t -> 'a
 
 include module type of Intf
 
+val bind_on : (module System) -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+(** *)
+
+val await_on : (module System) -> 'a Lwt.t -> 'a
+(** *)
+
 val run_fiber : (module System) -> Fiber.t -> (Fiber.t -> unit) -> unit Lwt.t
 (** [run_fiber (module System) fiber main] runs the [main] program as the
     specified [fiber] as a promise with {!Lwt} as the scheduler using the given
