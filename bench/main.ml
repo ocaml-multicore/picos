@@ -9,6 +9,7 @@ let benchmarks =
     ("Picos DLS", Bench_dls.run_suite);
     ("Picos Mutex", Bench_mutex.run_suite);
     ("Picos Semaphore", Bench_semaphore.run_suite);
+    ("Picos Queue", Bench_queue.run_suite);
     ("Picos Spawn", Bench_spawn.run_suite);
     ("Picos Yield", Bench_yield.run_suite);
     ("Picos Cancel_after with Picos_select", Bench_cancel_after.run_suite);
