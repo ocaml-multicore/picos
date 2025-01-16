@@ -18,7 +18,7 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
 
   let v = ref 0 in
   let n_ops_todo = Countdown.create ~n_domains () in
-  let mutex = Mutex.create ~padded:true () in
+  let mutex = Lock.create ~padded:true () in
 
   let batch = if use_domains || n_fibers < 16 then 1000 else 100 in
 
@@ -34,13 +34,13 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
       if n <> 0 then
         let rec loop n =
           if 0 < n then begin
-            Mutex.lock mutex;
+            Lock.lock mutex;
             let x = !v in
             v := x + 1;
             Control.yield ();
             assert (!v = x + 1);
             v := x;
-            Mutex.unlock mutex;
+            Lock.unlock mutex;
             loop (n - 1)
           end
           else work ()

@@ -15,70 +15,70 @@ module Bounded_q : sig
   val pop_opt : 'a t -> 'a option
 end = struct
   type 'a t = {
-    mutex : Mutex.t;
+    mutex : Lock.t;
     queue : 'a Queue.t;
     capacity : int;
-    not_empty : Condition.t;
-    not_full : Condition.t;
+    not_empty : Lock.Condition.t;
+    not_full : Lock.Condition.t;
   }
 
   let create ?(capacity = Int.max_int) () =
     if capacity < 0 then invalid_arg "negative capacity"
     else
-      let mutex = Mutex.create ~padded:true ()
+      let mutex = Lock.create ~padded:true ()
       and queue = Queue.create () |> Multicore_magic.copy_as_padded
-      and not_empty = Condition.create ~padded:true ()
-      and not_full = Condition.create ~padded:true () in
+      and not_empty = Lock.Condition.create ~padded:true ()
+      and not_full = Lock.Condition.create ~padded:true () in
       { mutex; queue; capacity; not_empty; not_full }
       |> Multicore_magic.copy_as_padded
 
   let is_empty t =
-    Mutex.lock ~checked:false t.mutex;
+    Lock.lock t.mutex;
     let result = Queue.is_empty t.queue in
-    Mutex.unlock ~checked:false t.mutex;
+    Lock.unlock t.mutex;
     result
 
   let is_full_unsafe t = t.capacity <= Queue.length t.queue
 
   let push t x =
-    Mutex.lock ~checked:false t.mutex;
+    Lock.lock t.mutex;
     match
       while is_full_unsafe t do
-        Condition.wait t.not_full t.mutex
+        Lock.Condition.wait t.not_full t.mutex
       done
     with
     | () ->
         Queue.push x t.queue;
         let n = Queue.length t.queue in
-        Mutex.unlock ~checked:false t.mutex;
-        if n = 1 then Condition.broadcast t.not_empty
+        Lock.unlock t.mutex;
+        if n = 1 then Lock.Condition.broadcast t.not_empty
     | exception exn ->
-        Mutex.unlock ~checked:false t.mutex;
+        Lock.unlock t.mutex;
         raise exn
 
   let pop t =
-    Mutex.lock ~checked:false t.mutex;
+    Lock.lock t.mutex;
     match
       while Queue.length t.queue = 0 do
-        Condition.wait t.not_empty t.mutex
+        Lock.Condition.wait t.not_empty t.mutex
       done
     with
     | () ->
         let n = Queue.length t.queue in
         let elem = Queue.pop t.queue in
-        Mutex.unlock ~checked:false t.mutex;
-        if n = t.capacity then Condition.broadcast t.not_full;
+        Lock.unlock t.mutex;
+        if n = t.capacity then Lock.Condition.broadcast t.not_full;
         elem
     | exception exn ->
-        Mutex.unlock ~checked:false t.mutex;
+        Lock.unlock t.mutex;
         raise exn
 
   let pop_opt t =
-    Mutex.lock ~checked:false t.mutex;
+    Lock.lock t.mutex;
     let n = Queue.length t.queue in
     let elem_opt = Queue.take_opt t.queue in
-    Mutex.unlock ~checked:false t.mutex;
-    if n = t.capacity then Condition.broadcast t.not_full;
+    Lock.unlock t.mutex;
+    if n = t.capacity then Lock.Condition.broadcast t.not_full;
     elem_opt
 end
 
