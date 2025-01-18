@@ -1,0 +1,4 @@
+(library
+ (package picos_meta)
+ (name test_util)
+ (modules test_util))
