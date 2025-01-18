@@ -15,9 +15,10 @@
  (package picos_meta)
  (name stm_run)
  (libraries
-  qcheck-core
+  (re_export qcheck-core)
+  (re_export qcheck-stm.stm)
+  (re_export qcheck-multicoretests-util)
   qcheck-core.runner
-  qcheck-stm.stm
   qcheck-stm.sequential
   qcheck-stm.thread
   unix
