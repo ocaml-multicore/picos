@@ -26,6 +26,8 @@ module Int = struct
 end
 
 module Spec = struct
+  include SpecDefaults
+
   type cmd =
     | Try_add of int
     | Mem of int
@@ -61,7 +63,6 @@ module Spec = struct
 
   let init_state = State.empty
   let init_sut () = Htbl.create ~hashed_type:(module Int) ()
-  let cleanup _ = ()
 
   let next_state c s =
     match c with
@@ -71,8 +72,6 @@ module Spec = struct
     | Set_opt _ -> s
     | To_keys -> s
     | Remove_all -> State.empty
-
-  let precond _ _ = true
 
   let run c d =
     match c with

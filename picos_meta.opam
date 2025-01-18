@@ -20,6 +20,7 @@ depends: [
   "lwt" {>= "5.7.0"}
   "qcheck-core" {>= "0.21.2"}
   "qcheck-stm" {>= "0.3"}
+  "qcheck-multicoretests-util" {>= "0.3"}
   "alcotest" {>= "1.7.0" & with-test}
   "backoff" {>= "0.1.0" & with-test}
   "cohttp" {>= "6.0.0" & with-test}
@@ -35,7 +36,6 @@ depends: [
   "multicore-magic-dscheck" {>= "2.3.0" & with-test}
   "ocaml-version" {>= "3.6.4" & with-test}
   "cohttp-lwt" {>= "6.0.0" & with-test}
-  "qcheck-multicoretests-util" {>= "0.3" & with-test}
   "uri" {>= "4.4.0" & with-test}
   "odoc" {>= "2.4.1" & with-doc}
   "sherlodoc" {>= "0.2" & with-doc}
@@ -55,3 +55,7 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/ocaml-multicore/picos.git"
+pin-depends: [
+  [ "qcheck-stm.dev" "git+https://github.com/ocaml-multicore/multicoretests#59296ec5491475b191cac6babf8f290c9ced47a4" ]
+  [ "qcheck-multicoretests-util.dev" "git+https://github.com/ocaml-multicore/multicoretests#59296ec5491475b191cac6babf8f290c9ced47a4" ]
+]

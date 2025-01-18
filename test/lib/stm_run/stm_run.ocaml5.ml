@@ -2,14 +2,14 @@ include Intf
 
 let run (type cmd state sut) ?(verbose = true) ?(count = default_count)
     ?(budgetf = default_budgetf) ~name ?make_domain
-    (module Spec : STM.Spec
+    (module Spec : STM.SpecExt
       with type cmd = cmd
        and type state = state
        and type sut = sut) =
-  let module Seq = STM_sequential.Make (Spec) in
+  let module Seq = STM_sequential.MakeExt (Spec) in
   let module Dom = struct
     module Spec = Spec
-    include STM_domain.Make (Spec)
+    include STM_domain.MakeExt (Spec)
   end in
   Util.run_with_budget ~budgetf ~count @@ fun count ->
   [

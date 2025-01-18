@@ -1,29 +1,3 @@
-(library
- (package picos_meta)
- (name test_scheduler)
- (modules test_scheduler)
- (libraries
-  (re_export picos)
-  picos_io.select
-  (select
-   test_scheduler.ml
-   from
-   (picos.thread
-    picos_lwt.unix
-    picos_mux.random
-    picos_mux.fifo
-    picos_mux.multififo
-    ->
-    test_scheduler.ocaml5.ml)
-   (picos_mux.thread lwt.unix -> test_scheduler.ocaml4.ml))))
-
-(library
- (package picos_meta)
- (name test_util)
- (modules test_util))
-
-;;
-
 (test
  (package picos_meta)
  (name test_picos)
@@ -65,6 +39,12 @@
    (run %{test} -- "Mutex and Condition" 2)
    ;;
    )))
+
+(test
+ (package picos_meta)
+ (name test_mutex)
+ (modules test_mutex)
+ (libraries picos picos_std.sync stm_run stm_wrap))
 
 ;;
 
@@ -163,23 +143,13 @@
  (package picos_meta)
  (name test_mpscq)
  (modules test_mpscq)
- (libraries
-  picos_aux.mpscq
-  qcheck-core
-  qcheck-multicoretests-util
-  qcheck-stm.stm
-  stm_run))
+ (libraries picos_aux.mpscq stm_run))
 
 (test
  (package picos_meta)
  (name test_mpmcq)
  (modules test_mpmcq)
- (libraries
-  picos_aux.mpmcq
-  qcheck-core
-  qcheck-multicoretests-util
-  qcheck-stm.stm
-  stm_run))
+ (libraries picos_aux.mpmcq stm_run))
 
 (rule
  (package picos_meta)
@@ -201,12 +171,7 @@
  (package picos_meta)
  (name test_htbl)
  (modules test_htbl)
- (libraries
-  picos_aux.htbl
-  qcheck-core
-  qcheck-multicoretests-util
-  qcheck-stm.stm
-  stm_run))
+ (libraries picos_aux.htbl stm_run))
 
 ;;
 

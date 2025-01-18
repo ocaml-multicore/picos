@@ -1,0 +1,4 @@
+pin-depends: [
+  [ "qcheck-stm.dev" "git+https://github.com/ocaml-multicore/multicoretests#59296ec5491475b191cac6babf8f290c9ced47a4" ]
+  [ "qcheck-multicoretests-util.dev" "git+https://github.com/ocaml-multicore/multicoretests#59296ec5491475b191cac6babf8f290c9ced47a4" ]
+]
