@@ -1,6 +1,9 @@
+open STM
 module Queue = Picos_aux_mpscq
 
 module Spec = struct
+  include SpecDefaults
+
   type cmd = Push of int | Push_head of int | Pop | Pop_all
 
   let show_cmd c =
@@ -35,7 +38,6 @@ module Spec = struct
 
   let init_state = []
   let init_sut () = Queue.create ()
-  let cleanup _ = ()
 
   let next_state c s =
     match c with
@@ -44,10 +46,7 @@ module Spec = struct
     | Pop -> ( match s with _ :: s -> s | [] -> [])
     | Pop_all -> []
 
-  let precond _ _ = true
-
   let run c d =
-    let open STM in
     match c with
     | Push i -> Res (unit, Queue.push d i)
     | Push_head i -> Res (unit, Queue.push_head d i)
@@ -60,7 +59,6 @@ module Spec = struct
     | Pop_all -> Res (list int, Queue.pop_all d |> List.of_seq)
 
   let postcond c (s : state) res =
-    let open STM in
     match (c, res) with
     | Push _, Res ((Unit, _), ()) -> true
     | Push_head _, Res ((Unit, _), ()) -> true

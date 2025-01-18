@@ -1,0 +1,18 @@
+(library
+ (package picos_meta)
+ (name test_scheduler)
+ (modules test_scheduler)
+ (libraries
+  (re_export picos)
+  picos_io.select
+  (select
+   test_scheduler.ml
+   from
+   (picos.thread
+    picos_lwt.unix
+    picos_mux.random
+    picos_mux.fifo
+    picos_mux.multififo
+    ->
+    test_scheduler.ocaml5.ml)
+   (picos_mux.thread lwt.unix -> test_scheduler.ocaml4.ml))))

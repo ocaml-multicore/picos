@@ -163,7 +163,9 @@
   (qcheck-core
    (>= 0.21.2))
   (qcheck-stm
-   (>= 0.3))
+   (>= 0.7))
+  (qcheck-multicoretests-util
+   (>= 0.7))
   ;;
   (alcotest
    (and
@@ -224,10 +226,6 @@
   (cohttp-lwt
    (and
     (>= 6.0.0)
-    :with-test))
-  (qcheck-multicoretests-util
-   (and
-    (>= 0.3)
     :with-test))
   (uri
    (and
