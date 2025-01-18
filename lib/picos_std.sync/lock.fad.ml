@@ -1,7 +1,7 @@
 open Picos_std_awaitable
 
 let poisoned = 1 lsl 0
-let writers = 1 lsl 1
+let no_writers = 1 lsl 1
 let locked = 1 lsl 2
 
 type t = int Awaitable.t
@@ -19,12 +19,12 @@ let poison t =
 let rec lock_awaiting t =
   let before = Awaitable.get t in
   if before < locked then begin
-    let after = locked lor writers in
+    let after = locked land lnot no_writers in
     if not (Awaitable.compare_and_set t before after) then lock_awaiting t
   end
   else if before land poisoned <> 0 then raise Poisoned
   else
-    let after = before lor writers in
+    let after = before land lnot no_writers in
     if before = after || Awaitable.compare_and_set t before after then
       Awaitable.await t after;
     lock_awaiting t
@@ -32,16 +32,9 @@ let rec lock_awaiting t =
 let rec lock_contended t =
   let before = Awaitable.get t in
   if locked * 2 <= before then
-    let after = (before - locked) lor writers in
+    let after = (before - locked) land lnot no_writers in
     if Awaitable.compare_and_set t before after then lock_awaiting t
     else lock_contended t
-
-let rec signal_awaiter t =
-  let before = Awaitable.get t in
-  if before < locked && writers <= before then
-    let after = (* can't be poisoned *) 0 in
-    if Awaitable.compare_and_set t before after then Awaitable.signal t
-    else signal_awaiter t
 
 let lock t =
   let prior = Awaitable.fetch_and_add t locked in
@@ -49,7 +42,8 @@ let lock t =
 
 let unlock t =
   let prior = Awaitable.fetch_and_add t (-locked) in
-  if locked lor writers <= prior then signal_awaiter t
+  if prior < locked lor no_writers && Awaitable.compare_and_set t 0 no_writers
+  then Awaitable.signal t
 
 let protect t thunk =
   lock t;
@@ -62,7 +56,7 @@ let protect t thunk =
       poison t;
       Printexc.raise_with_backtrace exn bt
 
-let[@inline] create ?padded () = Awaitable.make ?padded 0
+let[@inline] create ?padded () = Awaitable.make ?padded no_writers
 let[@inline] is_locked t = locked <= Awaitable.get t
 let[@inline] is_poisoned t = Awaitable.get t land poisoned <> 0
 
