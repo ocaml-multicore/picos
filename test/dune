@@ -37,6 +37,10 @@
    (run %{test} -- "Mutex and Condition" 0)
    (run %{test} -- "Mutex and Condition" 1)
    (run %{test} -- "Mutex and Condition" 2)
+   (run %{test} -- "Lock and Lock.Condition" 0)
+   (run %{test} -- "Lock and Lock.Condition" 1)
+   (run %{test} -- "Rwlock and Rwlock.Condition" 0)
+   (run %{test} -- "Rwlock and Rwlock.Condition" 1)
    (run %{test} -- "Lock" 0)
    (run %{test} -- "Rwlock" 0)
    ;;
