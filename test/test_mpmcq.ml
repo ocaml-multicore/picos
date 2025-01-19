@@ -13,6 +13,8 @@ let () =
   match Queue.pop_exn q with _ -> assert false | exception Queue.Empty -> ()
 
 module Spec = struct
+  include SpecDefaults
+
   type cmd = Push of int | Push_head of int | Pop_opt | Length
 
   let show_cmd = function
@@ -48,7 +50,6 @@ module Spec = struct
 
   let init_state = ([], [])
   let init_sut () = Queue.create ~padded:true ()
-  let cleanup _ = ()
 
   let next_state c s =
     match c with
@@ -56,8 +57,6 @@ module Spec = struct
     | Push_head x -> State.push_head x s
     | Pop_opt -> State.drop s
     | Length -> s
-
-  let precond _ _ = true
 
   let run c d =
     match c with

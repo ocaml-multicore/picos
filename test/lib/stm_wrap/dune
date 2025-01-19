@@ -1,0 +1,11 @@
+(library
+ (package picos_meta)
+ (name stm_wrap)
+ (modules stm_wrap)
+ (libraries
+  picos
+  (select
+   stm_wrap.ml
+   from
+   (picos_mux.fifo -> stm_wrap.ocaml5.ml)
+   (threads.posix -> stm_wrap.ocaml4.ml))))

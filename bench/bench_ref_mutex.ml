@@ -23,7 +23,7 @@ type t = Op : string * 'a * ('a Ref.t -> unit) * ('a Ref.t -> unit) -> t
 
 let run_one ~budgetf ?checked ?(n_iter = 250 * Util.iter_factor)
     (Op (name, value, op1, op2)) =
-  let mutex = Mutex.create () in
+  let mutex = Lock.create () in
   let loc = Ref.make value in
 
   let init _ = () in
@@ -31,12 +31,12 @@ let run_one ~budgetf ?checked ?(n_iter = 250 * Util.iter_factor)
   let work _ () =
     let rec loop i =
       if i > 0 then begin
-        Mutex.lock ?checked mutex;
+        Lock.lock mutex;
         op1 loc;
-        Mutex.unlock ?checked mutex;
-        Mutex.lock ?checked mutex;
+        Lock.unlock mutex;
+        Lock.lock mutex;
         op2 loc;
-        Mutex.unlock ?checked mutex;
+        Lock.unlock mutex;
         loop (i - 2)
       end
     in
