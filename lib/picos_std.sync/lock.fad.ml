@@ -40,10 +40,12 @@ let lock t =
   let prior = Awaitable.fetch_and_add t locked in
   if locked <= prior then lock_contended t
 
+let signal_awaiter t =
+  if Awaitable.compare_and_set t 0 no_writers then Awaitable.signal t
+
 let unlock t =
   let prior = Awaitable.fetch_and_add t (-locked) in
-  if prior < locked lor no_writers && Awaitable.compare_and_set t 0 no_writers
-  then Awaitable.signal t
+  if prior < locked lor no_writers then signal_awaiter t
 
 let protect t thunk =
   lock t;
