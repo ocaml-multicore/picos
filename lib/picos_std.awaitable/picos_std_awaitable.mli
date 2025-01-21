@@ -118,6 +118,12 @@ module Awaitable : sig
         to explicitly remove the awaiter, because it has already been removed.
     *)
   end
+
+  (**/**)
+
+  val fenceless_get : 'a t -> 'a
+  (** [fenceless_get awaitable] is essentially equivalent to
+      [Multicore_magic.fenceless_get awaitable]. *)
 end
 
 (** {1 Examples}

@@ -14,6 +14,7 @@ module Awaitable = struct
   let[@inline] set t value = exchange t value |> ignore
   let[@inline] incr t = fetch_and_add t 1 |> ignore
   let[@inline] decr t = fetch_and_add t (-1) |> ignore
+  let[@inline] fenceless_get t = Multicore_magic.fenceless_get (as_atomic t)
 
   (* *)
 
