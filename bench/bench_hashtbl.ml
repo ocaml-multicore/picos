@@ -21,6 +21,7 @@ let run_one ~budgetf ~n_domains ?(n_ops = 100 * Util.iter_factor)
 
   let t = Hashtbl.create 1000 in
   let lock = Lock.create ~padded:true () in
+  let rwlock = Rwlock.create ~padded:true () in
   let sem = Sem.create ~padded:true 1 in
 
   let n_ops = (100 + percent_mem) * n_ops / 100 in
@@ -33,6 +34,16 @@ let run_one ~budgetf ~n_domains ?(n_ops = 100 * Util.iter_factor)
       match lock_type with
       | `Lock ->
           Lock.holding lock @@ fun () ->
+          Hashtbl.clear t;
+          if prepopulate then begin
+            for _ = 1 to n_keys do
+              let value = Random.bits () in
+              let key = value mod n_keys in
+              Hashtbl.replace t key value
+            done
+          end
+      | `Rwlock ->
+          Rwlock.holding rwlock @@ fun () ->
           Hashtbl.clear t;
           if prepopulate then begin
             for _ = 1 to n_keys do
@@ -87,6 +98,34 @@ let run_one ~budgetf ~n_domains ?(n_ops = 100 * Util.iter_factor)
           end
         in
         work ()
+    | `Rwlock ->
+        let rec work () =
+          let n = Countdown.alloc n_ops_todo ~domain_index ~batch:1000 in
+          if n <> 0 then begin
+            for _ = 1 to n do
+              let value = Random.State.bits state in
+              let op = (value asr 20) mod 100 in
+              let key = value mod n_keys in
+              if op < percent_mem then begin
+                Rwlock.acquire_shared rwlock;
+                Hashtbl.find_opt t key |> ignore;
+                Rwlock.release_shared rwlock
+              end
+              else if op < limit_add then begin
+                Rwlock.acquire rwlock;
+                Hashtbl.replace t key value;
+                Rwlock.release rwlock
+              end
+              else begin
+                Rwlock.acquire rwlock;
+                Hashtbl.remove t key;
+                Rwlock.release rwlock
+              end
+            done;
+            work ()
+          end
+        in
+        work ()
     | `Sem ->
         let rec work () =
           let n = Countdown.alloc n_ops_todo ~domain_index ~batch:1000 in
@@ -121,14 +160,18 @@ let run_one ~budgetf ~n_domains ?(n_ops = 100 * Util.iter_factor)
     Printf.sprintf "%d worker%s, %d%% reads with %s" n_domains
       (if n_domains = 1 then "" else "s")
       percent_mem
-      (match lock_type with `Lock -> "Lock" | `Sem -> "Sem")
+      (match lock_type with
+      | `Lock -> "Lock"
+      | `Rwlock -> "Rwlock"
+      | `Sem -> "Sem")
   in
   Times.record ~budgetf ~n_domains ~n_warmups:1 ~n_runs_min:1 ~before ~init
     ~wrap ~work ()
   |> Times.to_thruput_metrics ~n:n_ops ~singular:"operation" ~config
 
 let run_suite ~budgetf =
-  Util.cross [ 1; 2; 4; 8 ] (Util.cross [ `Lock; `Sem ] [ 10; 50; 90; 95; 100 ])
+  Util.cross [ 1; 2; 4; 8 ]
+    (Util.cross [ `Lock; `Rwlock; `Sem ] [ 10; 50; 90; 95; 100 ])
   |> List.concat_map @@ fun (n_domains, (lock_type, percent_mem)) ->
      if Picos_domain.recommended_domain_count () < n_domains then []
      else run_one ~budgetf ~n_domains ~percent_mem ~lock_type ()

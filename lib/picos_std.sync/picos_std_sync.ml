@@ -2,6 +2,7 @@ module Mutex = Mutex
 module Condition = Condition
 module Semaphore = Semaphore
 module Lock = Lock
+module Rwlock = Rwlock
 module Sem = Sem
 module Lazy = Lazy
 module Latch = Latch

@@ -45,6 +45,13 @@
    (run %{test} -- "^Lock and Lock.Condition$" 1)
    (run %{test} -- "^Lock and Lock.Condition$" 2)
    (run %{test} -- "^Lock and Lock.Condition$" 3)
+   (run %{test} -- "^Rwlock and Rwlock.Condition$" 0)
+   (run %{test} -- "^Rwlock and Rwlock.Condition$" 1)
+   (run %{test} -- "^Rwlock and Rwlock.Condition$" 2)
+   (run %{test} -- "^Rwlock and Rwlock.Condition$" 3)
+   (run %{test} -- "^Rwlock and Rwlock.Condition$" 4)
+   (run %{test} -- "^Rwlock and Rwlock.Condition$" 5)
+   (run %{test} -- "^Rwlock and Rwlock.Condition$" 6)
    ;;
    )))
 
@@ -64,6 +71,12 @@
  (package picos_meta)
  (name test_sem)
  (modules test_sem)
+ (libraries picos picos_std.sync stm_run stm_wrap))
+
+(test
+ (package picos_meta)
+ (name test_rwlock)
+ (modules test_rwlock)
  (libraries picos picos_std.sync stm_run stm_wrap))
 
 ;;

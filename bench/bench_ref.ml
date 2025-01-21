@@ -26,6 +26,7 @@ let run_one ~budgetf ?(n_iter = 250 * Util.iter_factor) ~lock_type
     (Op (name, value, op1, op2, op_kind)) =
   let lock = Lock.create () in
   let sem = Sem.create 1 in
+  let rwlock = Rwlock.create () in
 
   let loc = Ref.make value in
 
@@ -42,6 +43,32 @@ let run_one ~budgetf ?(n_iter = 250 * Util.iter_factor) ~lock_type
             Lock.acquire lock;
             op2 loc |> ignore;
             Lock.release lock;
+            loop (i - 2)
+          end
+        in
+        loop n_iter
+    | `Rwlock, `RW ->
+        let rec loop i =
+          if i > 0 then begin
+            Rwlock.acquire rwlock;
+            op1 loc |> ignore;
+            Rwlock.release rwlock;
+            Rwlock.acquire rwlock;
+            op2 loc |> ignore;
+            Rwlock.release rwlock;
+            loop (i - 2)
+          end
+        in
+        loop n_iter
+    | `Rwlock, `RO ->
+        let rec loop i =
+          if i > 0 then begin
+            Rwlock.acquire_shared rwlock;
+            op1 loc |> ignore;
+            Rwlock.release_shared rwlock;
+            Rwlock.acquire_shared rwlock;
+            op2 loc |> ignore;
+            Rwlock.release_shared rwlock;
             loop (i - 2)
           end
         in
@@ -63,13 +90,16 @@ let run_one ~budgetf ?(n_iter = 250 * Util.iter_factor) ~lock_type
 
   let config =
     Printf.sprintf "%s with %s" name
-      (match lock_type with `Lock -> "Lock" | `Sem -> "Sem")
+      (match lock_type with
+      | `Lock -> "Lock"
+      | `Rwlock -> "Rwlock"
+      | `Sem -> "Sem")
   in
   Times.record ~budgetf ~n_domains:1 ~init ~wrap ~work ()
   |> Times.to_thruput_metrics ~n:n_iter ~singular:"op" ~config
 
 let run_suite ~budgetf =
-  Util.cross [ `Lock; `Sem ]
+  Util.cross [ `Lock; `Rwlock; `Sem ]
     [
       (let get x = !x in
        Op ("get", 42, get, get, `RO));
