@@ -480,6 +480,133 @@ module Lock_and_condition_tests = struct
   include Make_lock_tests (Lock)
 end
 
+module Rwlock_and_condition_tests = struct
+  include
+    Make_mutex_and_condition_tests
+      (struct
+        include Rwlock
+
+        let lock ?checked:_ = acquire
+        let unlock ?checked:_ = release
+        let protect ?checked:_ = holding
+      end)
+      (Rwlock.Condition)
+
+  include Make_lock_tests (Rwlock)
+
+  let test_sharing () =
+    Test_scheduler.run @@ fun () ->
+    begin
+      let lock = Rwlock.create () in
+      Flock.join_after @@ fun () ->
+      Rwlock.acquire lock;
+      for _ = 0 to Random.int 3 do
+        Flock.fork @@ fun () ->
+        match Rwlock.acquire_shared lock with
+        | () -> assert false
+        | exception Rwlock.Poisoned -> ()
+      done;
+      Rwlock.poison lock;
+      assert (not (Rwlock.is_locked_shared lock));
+      assert (Rwlock.is_locked lock);
+      assert (Rwlock.is_poisoned lock);
+      Rwlock.release lock;
+      assert (Rwlock.is_locked lock);
+      assert (Rwlock.is_poisoned lock)
+    end;
+    begin
+      let lock = Rwlock.create () in
+      let condition = Rwlock.Condition.create () in
+      Flock.join_after @@ fun () ->
+      begin
+        Flock.fork @@ fun () ->
+        match
+          Rwlock.sharing lock @@ fun () ->
+          assert (Rwlock.is_locked_shared lock);
+          while true do
+            Rwlock.Condition.wait_shared condition lock
+          done
+        with
+        | () -> assert false
+        | exception Rwlock.Poisoned -> ()
+      end;
+      begin
+        match Rwlock.holding lock @@ fun () -> raise Exit with
+        | () -> assert false
+        | exception Exit -> assert (Rwlock.is_poisoned lock)
+      end;
+      Rwlock.Condition.broadcast condition;
+      begin
+        match Rwlock.acquire lock with
+        | () -> assert false
+        | exception Rwlock.Poisoned -> ()
+      end;
+      begin
+        match
+          Rwlock.sharing lock @@ fun () ->
+          while true do
+            Rwlock.Condition.wait_shared condition lock
+          done
+        with
+        | () -> assert false
+        | exception Rwlock.Poisoned -> ()
+      end;
+      assert (not (Rwlock.is_locked_shared lock));
+      assert (Rwlock.is_locked lock);
+      assert (Rwlock.is_poisoned lock)
+    end;
+    ()
+
+  let test_freezing () =
+    Test_scheduler.run @@ fun () ->
+    begin
+      let rwlock = Rwlock.create () in
+      Flock.join_after @@ fun () ->
+      Rwlock.acquire_shared rwlock;
+      for _ = 0 to Random.int 3 do
+        Flock.fork @@ fun () ->
+        match Rwlock.acquire rwlock with
+        | () -> assert false
+        | exception Rwlock.Frozen -> ()
+      done;
+      Rwlock.freeze rwlock;
+      for _ = 0 to Random.int 3 do
+        Flock.fork @@ fun () ->
+        match Rwlock.acquire_shared rwlock with
+        | () -> Rwlock.release_shared rwlock
+        | (exception Rwlock.Frozen) | (exception Rwlock.Poisoned) ->
+            assert false
+      done
+    end
+
+  let test_try_acquire_shared () =
+    Test_scheduler.run ~max_domains:2 @@ fun () ->
+    begin
+      let lock = Rwlock.create () in
+      assert (Rwlock.try_acquire_shared lock);
+      assert (Rwlock.try_acquire_shared lock);
+      Rwlock.release_shared lock;
+      Rwlock.release_shared lock;
+      Rwlock.acquire lock;
+      assert (not (Rwlock.try_acquire_shared lock));
+      Rwlock.poison lock;
+      match Rwlock.try_acquire_shared lock with
+      | _ -> assert false
+      | exception Rwlock.Poisoned -> ()
+    end;
+    begin
+      let lock = Rwlock.create () in
+      assert (Rwlock.try_acquire_shared lock);
+      Rwlock.freeze lock;
+      match Rwlock.try_acquire lock with
+      | _ -> assert false
+      | exception Rwlock.Frozen -> ()
+    end;
+    ()
+end
+
+module Rwlock_is_a_submodule_of_Lock : module type of Lock = Rwlock
+
 let () =
   try
     [
@@ -501,6 +628,23 @@ let () =
             Lock_and_condition_tests.test_poisoning;
           Alcotest.test_case "try_acquire" `Quick
             Lock_and_condition_tests.test_try_acquire;
+        ] );
+      ( "Rwlock and Rwlock.Condition",
+        [
+          Alcotest.test_case "basics" `Quick
+            Rwlock_and_condition_tests.test_basics;
+          Alcotest.test_case "cancelation" `Quick
+            Rwlock_and_condition_tests.test_cancelation;
+          Alcotest.test_case "poisoning" `Quick
+            Rwlock_and_condition_tests.test_poisoning;
+          Alcotest.test_case "freezing" `Quick
+            Rwlock_and_condition_tests.test_freezing;
+          Alcotest.test_case "try_acquire" `Quick
+            Rwlock_and_condition_tests.test_try_acquire;
+          Alcotest.test_case "try_acquire_shared" `Quick
+            Rwlock_and_condition_tests.test_try_acquire_shared;
+          Alcotest.test_case "sharing" `Quick
+            Rwlock_and_condition_tests.test_sharing;
         ] );
       ( "Semaphore",
         [

@@ -20,6 +20,7 @@ let run_one ~budgetf ~n_fibers ~use_domains ~lock_type () =
   let n_ops_todo = Countdown.create ~n_domains () in
 
   let lock = Lock.create ~padded:true () in
+  let rwlock = Rwlock.create ~padded:true () in
   let sem =
     Sem.create ~padded:true (match lock_type with `Sem_n n -> n | _ -> 1)
   in
@@ -48,6 +49,22 @@ let run_one ~budgetf ~n_fibers ~use_domains ~lock_type () =
                 assert (!v = x + 1);
                 v := x;
                 Lock.release lock;
+                loop (n - 1)
+              end
+              else work ()
+            in
+            loop n
+      | `Rwlock ->
+          if n <> 0 then
+            let rec loop n =
+              if 0 < n then begin
+                Rwlock.acquire rwlock;
+                let x = !v in
+                v := x + 1;
+                Control.yield ();
+                assert (!v = x + 1);
+                v := x;
+                Rwlock.release rwlock;
                 loop (n - 1)
               end
               else work ()
@@ -102,6 +119,7 @@ let run_one ~budgetf ~n_fibers ~use_domains ~lock_type () =
       (if n_fibers = 1 then "" else "s")
       (match lock_type with
       | `Lock -> "Lock"
+      | `Rwlock -> "Rwlock"
       | `Sem -> "Sem"
       | `Sem_n n -> Printf.sprintf "Sem %d" n)
   in
@@ -112,7 +130,7 @@ let run_one ~budgetf ~n_fibers ~use_domains ~lock_type () =
 let run_suite ~budgetf =
   Util.cross [ false; true ]
     (Util.cross
-       [ `Lock; `Sem; `Sem_n 2; `Sem_n 3; `Sem_n 4 ]
+       [ `Lock; `Rwlock; `Sem; `Sem_n 2; `Sem_n 3; `Sem_n 4 ]
        [ 1; 2; 3; 4; 8; 256; 512; 1024 ])
   |> List.concat_map @@ fun (use_domains, (lock_type, n_fibers)) ->
      if

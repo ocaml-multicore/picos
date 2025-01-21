@@ -30,7 +30,7 @@ module Mutex : sig
       [~checked:false] on an operation may prevent error checking also on a
       subsequent operation.
 
-      See also {!Lock}. *)
+      See also {!Lock}, and {!Rwlock}. *)
 
   type t
   (** Represents a mutual-exclusion lock or mutex. *)
@@ -162,9 +162,10 @@ module Lock : sig
 
       🏎️ This uses a low overhead, optimistic, and unfair implementation that
       also does not perform runtime ownership error checking. In most cases this
-      should be the mutual exclusion lock you will want to use.
+      should be the mutual exclusion lock you will want to use. Consider using
+      {!Rwlock} in case most operations are reads.
 
-      See also {!Mutex}. *)
+      See also {!Mutex}, and {!Rwlock}. *)
 
   type t
   (** Represents a poisonable mutual exclusion lock. *)
@@ -245,6 +246,177 @@ module Lock : sig
 
       @raise Invalid_argument
         in case the [lock] is not currently held exclusively. *)
+end
+
+module Rwlock : sig
+  (** A poisonable, freezable, read-write lock.
+
+      🏎️ This uses a low overhead, optimistic, and unfair implementation that
+      also does not perform runtime ownership error checking. In most cases this
+      should be the read-write lock you will want to use and should give roughly
+      equal or better performance than {!Lock} in cases where the majority of
+      operations are reads.
+
+      🐌 This is a "slim" lock. Acquiring the lock in read mode has low overhead,
+      but limited scalability. For highly parallel use cases you will either
+      want to use sharding or a "fat" scalable read-write lock.
+
+      ⚠️ The current implementation allows readers to bypass the queue and does
+      not prevent writers from starvation. For example, a pair of readers
+      running concurrently, acquiring and releasing the lock such that there is
+      never a point where the lock is fully released, prevents writers from
+      acquiring the lock. This might be changed in the future such that neither
+      readers nor writers should starve assuming no single party holds the lock
+      indefinitely.
+
+      See also {!Lock}, and {!Mutex}. *)
+
+  type t
+  (** Represents a read-write lock. *)
+
+  (** {1 Basic API} *)
+
+  val create : ?padded:bool -> unit -> t
+  (** [create ()] returns a new read-write lock that is initially unlocked. *)
+
+  exception Poisoned
+  (** Exception raised in case the read-write lock has been
+      {{!poison} poisoned}. *)
+
+  val sharing : t -> (unit -> 'a) -> 'a
+  (** [sharing rwlock thunk] acquires a shared hold on the [rwlock] and calls
+      [thunk ()]. Whether [thunk ()] returns a value or raises an exception, the
+      shared hold on the [rwlock] will be released.
+
+      A single fiber may acquire a shared hold on a specific [rwlock] multiple
+      times and other fibers may concurrently acquire shared holds on the
+      [rwlock] as well.
+
+      @raise Poisoned in case the [rwlock] has been {{!poison} poisoned}. *)
+
+  exception Frozen
+  (** Exception raised in case the read-write lock has been {{!freeze} frozen}.
+  *)
+
+  val holding : t -> (unit -> 'a) -> 'a
+  (** [holding rwlock thunk] acquires an exclusive hold on the [rwlock] and
+      calls [thunk ()]. In case [thunk ()] returns a value, the read-write lock
+      is released and the value is returned. Otherwise the read-write lock will
+      be {{!poison} poisoned} and the exception reraised.
+
+      @raise Poisoned in case the [rwlock] has been {{!poison} poisoned}.
+      @raise Frozen in case the [rwlock] has been {{!freeze} frozen}. *)
+
+  val freeze : t -> unit
+  (** [freeze rwlock] marks a [rwlock] as frozen, which means that one can no
+      longer acquire an exclusive hold on the [rwlock].
+
+      ℹ️ No exclusive hold can be obtained on a frozen lock.
+
+      🐌 Freezing a [rwlock] does not improve the scalability of acquiring shared
+      hold on the [rwlock].
+
+      @raise Poisoned in case the [rwlock] has been {{!poison} poisoned}. *)
+
+  val protect : t -> (unit -> 'a) -> 'a
+  (** [protect rwlock thunk] acquires an exclusive hold on the [rwlock], runs
+      [thunk ()], and releases the [rwlock] after [thunk ()] returns or raises.
+
+      @raise Poisoned in case the lock has been {{!poison} poisoned}.
+      @raise Frozen in case the [rwlock] has been {{!freeze} frozen}. *)
+
+  module Condition : sig
+    (** A condition variable. *)
+
+    include Intf.Condition with type lock = t
+
+    val wait_shared : t -> lock -> unit
+    (** [wait_shared condition rwlock] releases the shared hold on [rwlock],
+        waits for the [condition], and acquires the shared hold on [rwlock]
+        before returning or raising due to the operation being canceled.
+
+        ℹ️ If the lock is {{!poison} poisoned} during the {!wait_shared}, then
+        the {!Poisoned} exception will be raised. *)
+  end
+
+  (** {1 State query API} *)
+
+  val is_locked_shared : t -> bool
+  (** [is_locked_shared rwlock] determines whether the [rwlock] is currently
+      held shared or not.
+
+      ⚠️ [is_locked_shared rwlock] will return [false] in case the [rwlock] is
+      held exclusively. *)
+
+  val is_frozen : t -> bool
+  (** [is_frozen rwlock] determines whether the [rwlock] has been
+      {{!freeze} frozen}. *)
+
+  val is_locked : t -> bool
+  (** [is_locked rwlock] determines whether the [rwlock] is currently held
+      exclusively or not.
+
+      ⚠️ [is_locked rwlock] will return [false] in case the [rwlock] is held
+      shared. *)
+
+  val is_poisoned : t -> bool
+  (** [is_poisoned rwlock] determines whether the [rwlock] has been
+      {{!poison} poisoned}. *)
+
+  (** {1 Expert API}
+
+      ⚠️ The calls in this section must be matched correctly or the state of the
+      read-write lock may become corrupted. *)
+
+  val acquire_shared : t -> unit
+  (** [acquire_shared rwlock] acquires a shared hold on the [rwlock].
+
+      A single fiber may acquire a shared hold on a specific [rwlock] multiple
+      times and other fibers may concurrently acquire shared holds on the
+      [rwlock] as well.
+
+      @raise Poisoned in case the [rwlock] has been {{!poison} poisoned}. *)
+
+  val try_acquire_shared : t -> bool
+  (** [try_acquire_shared rwlock] attempts to acquire a shared hold on the
+      [rwlock]. Returns [true] in case of success and [false] in case of
+      failure.
+
+      @raise Poisoned in case the [rwlock] has been {{!poison} poisoned}. *)
+
+  val release_shared : t -> unit
+  (** [release_shared rwlock] releases one shared hold on the [rwlock] or does
+      nothing in case the [rwlock] has been {{!poison} poisoned}. *)
+
+  val acquire : t -> unit
+  (** [acquire rwlock] acquires an exclusive hold on the [rwlock].
+
+      A fiber may acquire an exclusive hold on a specific [rwlock] once at a
+      time.
+
+      @raise Poisoned in case the [rwlock] has been {{!poison} poisoned}.
+      @raise Frozen in case the [rwlock] has been {{!freeze} frozen}. *)
+
+  val try_acquire : t -> bool
+  (** [try_acquire rwlock] attempts to acquire an exclusive hold on the
+      [rwlock]. Returns [true] in case of success and [false] in case of
+      failure.
+
+      @raise Poisoned in case the [rwlock] has been {{!poison} poisoned}.
+      @raise Frozen in case the [rwlock] has been {{!freeze} frozen}. *)
+
+  val release : t -> unit
+  (** [release rwlock] releases the exclusive hold on the [rwlock] or does
+      nothing in case the [rwlock] has been {{!freeze} frozen} or
+      {{!poison} poisoned}. *)
+
+  val poison : t -> unit
+  (** [poison rwlock] marks an exclusively held [rwlock] as poisoned.
+
+      ℹ️ Neither shared nor exclusive hold can be obtained on a poisoned lock.
+
+      @raise Invalid_argument
+        in case the [rwlock] is not currently write locked. *)
 end
 
 module Sem : sig
