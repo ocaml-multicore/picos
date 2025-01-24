@@ -18,6 +18,7 @@
    (run %{test} -brief "Picos_mpscq")
    (run %{test} -brief "Picos_htbl")
    (run %{test} -brief "Picos_stdio")
+   (run %{test} -brief "Picos_sync Ch")
    (run %{test} -brief "Picos_sync Stream")
    (run %{test} -brief "Fib")
    (run %{test} -brief "Picos binaries")

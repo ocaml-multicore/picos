@@ -9,7 +9,7 @@ let broadcast (t : t) =
   if Atomic.get t != T Zero then
     match Atomic.exchange t (T Zero) with
     | T Zero -> ()
-    | T (One _ as q) -> Q.iter q Trigger.signal
+    | T (One _ as q) -> Q.iter Trigger.signal q
 
 (* We try to avoid starvation of signal by making it so that when, at the start
    of signal or wait, the head is empty, the tail is reversed into the head.
@@ -38,14 +38,15 @@ let rec cleanup backoff trigger (t : t) =
       else if not (Atomic.compare_and_set t before after) then
         cleanup (Backoff.once backoff) trigger t
 
-let rec wait (t : t) mutex trigger fiber backoff =
+let rec wait (t : t) mutex cons fiber backoff =
   let before = Atomic.get t in
-  let after = Q.add before trigger in
+  let after = Q.add_cons before cons in
   if Atomic.compare_and_set t before after then begin
     Mutex.unlock_as (Fiber.Maybe.of_fiber fiber) mutex Backoff.default;
+    let trigger = S.value cons in
     let result = Trigger.await trigger in
     let forbid = Fiber.exchange fiber ~forbid:true in
-    Mutex.lock_as (Fiber.Maybe.of_fiber fiber) mutex Nothing Backoff.default;
+    Mutex.lock_as (Fiber.Maybe.of_fiber fiber) mutex (T Nil) Backoff.default;
     Fiber.set fiber ~forbid;
     match result with
     | None -> ()
@@ -53,11 +54,12 @@ let rec wait (t : t) mutex trigger fiber backoff =
         cleanup Backoff.default trigger t;
         Printexc.raise_with_backtrace exn bt
   end
-  else wait t mutex trigger fiber (Backoff.once backoff)
+  else wait t mutex cons fiber (Backoff.once backoff)
 
 let wait t mutex =
   let fiber = Fiber.current () in
   let trigger = Trigger.create () in
-  wait t mutex trigger fiber Backoff.default
+  let cons = S.Cons { value = trigger; next = T Nil } in
+  wait t mutex cons fiber Backoff.default
 
 let[@inline] signal t = signal t Backoff.default
