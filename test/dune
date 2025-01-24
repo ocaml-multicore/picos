@@ -33,6 +33,10 @@
    (run %{test} -- "^Lazy$" 1)
    (run %{test} -- "^Semaphore$" 0)
    (run %{test} -- "^Semaphore$" 1)
+   (run %{test} -- "^Sem$" 0)
+   (run %{test} -- "^Sem$" 1)
+   (run %{test} -- "^Sem$" 2)
+   (run %{test} -- "^Sem$" 3)
    (run %{test} -- "^Non-cancelable ops$" 0)
    (run %{test} -- "^Mutex and Condition$" 0)
    (run %{test} -- "^Mutex and Condition$" 1)
@@ -54,6 +58,12 @@
  (package picos_meta)
  (name test_mutex)
  (modules test_mutex)
+ (libraries picos picos_std.sync stm_run stm_wrap))
+
+(test
+ (package picos_meta)
+ (name test_sem)
+ (modules test_sem)
  (libraries picos picos_std.sync stm_run stm_wrap))
 
 ;;

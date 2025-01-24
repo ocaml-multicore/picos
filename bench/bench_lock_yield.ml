@@ -16,10 +16,14 @@ let run_one ~budgetf ~n_fibers ~use_domains ~lock_type () =
     (if use_domains || is_ocaml4 then 10 else 100) * Util.iter_factor
   in
 
-  let v = ref 0 in
+  let v = ref 0 |> Multicore_magic.copy_as_padded in
   let n_ops_todo = Countdown.create ~n_domains () in
 
   let lock = Lock.create ~padded:true () in
+  let sem =
+    Sem.create ~padded:true (match lock_type with `Sem_n n -> n | _ -> 1)
+  in
+  let counter = Atomic.make 0 |> Multicore_magic.copy_as_padded in
 
   let batch = if use_domains || n_fibers < 16 then 1000 else 100 in
 
@@ -49,6 +53,37 @@ let run_one ~budgetf ~n_fibers ~use_domains ~lock_type () =
               else work ()
             in
             loop n
+      | `Sem ->
+          if n <> 0 then
+            let rec loop n =
+              if 0 < n then begin
+                Sem.acquire sem;
+                let x = !v in
+                v := x + 1;
+                Control.yield ();
+                assert (!v = x + 1);
+                v := x;
+                Sem.release sem;
+                loop (n - 1)
+              end
+              else work ()
+            in
+            loop n
+      | `Sem_n n_resources ->
+          if n <> 0 then
+            let rec loop n =
+              if 0 < n then begin
+                Sem.acquire sem;
+                Atomic.incr counter;
+                Control.yield ();
+                let n_live = Atomic.fetch_and_add counter (-1) in
+                assert (n_live <= n_resources);
+                Sem.release sem;
+                loop (n - 1)
+              end
+              else work ()
+            in
+            loop n
     in
     if use_domains then begin
       if not is_ocaml4 then Flock.fork yielder;
@@ -65,7 +100,10 @@ let run_one ~budgetf ~n_fibers ~use_domains ~lock_type () =
     Printf.sprintf "%d %s%s with %s" n_fibers
       (if use_domains then "domain" else "fiber")
       (if n_fibers = 1 then "" else "s")
-      (match lock_type with `Lock -> "Lock")
+      (match lock_type with
+      | `Lock -> "Lock"
+      | `Sem -> "Sem"
+      | `Sem_n n -> Printf.sprintf "Sem %d" n)
   in
   Times.record ~budgetf ~n_domains ~n_warmups:1 ~n_runs_min:1 ~init ~wrap ~work
     ()
@@ -73,7 +111,9 @@ let run_one ~budgetf ~n_fibers ~use_domains ~lock_type () =
 
 let run_suite ~budgetf =
   Util.cross [ false; true ]
-    (Util.cross [ `Lock ] [ 1; 2; 4; 8; 256; 512; 1024 ])
+    (Util.cross
+       [ `Lock; `Sem; `Sem_n 2; `Sem_n 3; `Sem_n 4 ]
+       [ 1; 2; 3; 4; 8; 256; 512; 1024 ])
   |> List.concat_map @@ fun (use_domains, (lock_type, n_fibers)) ->
      if
        use_domains

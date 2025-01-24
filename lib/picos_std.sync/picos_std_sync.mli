@@ -95,7 +95,9 @@ module Semaphore : sig
 
       ℹ️ This intentionally mimics the interface of {!Stdlib.Semaphore}. Unlike
       with the standard library semaphores, blocking on these semaphores allows
-      an effects based scheduler to run other fibers on the thread. *)
+      an effects based scheduler to run other fibers on the thread.
+
+      See also {!Sem}. *)
 
   module Counting : sig
     (** A counting semaphore. *)
@@ -243,6 +245,68 @@ module Lock : sig
 
       @raise Invalid_argument
         in case the [lock] is not currently held exclusively. *)
+end
+
+module Sem : sig
+  (** A counting semaphore.
+
+      🏎️ This uses a low overhead, optimistic, and unfair implementation. In most
+      cases this should be the semaphore you will want to use.
+
+      See also {!Semaphore}. *)
+
+  type t
+  (** Represents a counting semaphore. *)
+
+  val max_value : int
+  (** Maximum counter value allowed by the semaphore implementation.
+
+      ℹ️ The exact maximum value is unspecified, but should typically be no less
+      than {!Sys.max_array_length}. *)
+
+  val create : ?padded:bool -> int -> t
+  (** [create initial] creates a new counting semaphore with the given [initial]
+      count.
+
+      @raise Invalid_argument
+        in case the given [initial] count is negative or higher than
+        {!max_value}. *)
+
+  val release : t -> unit
+  (** [release sem] increments the count of the semaphore or does nothing in
+      case the semaphore has been {{!poison} poisoned}.
+
+      ℹ️ This operation is not cancelable.
+
+      @raise Sys_error in case the count would overflow. *)
+
+  exception Poisoned
+  (** Exception raised in case the semaphore has been {{!poison} poisoned}. *)
+
+  val acquire : t -> unit
+  (** [acquire sem] waits until the count of the semaphore is greater than [0]
+      and then atomically decrements the count.
+
+      @raise Poisoned in case the semaphore has been {{!poison} poisoned}. *)
+
+  val try_acquire : t -> bool
+  (** [try_acquire sem] attempts to atomically decrement the count of the
+      semaphore unless the count is already [0].
+
+      @raise Poisoned in case the semaphore has been {{!poison} poisoned}. *)
+
+  val get_value : t -> int
+  (** [get_value sem] returns the current count of the semaphore or [0] in case
+      the semaphore has been {{!poison} poisoned}.
+
+      ℹ️ This should only be used for debugging or informational messages. *)
+
+  val poison : t -> unit
+  (** [poison sem] marks the semaphore as poisoned. *)
+
+  val is_poisoned : t -> bool
+  (** [is_poisoned sem] determines whether the semaphore has been
+      {{!poison} poisoned}. *)
 end
 
 module Lazy : sig
