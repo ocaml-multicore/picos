@@ -193,43 +193,103 @@ struct
     end
 end
 
-let test_semaphore_basics () =
-  Test_scheduler.run @@ fun () ->
-  begin
-    match Semaphore.Counting.make (-1) with
-    | _ -> assert false
-    | exception Invalid_argument _ -> ()
-  end;
-  begin
-    let s = Semaphore.Counting.make Int.max_int in
-    match Semaphore.Counting.release s with
-    | () -> assert false
-    | exception Sys_error _ ->
-        Semaphore.Counting.acquire s;
-        Semaphore.Counting.release s
-  end
-
 let is_ocaml4 = String.starts_with ~prefix:"4." Sys.ocaml_version
 
-let test_semaphore_stress () =
-  Test_scheduler.run ~max_domains:4 @@ fun () ->
-  Bundle.join_after @@ fun bundle ->
-  let s = Semaphore.Counting.make ~padded:true 0 in
-  let rec loop ~n_acquire ~n_release =
-    if 0 < n_acquire && 0 < n_release then
-      if Random.bool () then fork_acquire ~n_acquire ~n_release
-      else fork_release ~n_acquire ~n_release
-    else if 0 < n_acquire then fork_acquire ~n_acquire ~n_release
-    else if 0 < n_release then fork_release ~n_acquire ~n_release
-  and fork_acquire ~n_acquire ~n_release =
-    Bundle.fork bundle (fun () -> Semaphore.Counting.acquire s);
-    loop ~n_acquire:(n_acquire - 1) ~n_release
-  and fork_release ~n_acquire ~n_release =
-    Bundle.fork bundle (fun () -> Semaphore.Counting.release s);
-    loop ~n_acquire ~n_release:(n_release - 1)
-  in
-  let n = if is_ocaml4 then 100 else 100_000 in
-  loop ~n_acquire:n ~n_release:n
+module Make_semaphore_tests (Counting : sig
+  include module type of Semaphore.Counting
+
+  val max_value : int
+end) =
+struct
+  let test_basics () =
+    Test_scheduler.run @@ fun () ->
+    begin
+      match Counting.make (-1) with
+      | _ -> assert false
+      | exception Invalid_argument _ -> ()
+    end;
+    begin
+      let s = Counting.make Counting.max_value in
+      match Counting.release s with
+      | () -> assert false
+      | exception Sys_error _ ->
+          assert (Counting.get_value s = Counting.max_value);
+          Counting.acquire s;
+          Counting.release s
+    end
+
+  let test_stress () =
+    Test_scheduler.run ~max_domains:4 @@ fun () ->
+    Bundle.join_after @@ fun bundle ->
+    let s = Counting.make ~padded:true 0 in
+    let rec loop ~n_acquire ~n_release =
+      if 0 < n_acquire && 0 < n_release then
+        if Random.bool () then fork_acquire ~n_acquire ~n_release
+        else fork_release ~n_acquire ~n_release
+      else if 0 < n_acquire then fork_acquire ~n_acquire ~n_release
+      else if 0 < n_release then fork_release ~n_acquire ~n_release
+    and fork_acquire ~n_acquire ~n_release =
+      Bundle.fork bundle (fun () -> Counting.acquire s);
+      loop ~n_acquire:(n_acquire - 1) ~n_release
+    and fork_release ~n_acquire ~n_release =
+      Bundle.fork bundle (fun () -> Counting.release s);
+      loop ~n_acquire ~n_release:(n_release - 1)
+    in
+    let n = if is_ocaml4 then 100 else 100_000 in
+    loop ~n_acquire:n ~n_release:n
+end
+
+module Semaphore_tests = Make_semaphore_tests (struct
+  include Semaphore.Counting
+
+  let max_value = Int.max_int
+end)
+
+module Sem_tests = struct
+  include Make_semaphore_tests (struct
+    include Sem
+
+    let make = create
+  end)
+
+  let test_poisoning () =
+    Test_scheduler.run ~max_domains:4 @@ fun () ->
+    begin
+      let sem = Sem.create 2 in
+      Sem.acquire sem;
+      Flock.join_after @@ fun () ->
+      Sem.acquire sem;
+      for _ = 0 to Random.int 3 do
+        Flock.fork @@ fun () ->
+        match Sem.acquire sem with
+        | () -> assert false
+        | exception Sem.Poisoned -> ()
+      done;
+      Sem.poison sem;
+      assert (Sem.is_poisoned sem);
+      assert (Sem.get_value sem = 0);
+      Sem.release sem;
+      assert (Sem.get_value sem = 0);
+      assert (Sem.is_poisoned sem)
+    end;
+    ()
+
+  let test_try_acquire () =
+    Test_scheduler.run @@ fun () ->
+    begin
+      let sem = Sem.create 2 in
+      assert (Sem.try_acquire sem);
+      assert (Sem.try_acquire sem);
+      assert (not (Sem.try_acquire sem));
+      Sem.release sem;
+      assert (Sem.try_acquire sem);
+      Sem.poison sem;
+      match Sem.try_acquire sem with
+      | _ -> assert false
+      | exception Sem.Poisoned -> ()
+    end;
+    ()
+end
 
 let test_lazy_basics () =
   Test_scheduler.run @@ fun () ->
@@ -444,8 +504,15 @@ let () =
         ] );
       ( "Semaphore",
         [
-          Alcotest.test_case "basics" `Quick test_semaphore_basics;
-          Alcotest.test_case "stress" `Quick test_semaphore_stress;
+          Alcotest.test_case "basics" `Quick Semaphore_tests.test_basics;
+          Alcotest.test_case "stress" `Quick Semaphore_tests.test_stress;
+        ] );
+      ( "Sem",
+        [
+          Alcotest.test_case "basics" `Quick Sem_tests.test_basics;
+          Alcotest.test_case "stress" `Quick Sem_tests.test_stress;
+          Alcotest.test_case "poisoning" `Quick Sem_tests.test_poisoning;
+          Alcotest.test_case "try_acquire" `Quick Sem_tests.test_try_acquire;
         ] );
       ( "Lazy",
         [
