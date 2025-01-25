@@ -10,7 +10,7 @@ let yielder () =
     Control.yield ()
   done
 
-let run_one ~budgetf ~n_fibers ~use_domains () =
+let run_one ~budgetf ~n_fibers ~use_domains ~lock_type () =
   let n_domains = if use_domains then n_fibers else 1 in
   let n_ops =
     (if use_domains || is_ocaml4 then 10 else 100) * Util.iter_factor
@@ -18,7 +18,8 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
 
   let v = ref 0 in
   let n_ops_todo = Countdown.create ~n_domains () in
-  let mutex = Mutex.create ~padded:true () in
+
+  let lock = Lock.create ~padded:true () in
 
   let batch = if use_domains || n_fibers < 16 then 1000 else 100 in
 
@@ -31,21 +32,23 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
     Flock.join_after @@ fun () ->
     let rec work () =
       let n = Countdown.alloc n_ops_todo ~domain_index ~batch in
-      if n <> 0 then
-        let rec loop n =
-          if 0 < n then begin
-            Mutex.lock mutex;
-            let x = !v in
-            v := x + 1;
-            Control.yield ();
-            assert (!v = x + 1);
-            v := x;
-            Mutex.unlock mutex;
-            loop (n - 1)
-          end
-          else work ()
-        in
-        loop n
+      match lock_type with
+      | `Lock ->
+          if n <> 0 then
+            let rec loop n =
+              if 0 < n then begin
+                Lock.acquire lock;
+                let x = !v in
+                v := x + 1;
+                Control.yield ();
+                assert (!v = x + 1);
+                v := x;
+                Lock.release lock;
+                loop (n - 1)
+              end
+              else work ()
+            in
+            loop n
     in
     if use_domains then begin
       if not is_ocaml4 then Flock.fork yielder;
@@ -59,20 +62,22 @@ let run_one ~budgetf ~n_fibers ~use_domains () =
   in
 
   let config =
-    Printf.sprintf "%d %s%s" n_fibers
+    Printf.sprintf "%d %s%s with %s" n_fibers
       (if use_domains then "domain" else "fiber")
       (if n_fibers = 1 then "" else "s")
+      (match lock_type with `Lock -> "Lock")
   in
   Times.record ~budgetf ~n_domains ~n_warmups:1 ~n_runs_min:1 ~init ~wrap ~work
     ()
   |> Times.to_thruput_metrics ~n:n_ops ~singular:"locked yield" ~config
 
 let run_suite ~budgetf =
-  Util.cross [ false; true ] [ 1; 2; 4; 8; 256; 512; 1024 ]
-  |> List.concat_map @@ fun (use_domains, n_fibers) ->
+  Util.cross [ false; true ]
+    (Util.cross [ `Lock ] [ 1; 2; 4; 8; 256; 512; 1024 ])
+  |> List.concat_map @@ fun (use_domains, (lock_type, n_fibers)) ->
      if
        use_domains
        && (n_fibers = 1 || Picos_domain.recommended_domain_count () < n_fibers)
        || (is_ocaml4 && 256 < n_fibers)
      then []
-     else run_one ~budgetf ~n_fibers ~use_domains ()
+     else run_one ~budgetf ~n_fibers ~use_domains ~lock_type ()

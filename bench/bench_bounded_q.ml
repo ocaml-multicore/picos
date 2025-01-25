@@ -15,70 +15,70 @@ module Bounded_q : sig
   val pop_opt : 'a t -> 'a option
 end = struct
   type 'a t = {
-    mutex : Mutex.t;
+    lock : Lock.t;
     queue : 'a Queue.t;
     capacity : int;
-    not_empty : Condition.t;
-    not_full : Condition.t;
+    not_empty : Lock.Condition.t;
+    not_full : Lock.Condition.t;
   }
 
   let create ?(capacity = Int.max_int) () =
     if capacity < 0 then invalid_arg "negative capacity"
     else
-      let mutex = Mutex.create ~padded:true ()
+      let lock = Lock.create ~padded:true ()
       and queue = Queue.create () |> Multicore_magic.copy_as_padded
-      and not_empty = Condition.create ~padded:true ()
-      and not_full = Condition.create ~padded:true () in
-      { mutex; queue; capacity; not_empty; not_full }
+      and not_empty = Lock.Condition.create ~padded:true ()
+      and not_full = Lock.Condition.create ~padded:true () in
+      { lock; queue; capacity; not_empty; not_full }
       |> Multicore_magic.copy_as_padded
 
   let is_empty t =
-    Mutex.lock ~checked:false t.mutex;
+    Lock.acquire t.lock;
     let result = Queue.is_empty t.queue in
-    Mutex.unlock ~checked:false t.mutex;
+    Lock.release t.lock;
     result
 
   let is_full_unsafe t = t.capacity <= Queue.length t.queue
 
   let push t x =
-    Mutex.lock ~checked:false t.mutex;
+    Lock.acquire t.lock;
     match
       while is_full_unsafe t do
-        Condition.wait t.not_full t.mutex
+        Lock.Condition.wait t.not_full t.lock
       done
     with
     | () ->
         Queue.push x t.queue;
         let n = Queue.length t.queue in
-        Mutex.unlock ~checked:false t.mutex;
-        if n = 1 then Condition.broadcast t.not_empty
+        Lock.release t.lock;
+        if n = 1 then Lock.Condition.broadcast t.not_empty
     | exception exn ->
-        Mutex.unlock ~checked:false t.mutex;
+        Lock.release t.lock;
         raise exn
 
   let pop t =
-    Mutex.lock ~checked:false t.mutex;
+    Lock.acquire t.lock;
     match
       while Queue.length t.queue = 0 do
-        Condition.wait t.not_empty t.mutex
+        Lock.Condition.wait t.not_empty t.lock
       done
     with
     | () ->
         let n = Queue.length t.queue in
         let elem = Queue.pop t.queue in
-        Mutex.unlock ~checked:false t.mutex;
-        if n = t.capacity then Condition.broadcast t.not_full;
+        Lock.release t.lock;
+        if n = t.capacity then Lock.Condition.broadcast t.not_full;
         elem
     | exception exn ->
-        Mutex.unlock ~checked:false t.mutex;
+        Lock.release t.lock;
         raise exn
 
   let pop_opt t =
-    Mutex.lock ~checked:false t.mutex;
+    Lock.acquire t.lock;
     let n = Queue.length t.queue in
     let elem_opt = Queue.take_opt t.queue in
-    Mutex.unlock ~checked:false t.mutex;
-    if n = t.capacity then Condition.broadcast t.not_full;
+    Lock.release t.lock;
+    if n = t.capacity then Lock.Condition.broadcast t.not_full;
     elem_opt
 end
 
@@ -97,7 +97,8 @@ let run_one_domain ~budgetf ?(n_msgs = 25 * Util.iter_factor) () =
   let work _ bits = Util.Bits.iter op bits in
 
   Times.record ~budgetf ~n_domains:1 ~init ~wrap ~work ()
-  |> Times.to_thruput_metrics ~n:n_msgs ~singular:"message" ~config:"one domain"
+  |> Times.to_thruput_metrics ~n:n_msgs ~singular:"message"
+       ~config:"one domain with Lock"
 
 (** This will keep a domain running. *)
 let yielder () =
@@ -150,7 +151,8 @@ let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 10 * Util.iter_factor) () =
     let format role n =
       Printf.sprintf "%d %s%s" n role (if n = 1 then "" else "s")
     in
-    Printf.sprintf "%s, %s" (format "adder" n_adders) (format "taker" n_takers)
+    Printf.sprintf "%s, %s with Lock" (format "adder" n_adders)
+      (format "taker" n_takers)
   in
 
   Times.record ~budgetf ~n_domains ~n_warmups:1 ~n_runs_min:1 ~init ~wrap ~work
