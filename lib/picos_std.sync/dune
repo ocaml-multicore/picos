@@ -3,6 +3,7 @@
  (public_name picos_std.sync)
  (libraries
   (re_export picos_std.event)
+  picos_std.awaitable
   picos
   backoff
   multicore-magic))

@@ -28,7 +28,9 @@ module Mutex : sig
       {{!Picos.Fiber.current} current fiber}, which can be expensive relative to
       locking or unlocking an uncontested mutex. Note that specifying
       [~checked:false] on an operation may prevent error checking also on a
-      subsequent operation. *)
+      subsequent operation.
+
+      See also {!Lock}. *)
 
   type t
   (** Represents a mutual-exclusion lock or mutex. *)
@@ -80,36 +82,13 @@ module Mutex : sig
       @raise Sys_error for the same reasons as {!lock} and {!unlock}. *)
 end
 
-module Condition : sig
-  (** A condition variable.
+module Condition : Intf.Condition with type lock := Mutex.t
+(** A condition variable.
 
-      ℹ️ This intentionally mimics the interface of {!Stdlib.Condition}. Unlike
-      with the standard library condition variable, blocking on this condition
-      variable allows an effects based scheduler to run other fibers on the
-      thread. *)
-
-  type t
-  (** Represents a condition variable. *)
-
-  val create : ?padded:bool -> unit -> t
-  (** [create ()] return a new condition variable. *)
-
-  val wait : t -> Mutex.t -> unit
-  (** [wait condition] unlocks the [mutex], waits for the [condition], and locks
-      the [mutex] before returning or raising due to the operation being
-      canceled.
-
-      ℹ️ If the fiber has been canceled and propagation of cancelation is
-      allowed, this may raise the cancelation exception. *)
-
-  val signal : t -> unit
-  (** [signal condition] wakes up one fiber waiting on the [condition] variable
-      unless there are no such fibers. *)
-
-  val broadcast : t -> unit
-  (** [broadcast condition] wakes up all the fibers waiting on the [condition]
-      variable. *)
-end
+    ℹ️ This intentionally mimics the interface of {!Stdlib.Condition}. Unlike
+    with the standard library condition variable, blocking on this condition
+    variable allows an effects based scheduler to run other fibers on the
+    thread. *)
 
 module Semaphore : sig
   (** {!Counting} and {!Binary} semaphores.
@@ -174,6 +153,96 @@ module Semaphore : sig
     (** [try_acquire semaphore] attempts to atomically change the count of the
         semaphore from [1] to [0]. *)
   end
+end
+
+module Lock : sig
+  (** A mutual exclusion lock.
+
+      🏎️ This uses a low overhead, optimistic, and unfair implementation that
+      also does not perform runtime ownership error checking. In most cases this
+      should be the mutual exclusion lock you will want to use.
+
+      See also {!Mutex}. *)
+
+  type t
+  (** Represents a mutual exclusion lock. *)
+
+  (** {1 Basic API} *)
+
+  val create : ?padded:bool -> unit -> t
+  (** [create ()] returns a new mutual exclusion lock that is initially
+      unlocked. *)
+
+  exception Poisoned
+  (** Exception raised in case the lock has been {{!poison} poisoned}. *)
+
+  val holding : t -> (unit -> 'a) -> 'a
+  (** [holding lock thunk] acquires the [lock] and calls [thunk ()]. In case
+      [thunk ()] returns a value, the lock is released and the value is
+      returned. Otherwise the lock is poisoned and the exception is reraised.
+
+      The implementation of {!holding} in terms of the low level operations is
+      equivalent to:
+
+      {[
+        let holding t thunk =
+          Lock.acquire t;
+          match thunk () with
+          | value ->
+              Lock.release t;
+              value
+          | exception exn ->
+              let bt = Printexc.get_raw_backtrace () in
+              Lock.poison t;
+              Printexc.raise_with_backtrace exn bt
+      ]}
+
+      @raise Poisoned in case the lock has been {{!poison} poisoned}. *)
+
+  val protect : t -> (unit -> 'a) -> 'a
+  (** [protect lock thunk] acquires the [lock], runs [thunk ()], and releases
+      the [lock] after [thunk ()] returns or raises.
+
+      @raise Poisoned in case the lock has been {{!poison} poisoned}. *)
+
+  module Condition : Intf.Condition with type lock = t
+  (** A condition variable. *)
+
+  (** {1 State query API} *)
+
+  val is_locked : t -> bool
+  (** [is_locked lock] determines whether the [lock] is currently held
+      exclusively. *)
+
+  val is_poisoned : t -> bool
+  (** [is_poisoned lock] determines whether the [lock] has been
+      {{!poison} poisoned}. *)
+
+  (** {1 Expert API}
+
+      ⚠️ The calls in this section must be matched correctly or the state of the
+      lock may become corrupted. *)
+
+  val acquire : t -> unit
+  (** [acquire lock] acquires the [lock] exlusively.
+
+      @raise Poisoned in case the [lock] has been {{!poison} poisoned}. *)
+
+  val try_acquire : t -> bool
+  (** [try_acquire lock] attempts to acquire the [lock] exclusively. Returns
+      [true] in case of success and [false] in case of failure.
+
+      @raise Poisoned in case the [lock] has been {{!poison} poisoned}. *)
+
+  val release : t -> unit
+  (** [release lock] releases the [lock] or does nothing in case the lock has
+      been {{!poison} poisoned}. *)
+
+  val poison : t -> unit
+  (** [poison lock] marks an exclusively held [lock] as poisoned.
+
+      @raise Invalid_argument
+        in case the [lock] is not currently held exclusively. *)
 end
 
 module Lazy : sig
@@ -413,7 +482,7 @@ end
 
     {2 A simple bounded queue}
 
-    Here is an example of a simple bounded (blocking) queue using a mutex and
+    Here is an example of a simple bounded (blocking) queue using a lock and
     condition variables:
 
     {[
@@ -425,45 +494,45 @@ end
         val pop : 'a t -> 'a
       end = struct
         type 'a t = {
-          mutex : Mutex.t;
+          lock : Lock.t;
           queue : 'a Queue.t;
           capacity : int;
-          not_empty : Condition.t;
-          not_full : Condition.t;
+          not_empty : Lock.Condition.t;
+          not_full : Lock.Condition.t;
         }
 
         let create ~capacity =
           if capacity < 0 then invalid_arg "negative capacity"
           else
-            let mutex = Mutex.create ()
+            let lock = Lock.create ()
             and queue = Queue.create ()
-            and not_empty = Condition.create ()
-            and not_full = Condition.create () in
-            { mutex; queue; capacity; not_empty; not_full }
+            and not_empty = Lock.Condition.create ()
+            and not_full = Lock.Condition.create () in
+            { lock; queue; capacity; not_empty; not_full }
 
         let is_full_unsafe t = t.capacity <= Queue.length t.queue
 
         let push t x =
           let was_empty =
-            Mutex.protect t.mutex @@ fun () ->
+            Lock.protect t.lock @@ fun () ->
             while is_full_unsafe t do
-              Condition.wait t.not_full t.mutex
+              Lock.Condition.wait t.not_full t.lock
             done;
             Queue.push x t.queue;
             Queue.length t.queue = 1
           in
-          if was_empty then Condition.broadcast t.not_empty
+          if was_empty then Lock.Condition.broadcast t.not_empty
 
         let pop t =
           let elem, was_full =
-            Mutex.protect t.mutex @@ fun () ->
+            Lock.protect t.lock @@ fun () ->
             while Queue.length t.queue = 0 do
-              Condition.wait t.not_empty t.mutex
+              Lock.Condition.wait t.not_empty t.lock
             done;
             let was_full = is_full_unsafe t in
             (Queue.pop t.queue, was_full)
           in
-          if was_full then Condition.broadcast t.not_full;
+          if was_full then Lock.Condition.broadcast t.not_full;
           elem
       end
     ]}

@@ -18,34 +18,6 @@ module Fiber = struct
     computation
 end
 
-let test_mutex_and_condition_basics () =
-  Test_scheduler.run ~max_domains:2 @@ fun () ->
-  let mutex = Mutex.create () in
-  let condition = Condition.create () in
-
-  [ None; Some false ]
-  |> List.iter @@ fun checked ->
-     [ Computation.create (); Computation.finished ]
-     |> List.iter @@ fun computation ->
-        [ Condition.signal; Condition.broadcast ]
-        |> List.iter @@ fun release ->
-           let n = Atomic.make 10 in
-           let test = Computation.create () in
-
-           let main _ =
-             Mutex.protect ?checked mutex (fun () ->
-                 Condition.wait condition mutex);
-             if 1 = Atomic.fetch_and_add n (-1) then Computation.finish test
-           in
-           for _ = 1 to Atomic.get n do
-             Fiber.spawn (Fiber.create ~forbid:false computation) main
-           done;
-
-           while Computation.is_running test do
-             Fiber.yield ();
-             release condition
-           done
-
 let test_mutex_and_condition_errors () =
   Test_scheduler.run ~max_domains:2 @@ fun () ->
   let mutex = Mutex.create () in
@@ -65,116 +37,161 @@ let test_mutex_and_condition_errors () =
     | exception Sys_error _ -> ()
   end
 
-let test_mutex_and_condition_cancelation () =
-  Test_scheduler.init ();
-  let mutex = Mutex.create () in
-  let condition = Condition.create () in
+module Make_mutex_and_condition_tests (Mutex : sig
+  type t
 
-  let step = ref 0 in
+  val create : ?padded:bool -> unit -> t
+  val lock : ?checked:bool -> t -> unit
+  val unlock : ?checked:bool -> t -> unit
+  val protect : ?checked:bool -> t -> (unit -> 'a) -> 'a
+end) (Condition : sig
+  type t
 
-  let step_1 = Atomic.make 0 in
-  let step_2 = Atomic.make 0 in
-  let step_3 = Atomic.make 0 in
-  let step_4 = Atomic.make 0 in
-  let step_5 = Atomic.make 0 in
+  val create : ?padded:bool -> unit -> t
+  val wait : t -> Mutex.t -> unit
+  val signal : t -> unit
+  val broadcast : t -> unit
+end) =
+struct
+  let test_basics () =
+    Test_scheduler.run ~max_domains:2 @@ fun () ->
+    let mutex = Mutex.create () in
+    let condition = Condition.create () in
 
-  let steps = [| step_1; step_2; step_3; step_4; step_5 |] in
+    [ None; Some false ]
+    |> List.iter @@ fun checked ->
+       [ Computation.create (); Computation.finished ]
+       |> List.iter @@ fun computation ->
+          [ Condition.signal; Condition.broadcast ]
+          |> List.iter @@ fun release ->
+             let n = Atomic.make 10 in
+             let test = Computation.create () in
 
-  let n = if 4 <= Domain.recommended_domain_count () - 2 then 4 else 2 in
+             let main _ =
+               Mutex.protect ?checked mutex (fun () ->
+                   Condition.wait condition mutex);
+               if 1 = Atomic.fetch_and_add n (-1) then Computation.finish test
+             in
+             for _ = 1 to Atomic.get n do
+               Fiber.spawn (Fiber.create ~forbid:false computation) main
+             done;
 
-  let computations =
-    Array.init n @@ fun _ -> Computation.Packed (Computation.create ())
-  in
+             while Computation.is_running test do
+               Fiber.yield ();
+               release condition
+             done
 
-  let attempt ?checked i fiber _ =
-    let new_computation = Computation.Packed (Computation.create ()) in
-    let old_computation = Fiber.get_computation fiber in
-    Fiber.set_computation fiber new_computation;
-    match
-      computations.(i) <- new_computation;
-      Atomic.incr step_1;
-      Domain.cpu_relax ();
-      Mutex.lock ?checked mutex
-    with
-    | () -> begin
-        let n = !step in
-        Atomic.incr step_2;
-        Domain.cpu_relax ();
-        step := n + 1;
-        match Condition.wait condition mutex with
-        | () ->
-            let n = !step in
-            Atomic.incr step_3;
-            Domain.cpu_relax ();
-            step := n + 1;
-            Mutex.unlock ?checked mutex;
-            Fiber.set_computation fiber old_computation
-        | exception _ ->
-            let n = !step in
-            Atomic.incr step_4;
-            Domain.cpu_relax ();
-            step := n + 1;
-            Mutex.unlock ?checked mutex;
-            Fiber.set_computation fiber old_computation
-      end
-    | exception _ ->
-        Atomic.incr step_5;
-        Fiber.set_computation fiber old_computation
-  in
+  let test_cancelation () =
+    Test_scheduler.init ();
+    let mutex = Mutex.create () in
+    let condition = Condition.create () in
 
-  let exit = Atomic.make n in
+    let step = ref 0 in
 
-  let limit = 10_000 in
+    let step_1 = Atomic.make 0 in
+    let step_2 = Atomic.make 0 in
+    let step_3 = Atomic.make 0 in
+    let step_4 = Atomic.make 0 in
+    let step_5 = Atomic.make 0 in
 
-  let some_false = Some false in
+    let steps = [| step_1; step_2; step_3; step_4; step_5 |] in
 
-  let deadline = Unix.gettimeofday () +. 60.0 in
-  let hard_deadline = Unix.gettimeofday () +. 120.0 in
+    let n = if 4 <= Domain.recommended_domain_count () - 2 then 4 else 2 in
 
-  let main i () =
-    lastly (fun () -> Atomic.decr exit) @@ fun () ->
-    Test_scheduler.run @@ fun () ->
-    let state = Random.State.make_self_init () in
-    let fiber = Fiber.current () in
-    while
-      Array.exists (fun step -> Atomic.get step < limit) steps
-      && Unix.gettimeofday () < deadline
-    do
-      let checked = if Random.State.bool state then None else some_false in
-      attempt ?checked i fiber ()
-    done
-  in
-  let domains =
-    Domain.spawn (fun () ->
-        let state = Random.State.make_self_init () in
-        while Atomic.get exit <> 0 do
-          if hard_deadline < Unix.gettimeofday () then Stdlib.exit 4
-          else Domain.cpu_relax ();
-          let (Packed computation) =
-            computations.(Random.State.bits state land (n - 1))
-          in
-          Computation.cancel computation Exit empty_bt
-        done)
-    :: List.init n (fun i -> Domain.spawn (main i))
-  in
-  let state = Random.State.make_self_init () in
-  while Atomic.get exit <> 0 do
-    if hard_deadline < Unix.gettimeofday () then Stdlib.exit 3
-    else Domain.cpu_relax ();
-    if Random.State.bool state then Condition.broadcast condition
-    else Condition.signal condition
-  done;
-  List.iter Domain.join domains;
-  assert (!step = Atomic.get step_2 + Atomic.get step_3 + Atomic.get step_4);
-  if Array.exists (fun step -> Atomic.get step < limit) steps then begin
-    let msg =
-      steps |> Array.map Atomic.get
-      |> Array.map (Printf.sprintf "%d")
-      |> Array.to_list |> String.concat ", "
-      |> Printf.sprintf "Mutex cancelation steps: [%s]"
+    let computations =
+      Array.init n @@ fun _ -> Computation.Packed (Computation.create ())
     in
-    msgs := msg :: !msgs
-  end
+
+    let attempt ?checked i fiber _ =
+      let new_computation = Computation.Packed (Computation.create ()) in
+      let old_computation = Fiber.get_computation fiber in
+      Fiber.set_computation fiber new_computation;
+      match
+        computations.(i) <- new_computation;
+        Atomic.incr step_1;
+        Domain.cpu_relax ();
+        Mutex.lock ?checked mutex
+      with
+      | () -> begin
+          let n = !step in
+          Atomic.incr step_2;
+          Domain.cpu_relax ();
+          step := n + 1;
+          match Condition.wait condition mutex with
+          | () ->
+              let n = !step in
+              Atomic.incr step_3;
+              Domain.cpu_relax ();
+              step := n + 1;
+              Mutex.unlock ?checked mutex;
+              Fiber.set_computation fiber old_computation
+          | exception _ ->
+              let n = !step in
+              Atomic.incr step_4;
+              Domain.cpu_relax ();
+              step := n + 1;
+              Mutex.unlock ?checked mutex;
+              Fiber.set_computation fiber old_computation
+        end
+      | exception _ ->
+          Atomic.incr step_5;
+          Fiber.set_computation fiber old_computation
+    in
+
+    let exit = Atomic.make n in
+
+    let limit = 10_000 in
+
+    let some_false = Some false in
+
+    let deadline = Unix.gettimeofday () +. 60.0 in
+    let hard_deadline = Unix.gettimeofday () +. 120.0 in
+
+    let main i () =
+      lastly (fun () -> Atomic.decr exit) @@ fun () ->
+      Test_scheduler.run @@ fun () ->
+      let state = Random.State.make_self_init () in
+      let fiber = Fiber.current () in
+      while
+        Array.exists (fun step -> Atomic.get step < limit) steps
+        && Unix.gettimeofday () < deadline
+      do
+        let checked = if Random.State.bool state then None else some_false in
+        attempt ?checked i fiber ()
+      done
+    in
+    let domains =
+      Domain.spawn (fun () ->
+          let state = Random.State.make_self_init () in
+          while Atomic.get exit <> 0 do
+            if hard_deadline < Unix.gettimeofday () then Stdlib.exit 4
+            else Domain.cpu_relax ();
+            let (Packed computation) =
+              computations.(Random.State.bits state land (n - 1))
+            in
+            Computation.cancel computation Exit empty_bt
+          done)
+      :: List.init n (fun i -> Domain.spawn (main i))
+    in
+    let state = Random.State.make_self_init () in
+    while Atomic.get exit <> 0 do
+      if hard_deadline < Unix.gettimeofday () then Stdlib.exit 3
+      else Domain.cpu_relax ();
+      if Random.State.bool state then Condition.broadcast condition
+      else Condition.signal condition
+    done;
+    List.iter Domain.join domains;
+    assert (!step = Atomic.get step_2 + Atomic.get step_3 + Atomic.get step_4);
+    if Array.exists (fun step -> Atomic.get step < limit) steps then begin
+      let msg =
+        steps |> Array.map Atomic.get
+        |> Array.map (Printf.sprintf "%d")
+        |> Array.to_list |> String.concat ", "
+        |> Printf.sprintf "Mutex cancelation steps: [%s]"
+      in
+      msgs := msg :: !msgs
+    end
+end
 
 let test_semaphore_basics () =
   Test_scheduler.run @@ fun () ->
@@ -307,15 +324,123 @@ let test_non_cancelable_ops () =
     Semaphore.Binary.release binary
   with _ -> assert false
 
+module Make_lock_tests (Lock : module type of Lock) = struct
+  let test_poisoning () =
+    Test_scheduler.run ~max_domains:4 @@ fun () ->
+    begin
+      let lock = Lock.create () in
+      Flock.join_after @@ fun () ->
+      Lock.acquire lock;
+      for _ = 0 to Random.int 3 do
+        Flock.fork @@ fun () ->
+        match Lock.acquire lock with
+        | () -> assert false
+        | exception Lock.Poisoned -> ()
+      done;
+      Lock.poison lock;
+      assert (Lock.is_locked lock);
+      assert (Lock.is_poisoned lock);
+      Lock.release lock;
+      assert (Lock.is_locked lock);
+      assert (Lock.is_poisoned lock)
+    end;
+    begin
+      let lock = Lock.create () in
+      let condition = Lock.Condition.create () in
+      Flock.join_after @@ fun () ->
+      begin
+        Flock.fork @@ fun () ->
+        match
+          Lock.holding lock @@ fun () ->
+          while true do
+            Lock.Condition.wait condition lock
+          done
+        with
+        | () -> assert false
+        | exception Lock.Poisoned -> ()
+      end;
+      begin
+        Flock.fork @@ fun () ->
+        match
+          Lock.protect lock @@ fun () ->
+          while true do
+            Lock.Condition.wait condition lock
+          done
+        with
+        | () -> assert false
+        | exception Lock.Poisoned -> ()
+      end;
+      begin
+        match Lock.holding lock @@ fun () -> raise Exit with
+        | () -> assert false
+        | exception Exit -> ()
+      end;
+      Lock.Condition.broadcast condition;
+      begin
+        match Lock.acquire lock with
+        | () -> assert false
+        | exception Lock.Poisoned -> ()
+      end;
+      assert (Lock.is_locked lock);
+      assert (Lock.is_poisoned lock)
+    end;
+    ()
+
+  let test_try_acquire () =
+    Test_scheduler.run @@ fun () ->
+    begin
+      let lock = Lock.create () in
+      assert (Lock.try_acquire lock);
+      assert (not (Lock.try_acquire lock));
+      Lock.release lock;
+      assert (Lock.try_acquire lock);
+      Lock.poison lock;
+      match Lock.try_acquire lock with
+      | _ -> assert false
+      | exception Lock.Poisoned -> ()
+    end;
+    ()
+end
+
+module Mutex_and_condition_tests =
+  Make_mutex_and_condition_tests (Mutex) (Condition)
+
+module Lock_and_condition_tests = struct
+  include
+    Make_mutex_and_condition_tests
+      (struct
+        include Lock
+
+        let lock ?checked:_ = acquire
+        let unlock ?checked:_ = release
+        let protect ?checked:_ = holding
+      end)
+      (Lock.Condition)
+
+  include Make_lock_tests (Lock)
+end
+
 let () =
   try
     [
       ( "Mutex and Condition",
         [
-          Alcotest.test_case "basics" `Quick test_mutex_and_condition_basics;
+          Alcotest.test_case "basics" `Quick
+            Mutex_and_condition_tests.test_basics;
           Alcotest.test_case "errors" `Quick test_mutex_and_condition_errors;
           Alcotest.test_case "cancelation" `Quick
-            test_mutex_and_condition_cancelation;
+            Mutex_and_condition_tests.test_cancelation;
+        ] );
+      ( "Lock and Lock.Condition",
+        [
+          Alcotest.test_case "basics" `Quick
+            Lock_and_condition_tests.test_basics;
+          Alcotest.test_case "cancelation" `Quick
+            Lock_and_condition_tests.test_cancelation;
+          Alcotest.test_case "poisoning" `Quick
+            Lock_and_condition_tests.test_poisoning;
+          Alcotest.test_case "try_acquire" `Quick
+            Lock_and_condition_tests.test_try_acquire;
         ] );
       ( "Semaphore",
         [
