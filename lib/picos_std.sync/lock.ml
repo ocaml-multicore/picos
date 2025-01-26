@@ -17,8 +17,6 @@ let rec poison t =
       Awaitable.broadcast t
     else poison t
 
-(* *)
-
 let acquire t =
   let prior = Awaitable.fetch_and_add t locked in
   if locked <= prior then
@@ -45,8 +43,6 @@ let acquire t =
     in
     acquire_contended t (prior + locked)
 
-(* *)
-
 let release t =
   let prior = Awaitable.fetch_and_add t (-locked) in
   if prior < locked lor no_awaiters then
@@ -62,21 +58,22 @@ let release t =
     in
     undo_release t
 
-(* *)
-
 let holding t thunk = Locks.holding t thunk ~acquire ~release ~poison
 let protect t thunk = Locks.protect t thunk ~acquire ~release
-
-(* *)
 
 let try_acquire t =
   let prior = Awaitable.fetch_and_add t locked in
   prior < locked
   ||
-  let prior = Awaitable.fetch_and_add t (-locked) in
-  locked_permanently / 2 <= prior && raise Poisoned
-
-(* *)
+  let undo_acquire t =
+    let prior = Awaitable.fetch_and_add t (-locked) in
+    if locked_permanently / 2 <= prior then raise Poisoned
+    else begin
+      if prior < locked lor no_awaiters then Awaitable.signal t;
+      false
+    end
+  in
+  undo_acquire t
 
 let[@inline] create ?padded () = Awaitable.make ?padded no_awaiters
 let[@inline] is_locked t = locked <= Awaitable.get t
