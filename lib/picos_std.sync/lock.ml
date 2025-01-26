@@ -19,43 +19,48 @@ let rec poison t =
 
 (* *)
 
-let rec acquire_awaiting t before =
-  if before < locked then begin
-    (* We know [before] is [0] or [no_awaiters]. *)
-    let after = locked land lnot no_awaiters in
-    if not (Awaitable.compare_and_set t before after) then
-      acquire_awaiting t (Awaitable.get t)
-  end
-  else if locked_permanently / 2 <= before then raise Poisoned
-  else
-    let after = before land lnot no_awaiters in
-    if before = after || Awaitable.compare_and_set t before after then
-      Awaitable.await t after;
-    acquire_awaiting t (Awaitable.get t)
-
-let rec acquire_contended t before =
-  if locked * 2 <= before then
-    let after = (before - locked) land lnot no_awaiters in
-    if Awaitable.compare_and_set t before after then acquire_awaiting t after
-    else acquire_contended t (Awaitable.get t)
-
 let acquire t =
   let prior = Awaitable.fetch_and_add t locked in
-  if locked <= prior then acquire_contended t (prior + locked)
+  if locked <= prior then
+    let rec acquire_awaiting t before =
+      if before < locked then begin
+        (* We know [before] is [0] or [no_awaiters]. *)
+        let after = locked land lnot no_awaiters in
+        if not (Awaitable.compare_and_set t before after) then
+          acquire_awaiting t (Awaitable.get t)
+      end
+      else if locked_permanently / 2 <= before then raise Poisoned
+      else
+        let after = before land lnot no_awaiters in
+        if before = after || Awaitable.compare_and_set t before after then
+          Awaitable.await t after;
+        acquire_awaiting t (Awaitable.get t)
+    in
+    let rec acquire_contended t before =
+      if locked * 2 <= before then
+        let after = (before - locked) land lnot no_awaiters in
+        if Awaitable.compare_and_set t before after then
+          acquire_awaiting t after
+        else acquire_contended t (Awaitable.get t)
+    in
+    acquire_contended t (prior + locked)
 
 (* *)
 
-let signal_awaiter t =
-  (* Lock state was [0] after the [fetch_and_add] in [unlock]. *)
-  if Awaitable.compare_and_set t 0 no_awaiters then Awaitable.signal t
-
 let release t =
   let prior = Awaitable.fetch_and_add t (-locked) in
-  if prior < locked lor no_awaiters then signal_awaiter t
+  if prior < locked lor no_awaiters then
+    let signal_awaiter t =
+      (* Lock state was [0] after the [fetch_and_add] in [unlock]. *)
+      if Awaitable.compare_and_set t 0 no_awaiters then Awaitable.signal t
+    in
+    signal_awaiter t
   else if locked_permanently / 2 <= prior then
-    (* The lock was poisoned.  We need to undo. *)
-    let _ : int = Awaitable.fetch_and_add t locked in
-    ()
+    let undo_release t =
+      let _ : int = Awaitable.fetch_and_add t locked in
+      ()
+    in
+    undo_release t
 
 (* *)
 
