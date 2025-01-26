@@ -1,3 +1,13 @@
+## Next release
+
+- Made specification of `Spawn` more strict with respect to cancelation
+  (@edwintorok, @polytypic)
+- Fixed `picos.thread` to not refer to `caml_ml_domain_id` as it is no longer
+  exported by js_of_ocaml (@hhugo, @polytypic)
+- Upgraded `picos_io_cohttp` to depend on `cohttp` version 6.0.0 (@polytypic)
+- Added a new low overhead `Lock` implementation to `picos_std.sync`
+  (@polytypic)
+
 ## 0.6.0
 
 - Added a futex-like `Awaitable` abstraction as the `picos_std.awaitable`
