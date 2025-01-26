@@ -158,7 +158,7 @@ module Semaphore : sig
 end
 
 module Lock : sig
-  (** A mutual exclusion lock.
+  (** A poisonable mutual exclusion lock.
 
       🏎️ This uses a low overhead, optimistic, and unfair implementation that
       also does not perform runtime ownership error checking. In most cases this
@@ -167,7 +167,7 @@ module Lock : sig
       See also {!Mutex}. *)
 
   type t
-  (** Represents a mutual exclusion lock. *)
+  (** Represents a poisonable mutual exclusion lock. *)
 
   (** {1 Basic API} *)
 
@@ -248,7 +248,7 @@ module Lock : sig
 end
 
 module Sem : sig
-  (** A counting semaphore.
+  (** A poisonable counting semaphore.
 
       🏎️ This uses a low overhead, optimistic, and unfair implementation. In most
       cases this should be the semaphore you will want to use.
@@ -256,7 +256,7 @@ module Sem : sig
       See also {!Semaphore}. *)
 
   type t
-  (** Represents a counting semaphore. *)
+  (** Represents a poisonable counting semaphore. *)
 
   val max_value : int
   (** Maximum counter value allowed by the semaphore implementation.
