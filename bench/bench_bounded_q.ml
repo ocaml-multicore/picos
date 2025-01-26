@@ -17,20 +17,18 @@ end = struct
   type 'a t = {
     lock : Lock.t;
     queue : 'a Queue.t;
-    capacity : int;
-    not_empty : Lock.Condition.t;
-    not_full : Lock.Condition.t;
+    capacity : Sem.t;
+    length : Sem.t;
   }
 
-  let create ?(capacity = Int.max_int) () =
+  let create ?(capacity = Sem.max_value) () =
     if capacity < 0 then invalid_arg "negative capacity"
     else
       let lock = Lock.create ~padded:true ()
       and queue = Queue.create () |> Multicore_magic.copy_as_padded
-      and not_empty = Lock.Condition.create ~padded:true ()
-      and not_full = Lock.Condition.create ~padded:true () in
-      { lock; queue; capacity; not_empty; not_full }
-      |> Multicore_magic.copy_as_padded
+      and capacity = Sem.create ~padded:true capacity
+      and length = Sem.create ~padded:true 0 in
+      { lock; queue; capacity; length } |> Multicore_magic.copy_as_padded
 
   let is_empty t =
     Lock.acquire t.lock;
@@ -38,54 +36,45 @@ end = struct
     Lock.release t.lock;
     result
 
-  let is_full_unsafe t = t.capacity <= Queue.length t.queue
-
   let push t x =
-    let was_full = ref false in
-    Lock.acquire t.lock;
-    match
-      while is_full_unsafe t do
-        was_full := true;
-        Lock.Condition.wait t.not_full t.lock
-      done
-    with
+    Sem.acquire t.capacity;
+    match Lock.acquire t.lock with
     | () ->
         Queue.push x t.queue;
-        let n = Queue.length t.queue in
         Lock.release t.lock;
-        if n = 1 then Lock.Condition.signal t.not_empty;
-        if !was_full && n < t.capacity then Lock.Condition.signal t.not_full
+        Sem.release t.length
     | exception exn ->
-        Lock.release t.lock;
-        raise exn
+        let bt = Printexc.get_raw_backtrace () in
+        Sem.release t.capacity;
+        Printexc.raise_with_backtrace exn bt
 
   let pop t =
-    let was_empty = ref false in
-    Lock.acquire t.lock;
-    match
-      while Queue.length t.queue = 0 do
-        was_empty := true;
-        Lock.Condition.wait t.not_empty t.lock
-      done
-    with
+    Sem.acquire t.length;
+    match Lock.acquire t.lock with
     | () ->
-        let n = Queue.length t.queue in
         let elem = Queue.pop t.queue in
         Lock.release t.lock;
-        if n = t.capacity then Lock.Condition.signal t.not_full;
-        if !was_empty && 1 < n then Lock.Condition.signal t.not_empty;
+        Sem.release t.capacity;
         elem
     | exception exn ->
-        Lock.release t.lock;
-        raise exn
+        let bt = Printexc.get_raw_backtrace () in
+        Sem.release t.length;
+        Printexc.raise_with_backtrace exn bt
 
   let pop_opt t =
-    Lock.acquire t.lock;
-    let n = Queue.length t.queue in
-    let elem_opt = Queue.take_opt t.queue in
-    Lock.release t.lock;
-    if n = t.capacity then Lock.Condition.signal t.not_full;
-    elem_opt
+    if Sem.try_acquire t.length then begin
+      match Lock.acquire t.lock with
+      | () ->
+          let elem_opt = Queue.take_opt t.queue in
+          Lock.release t.lock;
+          Sem.release t.capacity;
+          elem_opt
+      | exception exn ->
+          let bt = Printexc.get_raw_backtrace () in
+          Sem.release t.length;
+          Printexc.raise_with_backtrace exn bt
+    end
+    else None
 end
 
 let run_one_domain ~budgetf ?(n_msgs = 25 * Util.iter_factor) () =
