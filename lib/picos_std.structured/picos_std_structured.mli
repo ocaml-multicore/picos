@@ -142,11 +142,12 @@ module Promise : sig
 
       ⚠️ {{!try_terminate} Canceling} a promise does not immediately terminate
       the fiber or wait for the fiber working to complete the promise to
-      terminate. Constructs like {!Bundle.join_after} and {!Flock.join_after}
-      only guarantee that all fibers forked within their scope have terminated
-      before they return or raise. The reason for this design choice in this
-      library is that synchronization is expensive and delaying synchronization
-      to the join operation is typically sufficient and amortizes the cost. *)
+      terminate. On the other hand, constructs like {!Bundle.join_after} and
+      {!Flock.join_after} guarantee that all the fibers forked within their
+      scope have actually terminated before they return or raise. The reason for
+      this design choice in this library is that synchronization is expensive
+      and delaying synchronization to the join operation is typically sufficient
+      and amortizes the cost. *)
 
   type !'a t
   (** Represents a promise to produce a value of type ['a]. *)
