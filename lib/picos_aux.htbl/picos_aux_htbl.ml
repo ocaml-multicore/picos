@@ -26,7 +26,7 @@ type ('k, 'v, _) tdt =
     }
       -> ('k, 'v, [> `Cons ]) tdt
   | Resize : {
-      spine : ('k, 'v, [ `Nil | `Cons ]) tdt;
+      mutable spine : ('k, 'v, [ `Nil | `Cons ]) tdt;
     }
       -> ('k, 'v, [> `Resize ]) tdt
       (** During resizing and snapshotting target buckets will be initialized
@@ -265,11 +265,8 @@ let[@inline never] rec finish t r =
 (** This must be called with [r.pending == Nothing]. *)
 let[@inline never] try_resize t r new_capacity ~clear =
   (* We must make sure that on every resize we use a physically different
-     [Resize _] value to indicate unprocessed target buckets.  The use of
-     [Sys.opaque_identity] below ensures that a new value is allocated. *)
-  let resize_avoid_aba =
-    if clear then B Nil else B (Resize { spine = Sys.opaque_identity Nil })
-  in
+     [Resize _] value to indicate unprocessed target buckets. *)
+  let resize_avoid_aba = if clear then B Nil else B (Resize { spine = Nil }) in
   let buckets = Atomic_array.make new_capacity resize_avoid_aba in
   let non_linearizable_size =
     if clear then
