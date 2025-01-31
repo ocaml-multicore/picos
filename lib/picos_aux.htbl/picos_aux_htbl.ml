@@ -554,6 +554,43 @@ let rec try_dissoc : type v c r. (_, v) t -> _ -> c -> (v, c, r) op -> _ -> r =
 
 (* *)
 
+let rec copy t backoff =
+  let r = get t in
+  if try_resize t r (Atomic_array.length r.buckets) ~clear:false then begin
+    (* We need to create and count a new size as the previous one is being used
+       by the original. *)
+    let non_linearizable_size =
+      Array.init (Array.length r.non_linearizable_size) @@ fun _ ->
+      Atomic.make_contended 0
+    in
+    let buckets = r.buckets in
+    (* We need to copy the array, because other threads might actually still be
+       trying to resize it. *)
+    let buckets =
+      Atomic_array.init (Atomic_array.length buckets) @@ fun i ->
+      match Atomic_array.unsafe_fenceless_get buckets i with
+      | B (Resize spine_r) ->
+          let spine = spine_r.spine in
+          let rec count n = function
+            | Nil -> n
+            | Cons r -> count (n + 1) r.rest
+          in
+          let _ : int =
+            Atomic.fetch_and_add
+              (Array.unsafe_get non_linearizable_size 0)
+              (count 0 spine)
+          in
+          B spine
+      | B (Nil | Cons _) ->
+          (* After resize only [Resize] values should be left in the old
+           buckets. *)
+          assert false
+    in
+    let r = { r with non_linearizable_size; buckets } in
+    Atomic.make r |> Multicore_magic.copy_as_padded
+  end
+  else copy t (Backoff.once backoff)
+
 let rec snapshot t ~clear backoff =
   let r = get t in
   if try_resize t r (Atomic_array.length r.buckets) ~clear then begin
@@ -580,6 +617,7 @@ let rec snapshot t ~clear backoff =
   end
   else snapshot t ~clear (Backoff.once backoff)
 
+let copy t = copy t Backoff.default
 let to_seq t = snapshot t ~clear:false Backoff.default
 let remove_all t = snapshot t ~clear:true Backoff.default
 

@@ -54,6 +54,11 @@ val max_buckets_of : ('k, 'v) t -> int
 
     ℹ️ The returned value may not be the same as given to {!create}. *)
 
+val copy : ('k, 'v) t -> ('k, 'v) t
+(** [copy htbl] creates an independent copy of the hash table.
+
+    🐌 This is a linear time operation. *)
+
 (** {2 Looking up bindings} *)
 
 val find_exn : ('k, 'v) t -> 'k -> 'v
