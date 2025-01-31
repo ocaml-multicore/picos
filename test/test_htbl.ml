@@ -8,20 +8,25 @@ let () =
   let t = Htbl.create () in
   assert (Htbl.try_add t "Basics" 101);
   assert (Htbl.try_add t "Answer" 42);
-  assert (Htbl.non_linearizable_length t = 2);
-  assert (101 = Htbl.remove_exn t "Basics");
-  assert (not (Htbl.try_remove t "Basics"));
-  assert (Htbl.non_linearizable_length t = 1);
-  assert (Htbl.remove_all t |> List.of_seq = [ ("Answer", 42) ]);
-  assert (Htbl.non_linearizable_length t = 0);
-  assert (Htbl.to_seq t |> List.of_seq = []);
-  [ "One"; "Two"; "Three" ]
-  |> List.iteri (fun v k -> assert (Htbl.try_add t k v));
-  assert (Htbl.non_linearizable_length t = 3);
-  assert (
-    Htbl.to_seq t |> List.of_seq
-    |> List.sort (fun l r -> String.compare (fst l) (fst r))
-    = [ ("One", 0); ("Three", 2); ("Two", 1) ])
+  let h = Htbl.copy t in
+  let test t =
+    assert (Htbl.non_linearizable_length t = 2);
+    assert (101 = Htbl.remove_exn t "Basics");
+    assert (not (Htbl.try_remove t "Basics"));
+    assert (Htbl.non_linearizable_length t = 1);
+    assert (Htbl.remove_all t |> List.of_seq = [ ("Answer", 42) ]);
+    assert (Htbl.non_linearizable_length t = 0);
+    assert (Htbl.to_seq t |> List.of_seq = []);
+    [ "One"; "Two"; "Three" ]
+    |> List.iteri (fun v k -> assert (Htbl.try_add t k v));
+    assert (Htbl.non_linearizable_length t = 3);
+    assert (
+      Htbl.to_seq t |> List.of_seq
+      |> List.sort (fun l r -> String.compare (fst l) (fst r))
+      = [ ("One", 0); ("Three", 2); ("Two", 1) ])
+  in
+  test t;
+  test h
 
 module Int = struct
   include Int
