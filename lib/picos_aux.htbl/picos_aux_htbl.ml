@@ -281,7 +281,20 @@ let[@inline never] try_resize t r new_capacity ~clear =
        true
      end
 
-let rec adjust_estimated_size t r mask delta result =
+(** This only gives an "estimate" of the size, which can be off by one or more
+    and even be negative, so this must be used with care. *)
+let[@inline] non_linearizable_size r =
+  let accum = ref 0 in
+  let non_linearizable_size = r.non_linearizable_size in
+  for i = 0 to Array.length non_linearizable_size - 1 do
+    (* [fenceless_get] is fine here, because we are not even trying to get a
+       precise linearizable size, i.e. it is fine to read past values. *)
+    accum :=
+      !accum + Atomic.fenceless_get (Array.unsafe_get non_linearizable_size i)
+  done;
+  !accum
+
+let rec adjust_size t r mask delta result =
   let i = Multicore_magic.instantaneous_domain_index () in
   let n = Array.length r.non_linearizable_size in
   if i < n then begin
@@ -295,20 +308,7 @@ let rec adjust_estimated_size t r mask delta result =
       && Int64.to_int (Random.bits64 ()) land mask = 0
       && Atomic.get t == r
     then begin
-      (* This only gives an "estimate" of the size, which can be off by one or
-         more and even be negative, so this must be used with care. *)
-      let estimated_size r =
-        let cs = r.non_linearizable_size in
-        let n = Array.length cs - 1 in
-        let rec estimated_size cs n sum =
-          let n = n - 1 in
-          if 0 <= n then
-            estimated_size cs n (sum + Atomic.get (Array.unsafe_get cs n))
-          else sum
-        in
-        estimated_size cs n (Atomic.get (Array.unsafe_get cs n))
-      in
-      let estimated_size = estimated_size r in
+      let estimated_size = non_linearizable_size r in
       let capacity = Atomic_array.length r.buckets in
       if capacity < estimated_size && capacity < r.max_buckets then
         try_resize t r (capacity + capacity) ~clear:false |> ignore
@@ -330,7 +330,7 @@ let rec adjust_estimated_size t r mask delta result =
     in
     let new_r = { r with non_linearizable_size = new_cs } in
     let r = if Atomic.compare_and_set t r new_r then new_r else Atomic.get t in
-    adjust_estimated_size t r mask delta result
+    adjust_size t r mask delta result
 
 (* *)
 
@@ -396,14 +396,14 @@ let rec try_add t key value backoff =
   | B Nil ->
       let after = Cons { key; value; rest = Nil } in
       if Atomic_array.unsafe_compare_and_set r.buckets i (B Nil) (B after) then
-        adjust_estimated_size t r mask 1 true
+        adjust_size t r mask 1 true
       else try_add t key value (Backoff.once backoff)
   | B (Cons _ as before) ->
       if exists r.equal key before then false
       else
         let after = Cons { key; value; rest = before } in
         if Atomic_array.unsafe_compare_and_set r.buckets i (B before) (B after)
-        then adjust_estimated_size t r mask 1 true
+        then adjust_size t r mask 1 true
         else try_add t key value (Backoff.once backoff)
   | B (Resize _) ->
       let _ = finish t (Atomic.get t) in
@@ -515,7 +515,7 @@ let rec try_dissoc : type v c r. (_, v) t -> _ -> c -> (v, c, r) op -> _ -> r =
               | Exists -> true
               | Return -> cons_r.value
             in
-            adjust_estimated_size t r mask (-1) res
+            adjust_size t r mask (-1) res
           else try_dissoc t key present op (Backoff.once backoff)
         else not_found op
       else
@@ -544,7 +544,7 @@ let rec try_dissoc : type v c r. (_, v) t -> _ -> c -> (v, c, r) op -> _ -> r =
                 | Exists -> true
                 | Return -> assoc r.equal key cons_r.rest
               in
-              adjust_estimated_size t r mask (-1) res
+              adjust_size t r mask (-1) res
             else try_dissoc t key present op (Backoff.once backoff)
         | exception Not_found -> not_found op
     end
@@ -623,6 +623,10 @@ let find_random_exn t =
       let n = Array.length bindings in
       if n <> 0 then fst (Array.unsafe_get bindings (Random.int n))
       else raise_notrace Not_found
+
+(* *)
+
+let non_linearizable_length t = non_linearizable_size (Atomic.get t)
 
 (* *)
 

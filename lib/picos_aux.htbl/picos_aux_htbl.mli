@@ -287,3 +287,12 @@ val find_random_exn : ('k, 'v) t -> 'k
     remove the entire binding from the hash table and avoid leaks. This time we
     also use a backoff mechanism, because, unlike with the lock-free bag, we
     don't use randomized keys. *)
+
+(**/**)
+
+val non_linearizable_length : ('k, 'v) t -> int
+(** [non_linearizable_length htbl] reads the current length of the hash table in
+    a non-linearizable manner. Under contention the result will not be precise
+    and may even be negative.
+
+    ⚠️ This is exposed for debugging purposes only. *)
