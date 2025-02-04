@@ -1,3 +1,4 @@
+open QCheck
 open STM
 module Queue = Picos_aux_mpscq
 
@@ -17,24 +18,20 @@ module Spec = struct
   type sut = int Queue.t
 
   let producer_cmd _s =
-    QCheck.(
-      make ~print:show_cmd
-        (Gen.oneof
-           [
-             Gen.map (fun i -> Push i) Gen.nat;
-             Gen.map (fun i -> Push_head i) Gen.nat;
-           ]))
+    [
+      Gen.nat |> Gen.map (fun i -> Push i);
+      Gen.nat |> Gen.map (fun i -> Push_head i);
+    ]
+    |> Gen.oneof |> make ~print:show_cmd
 
   let arb_cmd _s =
-    QCheck.(
-      make ~print:show_cmd
-        (Gen.oneof
-           [
-             Gen.map (fun i -> Push i) Gen.nat;
-             Gen.map (fun i -> Push_head i) Gen.nat;
-             Gen.return Pop;
-             Gen.return Pop_all;
-           ]))
+    [
+      Gen.nat |> Gen.map (fun i -> Push i);
+      Gen.nat |> Gen.map (fun i -> Push_head i);
+      Gen.return Pop;
+      Gen.return Pop_all;
+    ]
+    |> Gen.oneof |> make ~print:show_cmd
 
   let init_state = []
   let init_sut () = Queue.create ()
