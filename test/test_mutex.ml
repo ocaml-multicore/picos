@@ -77,4 +77,4 @@ module Spec = struct
     | _, _ -> false
 end
 
-let () = Stm_run.run ~name:"Lock" (module Spec) |> exit
+let () = Stm_run.run ~name:"Mutex" (module Spec) |> exit
