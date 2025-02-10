@@ -51,6 +51,8 @@
    (run %{test} -- "^Lazy$" 0)
    (run %{test} -- "^Lazy$" 1)
    (run %{test} -- "^Event$" 0)
+   (run %{test} -- "^Barrier$" 0)
+   (run %{test} -- "^Barrier$" 1)
    (run %{test} -- "^Non-cancelable ops$" 0)
    ;;
    )))
