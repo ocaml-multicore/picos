@@ -481,6 +481,42 @@ module Sem : sig
       {{!poison} poisoned}. *)
 end
 
+module Barrier : sig
+  (** A poisonable barrier. *)
+
+  type t
+  (** Represents a poisonable barrier. *)
+
+  val max_parties : int
+  (** Maximum number of participants that a barrier can be configured with. *)
+
+  val create : ?padded:bool -> int -> t
+  (** [create parties] creates a new barrier for given number of parties.
+
+      @raise Invalid_argument
+        in case the given number of [parties] is less than [1] or greater than
+        [max_parties]. *)
+
+  val parties : t -> int
+  (** [paries barrier] returns the number of parties the barrier was
+      {{!create} created} with. *)
+
+  exception Poisoned
+  (** Exception raised by {!await} in case the barrier has become poisoned. *)
+
+  val await : t -> unit
+  (** [await barrier] awaits until the configured number of {!parties} has
+      called [await] on the barrier and returns, or raises {!Poisoned} in case
+      the barrier has become poisoned.
+
+      ℹ️ If the await is canceled, then [await] will {!poison} the barrier before
+      reraising the cancelation exception. *)
+
+  val poison : t -> unit
+  (** [poison barrier] marks the barrier as poisoned. Concurrent and subsequent
+      calls of {!await} will raise the {!Poisoned} exception. *)
+end
+
 module Lazy : sig
   (** A lazy suspension.
 

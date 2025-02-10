@@ -607,6 +607,73 @@ end
 
 module Rwlock_is_a_submodule_of_Lock : module type of Lock = Rwlock
 
+let test_barrier_basics () =
+  for n = 1 to 4 do
+    let barrier = Barrier.create n in
+    Test_scheduler.run ~max_domains:(n + 1) @@ fun () ->
+    Flock.join_after @@ fun () ->
+    let n_outside = Atomic.make n in
+    for _ = 1 to n do
+      Flock.fork @@ fun () ->
+      for _ = 1 to 5 do
+        Atomic.decr n_outside;
+        Barrier.await barrier;
+        assert (Atomic.get n_outside = 0);
+        Barrier.await barrier;
+        Atomic.incr n_outside
+      done
+    done
+  done
+
+let test_barrier_poisoning () =
+  for n = 2 to 5 do
+    match
+      Test_scheduler.run ~max_domains:n @@ fun () ->
+      let barrier = Barrier.create n in
+      Flock.join_after @@ fun () ->
+      for _ = 2 to n do
+        Flock.fork @@ fun () ->
+        Barrier.await barrier;
+        assert false
+      done;
+      Barrier.poison barrier
+    with
+    | () -> assert false
+    | exception Barrier.Poisoned -> ()
+    | exception Control.Errors exns ->
+        assert (
+          List.for_all
+            (function Barrier.Poisoned, _ -> true | _ -> false)
+            exns);
+        assert (List.length exns <= n - 1)
+  done;
+  for n = 3 to 6 do
+    match
+      Test_scheduler.run ~max_domains:n @@ fun () ->
+      let barrier = Barrier.create n in
+      Flock.join_after @@ fun () ->
+      let to_be_terminated =
+        Flock.fork_as_promise @@ fun () ->
+        Barrier.await barrier;
+        assert false
+      in
+      for _ = 3 to n do
+        Flock.fork @@ fun () ->
+        Barrier.await barrier;
+        assert false
+      done;
+      Promise.terminate to_be_terminated
+    with
+    | () -> assert false
+    | exception Barrier.Poisoned -> ()
+    | exception Control.Errors exns ->
+        assert (
+          List.for_all
+            (function Barrier.Poisoned, _ -> true | _ -> false)
+            exns);
+        assert (List.length exns <= n - 2)
+  done
+
 let () =
   try
     [
@@ -664,6 +731,11 @@ let () =
           Alcotest.test_case "cancelation" `Quick test_lazy_cancelation;
         ] );
       ("Event", [ Alcotest.test_case "basics" `Quick test_event_basics ]);
+      ( "Barrier",
+        [
+          Alcotest.test_case "basics" `Quick test_barrier_basics;
+          Alcotest.test_case "poisoning" `Quick test_barrier_poisoning;
+        ] );
       ( "Non-cancelable ops",
         [ Alcotest.test_case "are not canceled" `Quick test_non_cancelable_ops ]
       );
