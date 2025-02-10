@@ -481,6 +481,28 @@ module Sem : sig
       {{!poison} poisoned}. *)
 end
 
+module Barrier : sig
+  (** *)
+
+  type t
+  (** *)
+
+  val max_parties : int
+  (** *)
+
+  val create : ?padded:bool -> int -> t
+  (** *)
+
+  exception Poisoned
+  (** *)
+
+  val await : t -> unit
+  (** *)
+
+  val poison : t -> unit
+  (** *)
+end
+
 module Lazy : sig
   (** A lazy suspension.
 
