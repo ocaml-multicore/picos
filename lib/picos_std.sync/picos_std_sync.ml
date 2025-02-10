@@ -6,5 +6,6 @@ module Rwlock = Rwlock
 module Sem = Sem
 module Lazy = Lazy
 module Latch = Latch
+module Barrier = Barrier
 module Ivar = Ivar
 module Stream = Stream
