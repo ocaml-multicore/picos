@@ -586,7 +586,7 @@ module Latch : sig
       If the size is unknown, i.e. it is determined dynamically, then a latch is
       initialized with a count of one, the a priori known computations are
       started and then the latch is {{!decr} decremented}. When a computation is
-      stsrted, the latch is {{!try_incr} incremented}, and then
+      started, the latch is {{!try_incr} incremented}, and then
       {{!decr} decremented} once the computation has finished. *)
 
   type t
