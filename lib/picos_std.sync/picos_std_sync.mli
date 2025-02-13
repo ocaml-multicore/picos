@@ -482,7 +482,10 @@ module Sem : sig
 end
 
 module Barrier : sig
-  (** A poisonable barrier. *)
+  (** A poisonable barrier.
+
+      🏎️ This uses a slim, low overhead implementation that should perform
+      reasonably well in most cases. *)
 
   type t
   (** Represents a poisonable barrier. *)
