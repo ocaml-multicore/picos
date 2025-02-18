@@ -114,9 +114,9 @@ module Awaitable : sig
         it from the FIFO associated with the awaitable.
 
         ℹ️ If the associated trigger is used with only one awaiter and the
-        {{!Trigger.await} await} on the trigger returns [None], there is no need
-        to explicitly remove the awaiter, because it has already been removed.
-    *)
+        {{!Picos.Trigger.await} await} on the trigger returns [None], there is
+        no need to explicitly remove the awaiter, because it has already been
+        removed. *)
   end
 
   (**/**)
