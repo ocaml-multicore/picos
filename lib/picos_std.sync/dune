@@ -4,7 +4,6 @@
  (libraries
   (re_export picos_std.event)
   picos_std.awaitable
-  picos
   backoff
   multicore-magic))
 
