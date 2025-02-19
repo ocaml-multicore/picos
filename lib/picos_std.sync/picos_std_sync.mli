@@ -501,7 +501,7 @@ module Barrier : sig
         [max_parties]. *)
 
   val parties : t -> int
-  (** [paries barrier] returns the number of parties the barrier was
+  (** [parties barrier] returns the number of parties the barrier was
       {{!create} created} with. *)
 
   exception Poisoned
