@@ -1,6 +1,6 @@
 open QCheck
 open STM
-open Picos_std_sync
+module Mutex = Picos_std_sync.Mutex
 
 module Spec = struct
   include SpecDefaults

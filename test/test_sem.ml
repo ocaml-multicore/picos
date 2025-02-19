@@ -1,6 +1,6 @@
 open QCheck
 open STM
-open Picos_std_sync
+module Sem = Picos_std_sync.Sem
 
 module Spec = struct
   include SpecDefaults
