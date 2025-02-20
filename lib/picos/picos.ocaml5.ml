@@ -588,6 +588,8 @@ module Fiber = struct
       if key < Array.length fls then Array.unsafe_set fls key unique
   end
 
+  type maybe = T : [< `Nothing | `Fiber ] tdt -> maybe [@@unboxed]
+
   (* END FIBER BOOTSTRAP *)
 
   let resume t k = Effect.Deep.continue k (canceled t)
@@ -603,9 +605,27 @@ module Fiber = struct
     | None -> Effect.Shallow.continue_with k v h
     | Some (exn, bt) -> Effect.Shallow.discontinue_with_backtrace k exn bt h
 
+  module Per_thread = struct
+    type t = { mutable current : maybe  (** *) }
+
+    let key = Picos_thread.TLS.create ()
+
+    let get () =
+      match Picos_thread.TLS.get_exn key with
+      | p -> p
+      | exception Picos_thread.TLS.Not_set ->
+          let p = { current = T Nothing } in
+          Picos_thread.TLS.set key p;
+          p
+  end
+
   type _ Effect.t += Current : t Effect.t
 
-  let current () = Effect.perform Current
+  let current () =
+    let p = Per_thread.get () in
+    match p.current with
+    | T (Fiber _ as fiber) -> fiber
+    | T Nothing -> Effect.perform Current
 
   type _ Effect.t += Spawn : { fiber : t; main : t -> unit } -> unit Effect.t
 
@@ -620,7 +640,7 @@ module Fiber = struct
   module Maybe = struct
     let[@inline never] not_a_fiber _ = invalid_arg "not a fiber"
 
-    type t = T : [< `Nothing | `Fiber ] tdt -> t [@@unboxed]
+    type t = maybe
 
     let[@inline] to_fiber_or_current = function
       | T Nothing -> current ()
