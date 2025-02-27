@@ -6,7 +6,13 @@
     threads attempt to pop fibers from the queues of other threads when their
     local queues are empty. It is also possible to use only a single shared
     queue, but that will result in very high contention as this queue is not
-    relaxed. *)
+    relaxed.
+
+    ⚠️ The {!pop_all} and {!pop_all_as_array} operation are not lock-free and
+    prevent concurrent {!pop_exn}, {!pop_all}, {!pop_all_as_array}, and
+    {!push_head} operations from making progress until the operation has reached
+    its linearization point. Other concurrent operations are not prevented from
+    making progress. *)
 
 (** {1 API} *)
 
@@ -30,6 +36,14 @@ val pop_exn : 'a t -> 'a
     Returns the removed value or raises {!Empty} in case the queue was empty.
 
     @raise Empty in case the queue was empty. *)
+
+val pop_all : 'a t -> 'a Seq.t
+(** [pop_all queue] removes all values from the [queue] and returns them as a
+    sequence. *)
+
+val pop_all_as_array : 'a t -> 'a array
+(** [pop_all_as_array queue] removes all values from the [queue] and returns
+    them as an array. *)
 
 val length : 'a t -> int
 (** [length queue] returns the length or the number of values in the [queue]. *)
@@ -60,11 +74,8 @@ val is_empty : 'a t -> bool
       # Picos_aux_mpmcq.pop_exn q
       - : int = 76
 
-      # Picos_aux_mpmcq.pop_exn q
-      - : int = 42
-
-      # Picos_aux_mpmcq.pop_exn q
-      - : int = 101
+      # Picos_aux_mpmcq.pop_all_as_array q
+      - : int array = [|42; 101|]
 
       # Picos_aux_mpmcq.pop_exn q
       Exception: Picos_aux_mpmcq.Empty.
