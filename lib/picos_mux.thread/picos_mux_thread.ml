@@ -56,29 +56,29 @@ let default_fatal_exn_handler exn =
   flush stderr;
   exit 2
 
-let[@alert "-handler"] rec await t trigger =
+let await t trigger =
   if Fiber.try_suspend t.fiber trigger t t resume then block trigger t;
   Fiber.canceled t.fiber
 
-and current t =
+let current t =
   (* The current handler must never propagate cancelation, but it would be
      possible to yield here to run some other fiber before resuming the current
      fiber. *)
   t.fiber
 
-and yield t =
+let yield t =
   (* In other handlers we need to account for cancelation. *)
   Fiber.check t.fiber;
   Thread.yield ()
 
-and cancel_after : type a. _ -> a Computation.t -> _ =
+let cancel_after : type a. _ -> a Computation.t -> _ =
  (* We need an explicit type signature to allow OCaml to generalize the tyoe as
     all of the handlers are in a single recursive definition. *)
  fun t computation ~seconds exn_bt ->
   Fiber.check t.fiber;
   Select.cancel_after computation ~seconds exn_bt
 
-and spawn t fiber main =
+let[@alert "-handler"] rec spawn t fiber main =
   Fiber.check t.fiber;
   Thread.create start (fiber, t.fatal_exn_handler, main) |> ignore
 
