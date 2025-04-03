@@ -10,9 +10,10 @@
    from
    (picos.thread
     picos_lwt.unix
-    picos_mux.random
     picos_mux.fifo
     picos_mux.multififo
+    picos_mux.random
+    picos_mux.thread
     ->
     test_scheduler.ocaml5.ml)
    (picos_mux.thread lwt.unix -> test_scheduler.ocaml4.ml))))

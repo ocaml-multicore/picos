@@ -30,10 +30,11 @@ let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true) ?fatal_exn_handler
     fiber main =
   init ();
   let scheduler =
-    match Random.int 4 with
+    match Random.int 5 with
     | 0 -> `Fifos
     | 1 -> `Multififos
     | 2 -> `Randos
+    | 3 -> `Thread
     | _ -> `Lwt
   in
   let n_domains = Int.min max_domains (Domain.recommended_domain_count ()) in
@@ -72,6 +73,9 @@ let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true) ?fatal_exn_handler
           (fun () ->
             Picos_mux_multififo.run_fiber_on ~quota ?fatal_exn_handler
               ~n_domains fiber main)
+    | `Thread ->
+        Some
+          (fun () -> Picos_mux_thread.run_fiber ?fatal_exn_handler fiber main)
   with
   | None -> run_fiber ~max_domains ~allow_lwt ?fatal_exn_handler fiber main
   | Some run -> begin
@@ -82,6 +86,7 @@ let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true) ?fatal_exn_handler
           | `Fifos -> "fifos"
           | `Multififos -> "multififos"
           | `Randos -> "randos"
+          | `Thread -> "thread"
           | `Lwt -> "lwt")
           quota n_domains;
         raise exn
