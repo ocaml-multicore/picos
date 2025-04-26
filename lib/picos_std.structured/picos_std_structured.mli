@@ -131,6 +131,10 @@ module Control : sig
           Bundle.terminate_after ?callstack ~seconds bundle;
           thunk ()
       ]} *)
+
+  val terminate_unless : bool -> unit
+  (** [terminate_unless condition] is
+      {{!Terminate} [if not condition then raise Terminate]}. *)
 end
 
 module Promise : sig
@@ -356,16 +360,16 @@ module Run : sig
 
   val all : (unit -> unit) list -> unit
   (** [all actions] starts the actions as separate fibers and waits until they
-      all complete or one of them raises an unhandled exception other than
-      {{!Control.Terminate} [Terminate]}, which is not counted as an error,
-      after which the remaining fibers will be canceled.
+      all return. If any of the actions raises an exception other than
+      {{!Control.Terminate} [Terminate]} the remaining fibers will be canceled
+      and the exception, if any, will be raised.
 
       ⚠️ One of the actions may be run on the current fiber.
 
       ⚠️ It is not guaranteed that any of the actions in the list are called. In
-      particular, after any action raises an unhandled exception or after the
-      main fiber is canceled, the actions that have not yet started may be
-      skipped entirely.
+      particular, after any action raises an exception other than
+      {{!Control.Terminate} [Terminate]} or after the main fiber is canceled,
+      the actions that have not yet started may be skipped entirely.
 
       [all] is roughly equivalent to
       {[
@@ -377,16 +381,17 @@ module Run : sig
 
   val any : (unit -> unit) list -> unit
   (** [any actions] starts the actions as separate fibers and waits until one of
-      them completes or raises an unhandled exception other than
-      {{!Control.Terminate} [Terminate]}, which is not counted as an error,
-      after which the rest of the started fibers will be canceled.
+      them returns or raises an exception other than
+      {{!Control.Terminate} [Terminate]} after which the remaining started
+      fibers will be canceled and the exception, if any, will be raised.
 
       ⚠️ One of the actions may be run on the current fiber.
 
       ⚠️ It is not guaranteed that any of the actions in the list are called. In
       particular, after the first action returns successfully or after any
-      action raises an unhandled exception or after the main fiber is canceled,
-      the actions that have not yet started may be skipped entirely.
+      action raises an exception other than {{!Control.Terminate} [Terminate]}
+      or after the main fiber is canceled, the actions that have not yet started
+      may be skipped entirely.
 
       [any] is roughly equivalent to
       {[
@@ -399,6 +404,48 @@ module Run : sig
                action ();
                Bundle.terminate bundle
           with Control.Terminate -> ()
+      ]}
+      but treats the list of actions as a single computation. *)
+
+  val first_or_terminate : (unit -> 'a) list -> 'a
+  (** [first_or_terminate actions] starts the actions as separate fibers and
+      waits until one of them returns a value or raises an exception other than
+      {{!Control.Terminate} [Terminate]} after which the remaining started
+      fibers will be canceled and the value will be returned or the exception,
+      if any, will be raised. If none of the actions returned or raised an
+      exception other than {{!Control.Terminate} [Terminate]}, then
+      {{!Control.Terminate} [Terminate]} will be raised.
+
+      ⚠️ One of the actions may be run on the current fiber.
+
+      ⚠️ It is not guaranteed that any of the actions in the list are called. In
+      particular, after the first action returns successfully or after any
+      action raises an exception other than {{!Control.Terminate} [Terminate]}
+      or after the main fiber is canceled, the actions that have not yet started
+      may be skipped entirely.
+
+      @raise Control.Terminate
+        in case none of the actions returned a value or raised an exception
+        other than {{!Control.Terminate} [Terminate]}.
+
+      [first_or_terminate] is roughly equivalent to
+      {[
+        let first_or_terminate actions =
+          let result = Atomic.make None in
+          begin
+            Bundle.join_after @@ fun bundle ->
+            try
+              actions
+              |> List.iter @@ fun action ->
+                 Bundle.fork bundle @@ fun () ->
+                 let value = action () in
+                 if Atomic.compare_and_set result None (Some value) then
+                   Bundle.terminate bundle
+            with Control.Terminate -> ()
+          end;
+          match Atomic.get result with
+          | None -> raise Control.Terminate
+          | Some value -> value
       ]}
       but treats the list of actions as a single computation. *)
 end
