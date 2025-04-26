@@ -23,13 +23,15 @@ let init () =
     propagate ()
   end
 
-let run_fiber ?max_domains:_ ?allow_lwt:_ ?fatal_exn_handler fiber main =
+let run_fiber ?max_domains:_ ?allow_lwt:_ ?avoid_threads:_ ?fatal_exn_handler
+    fiber main =
   init ();
   Picos_mux_thread.run_fiber ?fatal_exn_handler fiber main
 
-let run ?max_domains ?allow_lwt ?fatal_exn_handler ?(forbid = false) main =
+let run ?max_domains ?allow_lwt ?avoid_threads ?fatal_exn_handler
+    ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
-  run_fiber ?max_domains ?allow_lwt ?fatal_exn_handler fiber main;
+  run_fiber ?max_domains ?allow_lwt ?avoid_threads ?fatal_exn_handler fiber main;
   Computation.await computation
