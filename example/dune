@@ -1,0 +1,5 @@
+(test
+ (package picos_meta)
+ (name guards)
+ (modules guards)
+ (libraries picos picos.domain picos_std.structured test_scheduler))

@@ -91,3 +91,5 @@ let terminate_after ?callstack ~seconds thunk =
       Computation.detach from canceler;
       Fiber.set_computation fiber packed;
       Printexc.raise_with_backtrace exn bt
+
+let[@inline] terminate_unless condition = if not condition then raise Terminate
