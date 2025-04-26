@@ -219,7 +219,7 @@ struct
     end
 
   let test_stress () =
-    Test_scheduler.run ~max_domains:4 @@ fun () ->
+    Test_scheduler.run ~max_domains:4 ~avoid_threads:true @@ fun () ->
     Bundle.join_after @@ fun bundle ->
     let s = Counting.make ~padded:true 0 in
     let rec loop ~n_acquire ~n_release =

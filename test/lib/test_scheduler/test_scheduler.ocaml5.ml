@@ -26,8 +26,8 @@ let init () =
     propagate ()
   end
 
-let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true) ?fatal_exn_handler
-    fiber main =
+let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true)
+    ?(avoid_threads = false) ?fatal_exn_handler fiber main =
   init ();
   let scheduler =
     match Random.int 5 with
@@ -74,8 +74,10 @@ let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true) ?fatal_exn_handler
             Picos_mux_multififo.run_fiber_on ~quota ?fatal_exn_handler
               ~n_domains fiber main)
     | `Thread ->
-        Some
-          (fun () -> Picos_mux_thread.run_fiber ?fatal_exn_handler fiber main)
+        if avoid_threads then None
+        else
+          Some
+            (fun () -> Picos_mux_thread.run_fiber ?fatal_exn_handler fiber main)
   with
   | None -> run_fiber ~max_domains ~allow_lwt ?fatal_exn_handler fiber main
   | Some run -> begin
@@ -92,9 +94,10 @@ let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true) ?fatal_exn_handler
         raise exn
     end
 
-let run ?max_domains ?allow_lwt ?fatal_exn_handler ?(forbid = false) main =
+let run ?max_domains ?allow_lwt ?avoid_threads ?fatal_exn_handler
+    ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
-  run_fiber ?max_domains ?allow_lwt ?fatal_exn_handler fiber main;
+  run_fiber ?max_domains ?allow_lwt ?avoid_threads ?fatal_exn_handler fiber main;
   Computation.await computation
