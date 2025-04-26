@@ -79,7 +79,9 @@ let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true)
           Some
             (fun () -> Picos_mux_thread.run_fiber ?fatal_exn_handler fiber main)
   with
-  | None -> run_fiber ~max_domains ~allow_lwt ?fatal_exn_handler fiber main
+  | None ->
+      run_fiber ~max_domains ~allow_lwt ~avoid_threads ?fatal_exn_handler fiber
+        main
   | Some run -> begin
       try run ()
       with exn ->
