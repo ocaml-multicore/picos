@@ -182,6 +182,60 @@ let test_cross_scheduler_wakeup () =
   done
 
 let () =
+  let max_domains = Random.int (Picos_domain.recommended_domain_count ()) + 1 in
+  Test_scheduler.run ~verbose:true ~max_domains @@ fun () ->
+  let n_fibers = 100 in
+  let min_yields_per_fiber = 10_000 in
+  let yields = Float.Array.make n_fibers 0.0 in
+  begin
+    let countdown = Atomic.make n_fibers in
+    Flock.join_after @@ fun () ->
+    for i = 0 to n_fibers - 1 do
+      Flock.fork @@ fun () ->
+      let counter = ref 0 in
+      try
+        while true do
+          Control.yield ();
+          incr counter;
+          if !counter = min_yields_per_fiber then
+            if 1 = Atomic.fetch_and_add countdown (-1) then Flock.terminate ()
+        done
+      with Control.Terminate ->
+        Float.Array.set yields i (float !counter /. float min_yields_per_fiber)
+    done
+  end;
+  let mean_of xs =
+    Float.Array.fold_left ( +. ) 0.0 xs /. Float.of_int (Float.Array.length xs)
+  in
+  let sd_of xs ~mean =
+    Float.sqrt
+      (mean_of
+         (Float.Array.map
+            (fun v ->
+              let d = v -. mean in
+              d *. d)
+            xs))
+  in
+  let median_of xs =
+    Float.Array.sort Float.compare xs;
+    let n = Float.Array.length xs in
+    if n land 1 = 0 then
+      (Float.Array.get xs ((n asr 1) - 1) +. Float.Array.get xs (n asr 1))
+      /. 2.0
+    else Float.Array.get xs (n asr 1)
+  in
+  let mean = mean_of yields in
+  let median = median_of yields in
+  let sd = sd_of yields ~mean in
+  Printf.printf
+    "Fairness of %d fibers performing at least %d yields:\n\
+    \      sd: %f -- ideally 0\n\
+    \    mean: %f -- ideally 1\n\
+    \  median: %f -- ideally 1\n\
+     %!"
+    n_fibers min_yields_per_fiber sd mean median
+
+let () =
   [
     ("Trivial main returns", [ Alcotest.test_case "" `Quick test_returns ]);
     ( "Scheduler completes main computation",

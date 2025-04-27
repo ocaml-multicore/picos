@@ -26,7 +26,28 @@ let init () =
     propagate ()
   end
 
-let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true)
+let explain scheduler ~quota ~n_domains =
+  let quota =
+    match scheduler with
+    | `Fifos | `Multififos -> Printf.sprintf " ~quota:%d" quota
+    | `Randos | `Thread | `Lwt -> ""
+  in
+  let n_domains =
+    match scheduler with
+    | `Multififos | `Randos -> Printf.sprintf " ~n_domains:%d" n_domains
+    | `Fifos | `Thread | `Lwt -> ""
+  in
+  let scheduler =
+    match scheduler with
+    | `Fifos -> "fifos"
+    | `Multififos -> "multififos"
+    | `Randos -> "randos"
+    | `Thread -> "thread"
+    | `Lwt -> "lwt"
+  in
+  Printf.printf "Testing with scheduler: %s%s%s\n%!" scheduler quota n_domains
+
+let rec run_fiber ?(verbose = false) ?(max_domains = 1) ?(allow_lwt = true)
     ?(avoid_threads = false) ?fatal_exn_handler fiber main =
   init ();
   let scheduler =
@@ -80,26 +101,21 @@ let rec run_fiber ?(max_domains = 1) ?(allow_lwt = true)
             (fun () -> Picos_mux_thread.run_fiber ?fatal_exn_handler fiber main)
   with
   | None ->
-      run_fiber ~max_domains ~allow_lwt ~avoid_threads ?fatal_exn_handler fiber
-        main
+      run_fiber ~verbose ~max_domains ~allow_lwt ~avoid_threads
+        ?fatal_exn_handler fiber main
   | Some run -> begin
+      if verbose then explain scheduler ~quota ~n_domains;
       try run ()
       with exn ->
-        Printf.printf "Test_scheduler: %s ~quota:%d ~n_domains:%d\n%!"
-          (match scheduler with
-          | `Fifos -> "fifos"
-          | `Multififos -> "multififos"
-          | `Randos -> "randos"
-          | `Thread -> "thread"
-          | `Lwt -> "lwt")
-          quota n_domains;
+        if not verbose then explain scheduler ~quota ~n_domains;
         raise exn
     end
 
-let run ?max_domains ?allow_lwt ?avoid_threads ?fatal_exn_handler
+let run ?verbose ?max_domains ?allow_lwt ?avoid_threads ?fatal_exn_handler
     ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
-  run_fiber ?max_domains ?allow_lwt ?avoid_threads ?fatal_exn_handler fiber main;
+  run_fiber ?verbose ?max_domains ?allow_lwt ?avoid_threads ?fatal_exn_handler
+    fiber main;
   Computation.await computation
