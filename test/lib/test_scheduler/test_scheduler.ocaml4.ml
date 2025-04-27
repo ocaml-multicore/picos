@@ -23,15 +23,22 @@ let init () =
     propagate ()
   end
 
-let run_fiber ?max_domains:_ ?allow_lwt:_ ?avoid_threads:_ ?fatal_exn_handler
-    fiber main =
-  init ();
-  Picos_mux_thread.run_fiber ?fatal_exn_handler fiber main
+let explain () = Printf.printf "Testing with scheduler: threads\n%!"
 
-let run ?max_domains ?allow_lwt ?avoid_threads ?fatal_exn_handler
+let run_fiber ?(verbose = false) ?max_domains:_ ?allow_lwt:_ ?avoid_threads:_
+    ?fatal_exn_handler fiber main =
+  init ();
+  if verbose then explain ();
+  try Picos_mux_thread.run_fiber ?fatal_exn_handler fiber main
+  with exn ->
+    if not verbose then explain ();
+    raise exn
+
+let run ?verbose ?max_domains ?allow_lwt ?avoid_threads ?fatal_exn_handler
     ?(forbid = false) main =
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
-  run_fiber ?max_domains ?allow_lwt ?avoid_threads ?fatal_exn_handler fiber main;
+  run_fiber ?verbose ?max_domains ?allow_lwt ?avoid_threads ?fatal_exn_handler
+    fiber main;
   Computation.await computation

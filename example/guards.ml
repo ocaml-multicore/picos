@@ -97,7 +97,7 @@ let () =
      likely use e.g. the multififo or the random scheduler to compute with
      guarded case statements. *)
   let max_domains = Picos_domain.recommended_domain_count () in
-  Test_scheduler.run ~max_domains @@ fun () ->
+  Test_scheduler.run ~verbose:true ~max_domains @@ fun () ->
   Run.all
     [
       (fun () -> assert (42 = guard1 ()));

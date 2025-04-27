@@ -241,6 +241,7 @@
   backoff
   domain_shims
   picos
+  picos_domain
   picos_std.finally
   picos_std.structured
   picos_std.sync
