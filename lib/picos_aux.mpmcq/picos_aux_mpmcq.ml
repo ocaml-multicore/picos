@@ -186,18 +186,25 @@ let rec push_head t value backoff =
         end
     end
 
-let rec length t =
-  let head = Atomic.get t.head in
-  let tail = Atomic.fenceless_get t.tail in
-  if head != Atomic.get t.head then length t
-  else
-    let head_at =
-      match head with H (Cons r) -> r.counter | H (Head r) -> r.counter
-    in
-    let tail_at =
-      match tail with T (Snoc r) -> r.counter | T (Tail r) -> r.counter
-    in
-    tail_at - head_at + 1
+let[@inline] length t =
+  let t_head = t.head in
+  let t_tail = t.tail in
+  let head = ref (Atomic.get t_head) in
+  let tail = ref (Atomic.fenceless_get t_tail) in
+  while
+    head := Atomic.get t_head;
+    tail := Atomic.fenceless_get t_tail;
+    !head != Atomic.get t_head
+  do
+    ()
+  done;
+  let head_at =
+    match !head with H (Cons r) -> r.counter | H (Head r) -> r.counter
+  in
+  let tail_at =
+    match !tail with T (Snoc r) -> r.counter | T (Tail r) -> r.counter
+  in
+  tail_at - head_at + 1
 
 let[@inline] is_empty t = length t == 0
 let[@inline] pop_exn t = pop t Backoff.default (Atomic.fenceless_get t.head)

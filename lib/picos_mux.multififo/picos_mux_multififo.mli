@@ -3,9 +3,11 @@
 
     This scheduler uses a queue per thread to implement a mostly FIFO scheduler.
     If a thread runs out of fibers to run, it will try to take a fiber from the
-    queues of other threads, which means that fibers can move from one thread to
-    another. This scheduler also gives priority to fibers woken up due to being
-    canceled.
+    queues of other threads. Furthermore, threads periodically consider taking
+    fibers from other threads to balance the number of fibers per thread. All of
+    this means that this scheduler should act relatively fairly and work well
+    for concurrent workloads and workloads where fairness matters. This
+    scheduler also gives priority to fibers woken up due to being canceled.
 
     🐌 Due to mostly FIFO scheduling this scheduler performs poorly on highly
     parallel workloads.
