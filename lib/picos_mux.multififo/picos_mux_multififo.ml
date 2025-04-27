@@ -45,6 +45,7 @@ and _ tdt =
       mutable num_stopped : int;
       mutable fiber : Fiber.Maybe.t;
       mutable remaining_quota : int;
+      mutable countdown_to_steal : int;
     }
       -> [> `Per_thread ] tdt
 
@@ -116,7 +117,27 @@ let exec ready (Per_thread p : per_thread) t =
   | Resume (fiber, k) -> Fiber.resume fiber k
 
 let rec next (Per_thread p as pt : per_thread) =
-  match Mpmcq.pop_exn p.ready with
+  let ready =
+    let c = p.countdown_to_steal in
+    if 0 < c then begin
+      p.countdown_to_steal <- c - 1;
+      p.ready
+    end
+    else begin
+      let t = p.context in
+      if 1 < t.threads_num then begin
+        let (Per_thread v) = get_thread t (Random.int t.threads_num) in
+        p.countdown_to_steal <- Mpmcq.length p.ready + 1;
+        if p.countdown_to_steal <= Mpmcq.length v.ready then v.ready
+        else p.ready
+      end
+      else begin
+        p.countdown_to_steal <- 1_000;
+        p.ready
+      end
+    end
+  in
+  match Mpmcq.pop_exn ready with
   | ready ->
       let t = p.context in
       relaxed_wakeup t ~known_not_empty:false p.ready;
@@ -195,6 +216,7 @@ let per_thread context =
         num_stopped = 0;
         fiber = Fiber.Maybe.nothing;
         remaining_quota = 0;
+        countdown_to_steal = 1;
       }
   in
   p.resume <-
