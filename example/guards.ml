@@ -92,6 +92,71 @@ let guard5 () =
         42);
     ]
 
+let f b n =
+  Run.first_or_terminate
+    [
+      (fun () ->
+        Control.terminate_unless
+          (let i = ref 0 in
+           while !i < n do
+             i := !i + 1;
+             Control.yield ()
+           done;
+           true);
+        b);
+      (fun () ->
+        Control.terminate_unless
+          (let j = ref 0 in
+           while !j < n do
+             j := !j + 1;
+             Control.yield ()
+           done;
+           false);
+        false);
+    ]
+
+let demo () =
+  Run.first_or_terminate
+    [
+      (fun () ->
+        Control.terminate_unless (f false 1000);
+        17);
+      (fun () ->
+        Control.terminate_unless (f false 80000);
+        11);
+      (fun () ->
+        Control.terminate_unless
+          (while true do
+             Control.yield ()
+           done;
+           true);
+        27);
+      (fun () ->
+        Control.terminate_unless
+          (Run.first_or_terminate
+             [
+               (fun () ->
+                 Control.terminate_unless (f false 100000);
+                 false);
+               (fun () ->
+                 Control.terminate_unless (f true 200000);
+                 true);
+             ]);
+        42);
+      (fun () ->
+        Control.terminate_unless
+          (Run.first_or_terminate
+             [
+               (fun () ->
+                 Control.terminate_unless (f true 100);
+                 false);
+               (fun () ->
+                 Control.terminate_unless (f false 10);
+                 false);
+             ]);
+        13);
+    ]
+
 let () =
   (* We use the test scheduler here, but in more practical use cases one should
      likely use e.g. the multififo or the random scheduler to compute with
@@ -107,5 +172,6 @@ let () =
         if 42 <> guard4 () then
           print_endline "Guard 4 wasn't 42, but that is a known issue.");
       (fun () -> assert (42 = guard5 ()));
+      (fun () -> assert (42 = demo ()));
     ];
   print_endline "Ran guarded case statement examples."
