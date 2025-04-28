@@ -556,7 +556,7 @@ let read_in ~seconds ivar =
 ```
 
 This interoperability is not accidental. For example, the scope abstraction
-basically assumes that one does not use `Fiber.set_computation`, in an arbitrary
+basically assumes that one does not use `Fiber.set_computation` in an arbitrary
 unscoped manner inside the scoped fibers. An idea with the Picos interface
 actually is that it is not supposed to be used by applications at all and most
 higher level libraries should be built on top of libraries that do not directly
