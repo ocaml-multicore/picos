@@ -1141,7 +1141,7 @@ module Fiber : sig
     (** {2 Design rationale}
 
         The fiber identity is often needed only for the purpose of dynamically
-        checking against programming errors. Unfortunately it can be relative
+        checking against programming errors. Unfortunately it can be relatively
         expensive to obtain the {{!Fiber.current} current} fiber.
 
         As a data point, in a benchmark that increments an [int ref] protected
