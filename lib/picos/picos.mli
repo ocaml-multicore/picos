@@ -212,6 +212,9 @@ module Trigger : sig
       🏎️ A trigger in the initial and signaled states is a tiny object that does
       not hold onto any other objects. *)
 
+  val signaled : t
+  (** [signaled] is a constant trigger that has already been signaled. *)
+
   val create : unit -> t
   (** [create ()] allocates a new trigger in the initial state. *)
 

@@ -8,7 +8,7 @@ type _ tdt =
       mutable _config : int;
       bundle : Computation.packed;
       errors : Control.Errors.t;
-      finished : Trigger.t;
+      mutable finished : Trigger.t;
     }
       -> [> `Bundle ] tdt
 
@@ -23,9 +23,11 @@ and config_one = 0x40 (* memory runs out before overflow *)
 
 let flock_key : [ `Bundle | `Nothing ] tdt Fiber.FLS.t = Fiber.FLS.create ()
 
-let terminate ?callstack (Bundle { bundle = Packed bundle; _ } : t) =
-  Computation.cancel bundle Control.Terminate
-    (Control.get_callstack_opt callstack)
+let terminate_as callstack (Bundle { bundle = Packed bundle; _ } : t) =
+  Computation.cancel bundle Control.Terminate callstack
+
+let terminate ?callstack t =
+  terminate_as (Control.get_callstack_opt callstack) t
 
 let terminate_after ?callstack (Bundle { bundle = Packed bundle; _ } : t)
     ~seconds =
@@ -41,8 +43,7 @@ let error ?callstack (Bundle r as t : t) exn bt =
 let decr (Bundle r as t : t) =
   let n = Atomic.fetch_and_add (config_as_atomic t) (-config_one) in
   if n < config_one * 2 then begin
-    let (Packed bundle) = r.bundle in
-    Computation.cancel bundle Control.Terminate Control.empty_bt;
+    terminate_as Control.empty_bt t;
     Trigger.signal r.finished
   end
 
@@ -56,10 +57,17 @@ let get_flock fiber =
   | Nothing -> no_flock ()
 
 let await (Bundle r as t : t) fiber packed canceler outer =
-  decr t;
   Fiber.set_computation fiber packed;
   let forbid = Fiber.exchange fiber ~forbid:true in
-  Trigger.await r.finished |> ignore;
+  let n = Atomic.fetch_and_add (config_as_atomic t) (-config_one) in
+  if config_one * 2 <= n then begin
+    r.finished <- Trigger.create ();
+    (* The [fetch_and_add] below provides a full fence that prevents the above
+       write from being delayed after the [Trigger.await] below. *)
+    if config_one <= Atomic.fetch_and_add (config_as_atomic t) 0 then
+      Trigger.await r.finished |> ignore
+  end
+  else terminate_as Control.empty_bt t;
   Fiber.set fiber ~forbid;
   if Fiber.FLS.get fiber flock_key ~default:Nothing != outer then
     Fiber.FLS.set fiber flock_key outer;
@@ -112,7 +120,7 @@ let join_after_pass (type a) ?callstack ?on_return (fn : a -> _) (pass : a pass)
     let config = config_one lor callstack lor terminated in
     let bundle = Computation.Packed (Computation.create ~mode:`LIFO ()) in
     let errors = Control.Errors.create () in
-    let finished = Trigger.create () in
+    let finished = Trigger.signaled in
     Bundle { _config = config; bundle; errors; finished }
   in
   let fiber = Fiber.current () in

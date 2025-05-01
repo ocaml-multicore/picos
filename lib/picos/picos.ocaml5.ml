@@ -10,6 +10,8 @@ module Trigger = struct
 
   and t = state Atomic.t
 
+  let signaled = Atomic.make Signaled
+
   let finish t ~allow_awaiting =
     match Atomic.get t with
     | Signaled -> ()
