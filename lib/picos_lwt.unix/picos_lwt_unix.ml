@@ -41,7 +41,7 @@ let rec notify () =
       end
       else notify ()
 
-module System = struct
+module System : Picos_lwt.System = struct
   let sleep = Lwt_unix.sleep
 
   type trigger = unit Lwt.t * unit Lwt.u

@@ -35,6 +35,37 @@ let await promise =
   | Return value -> value
   | Fail exn -> raise exn
 
+let bind_on (module System : System) thunk =
+  let trigger = System.trigger () in
+  let promise = Lwt.bind (System.await trigger) thunk in
+  System.signal trigger;
+  promise
+
+let await_on (module System : System) promise =
+  let computation = Computation.create ~mode:`LIFO () in
+  let trigger = System.trigger () in
+  let promise =
+    Lwt.bind (System.await trigger) @@ fun () ->
+    Lwt.try_bind
+      (fun () -> promise)
+      (fun value ->
+        Computation.return computation value;
+        Lwt.return_unit)
+      (fun exn ->
+        Computation.cancel computation exn empty_bt;
+        Lwt.return_unit)
+  in
+  System.signal trigger;
+  let trigger = Trigger.create () in
+  if Computation.try_attach computation trigger then begin
+    match Trigger.await trigger with
+    | None -> Computation.peek_exn computation
+    | Some (exn, bt) ->
+        Lwt.cancel promise;
+        Printexc.raise_with_backtrace exn bt
+  end
+  else Computation.peek_exn computation
+
 let[@alert "-handler"] rec go : type a r.
     Fiber.t ->
     (module System) ->
