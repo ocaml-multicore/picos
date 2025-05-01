@@ -36,28 +36,28 @@ let release t =
     in
     signal_awaiter t (prior + one)
 
-let acquire t =
+let[@inline] acquire t =
   let prior = Awaitable.fetch_and_add t (-one) in
   if prior < one then
-    let rec acquire_awaiting t before =
-      if one <= before then begin
-        let after = (before - one) land lnot no_awaiters in
-        if Awaitable.compare_and_set t before after then begin
-          if one <= after then Awaitable.signal t
-        end
-        else acquire_awaiting t (Awaitable.get t)
-      end
-      else if before < -poisoned / 2 then raise Poisoned
-      else
-        let after = before land lnot no_awaiters in
-        if before = after || Awaitable.compare_and_set t before after then
-          Awaitable.await t after;
-        acquire_awaiting t (Awaitable.get t)
-    in
-    let rec acquire_contended t before =
+    let[@inline never] rec acquire_contended t before =
       if before <= -one lor no_awaiters then
         let after = (before + one) land lnot no_awaiters in
         if Awaitable.compare_and_set t before after then
+          let rec acquire_awaiting t before =
+            if one <= before then begin
+              let after = (before - one) land lnot no_awaiters in
+              if Awaitable.compare_and_set t before after then begin
+                if one <= after then Awaitable.signal t
+              end
+              else acquire_awaiting t (Awaitable.get t)
+            end
+            else if before < -poisoned / 2 then raise Poisoned
+            else
+              let after = before land lnot no_awaiters in
+              if before = after || Awaitable.compare_and_set t before after then
+                Awaitable.await t after;
+              acquire_awaiting t (Awaitable.get t)
+          in
           acquire_awaiting t after
         else acquire_contended t (Awaitable.get t)
     in

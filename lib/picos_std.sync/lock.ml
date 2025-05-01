@@ -17,27 +17,27 @@ let rec poison t =
       Awaitable.broadcast t
     else poison t
 
-let acquire t =
+let[@inline] acquire t =
   let prior = Awaitable.fetch_and_add t locked in
   if locked <= prior then
-    let rec acquire_awaiting t before =
-      if before < locked then begin
-        (* We know [before] is [0] or [no_awaiters]. *)
-        let after = locked land lnot no_awaiters in
-        if not (Awaitable.compare_and_set t before after) then
-          acquire_awaiting t (Awaitable.get t)
-      end
-      else if locked_permanently / 2 <= before then raise Poisoned
-      else
-        let after = before land lnot no_awaiters in
-        if before = after || Awaitable.compare_and_set t before after then
-          Awaitable.await t after;
-        acquire_awaiting t (Awaitable.get t)
-    in
-    let rec acquire_contended t before =
+    let[@inline never] rec acquire_contended t before =
       if locked * 2 <= before then
         let after = (before - locked) land lnot no_awaiters in
         if Awaitable.compare_and_set t before after then
+          let rec acquire_awaiting t before =
+            if before < locked then begin
+              (* We know [before] is [0] or [no_awaiters]. *)
+              let after = locked land lnot no_awaiters in
+              if not (Awaitable.compare_and_set t before after) then
+                acquire_awaiting t (Awaitable.get t)
+            end
+            else if locked_permanently / 2 <= before then raise Poisoned
+            else
+              let after = before land lnot no_awaiters in
+              if before = after || Awaitable.compare_and_set t before after then
+                Awaitable.await t after;
+              acquire_awaiting t (Awaitable.get t)
+          in
           acquire_awaiting t after
         else acquire_contended t (Awaitable.get t)
     in
