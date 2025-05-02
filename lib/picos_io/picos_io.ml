@@ -375,9 +375,9 @@ module Unix = struct
 
   let empty_bt = Printexc.get_callstack 0
 
-  let[@alert "-handler"] select rds wrs exs seconds =
+  let select rds wrs exs seconds =
     let overall = Computation.create ~mode:`LIFO () in
-    let canceler =
+    let[@alert "-handler"] canceler =
       Trigger.from_action overall () @@ fun _ overall _ ->
       Select.cancel_after overall ~seconds:0.0 Done empty_bt
     in
@@ -390,7 +390,7 @@ module Unix = struct
     let rdcs = List.map (prepare `R) rds in
     let wrcs = List.map (prepare `W) wrs in
     let excs = List.map (prepare `E) exs in
-    let finisher =
+    let[@alert "-handler"] finisher =
       Trigger.from_action rdcs wrcs @@ fun _ rdcs wrcs ->
       let return_false computation = Computation.return computation false in
       List.iter return_false rdcs;

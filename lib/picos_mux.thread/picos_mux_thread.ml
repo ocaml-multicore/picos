@@ -78,7 +78,7 @@ let cancel_after : type a. _ -> a Computation.t -> _ =
   Fiber.check t.fiber;
   Select.cancel_after computation ~seconds exn_bt
 
-let[@alert "-handler"] rec spawn t fiber main =
+let rec spawn t fiber main =
   Fiber.check t.fiber;
   Thread.create start (fiber, t.fatal_exn_handler, main) |> ignore
 

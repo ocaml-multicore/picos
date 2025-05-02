@@ -35,7 +35,7 @@ let await promise =
   | Return value -> value
   | Fail exn -> raise exn
 
-let[@alert "-handler"] rec go : type a r.
+let rec go : type a r.
     Fiber.t ->
     (module System) ->
     (a, r) Effect.Shallow.continuation ->
@@ -74,7 +74,7 @@ let[@alert "-handler"] rec go : type a r.
                     (function
                       | Lwt.Canceled -> Lwt.return_unit | exn -> Lwt.reraise exn)
                 in
-                let canceler =
+                let[@alert "-handler"] canceler =
                   Trigger.from_action timeout () @@ fun _ timeout _ ->
                   Lwt.cancel timeout
                 in

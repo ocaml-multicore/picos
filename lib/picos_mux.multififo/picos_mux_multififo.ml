@@ -327,8 +327,8 @@ let yield =
       Mpmcq.push p.ready (Continue (fiber, k));
       next pt)
 
-let[@alert "-handler"] effc : type a.
-    a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option = function
+let effc : type a. a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option =
+  function
   | Fiber.Current -> current
   | Fiber.Spawn r ->
       let (Per_thread p) = get_per_thread () in
