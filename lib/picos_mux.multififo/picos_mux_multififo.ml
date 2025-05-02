@@ -67,8 +67,9 @@ let any_fibers_alive t =
   (* We read the number of stopped fibers first. *)
   let stopped = ref 0 in
   for i = 0 to t.threads_num - 1 do
-    let (Per_thread p) = get_thread t i in
-    stopped := !stopped + p.num_stopped
+    match Array.unsafe_get t.threads i with
+    | Nothing -> ()
+    | Per_thread p -> stopped := !stopped + p.num_stopped
   done;
   (* Then we read the number of started fibers.
 
@@ -76,8 +77,9 @@ let any_fibers_alive t =
      number of started fibers after reading the number of stopped fibers. *)
   let started = ref (Atomic.get t.num_started) in
   for i = 0 to t.threads_num - 1 do
-    let (Per_thread p) = get_thread t i in
-    started := !started + p.num_started
+    match Array.unsafe_get t.threads i with
+    | Nothing -> ()
+    | Per_thread p -> started := !started + p.num_started
   done;
   (* Is the difference positive? *)
   0 < !started - !stopped
@@ -85,8 +87,9 @@ let any_fibers_alive t =
 let rec any_fibers_ready t i =
   0 <= i
   &&
-  let (Per_thread p) = get_thread t i in
-  Mpmcq.length p.ready != 0 || any_fibers_ready t (i - 1)
+  match Array.unsafe_get t.threads i with
+  | Nothing -> any_fibers_ready t (i - 1)
+  | Per_thread p -> Mpmcq.length p.ready != 0 || any_fibers_ready t (i - 1)
 
 let any_fibers_ready t = any_fibers_ready t (t.threads_num - 1)
 
