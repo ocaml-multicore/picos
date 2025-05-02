@@ -63,16 +63,16 @@ let guard create_event =
   in
   Request { request }
 
-let[@alert "-handler"] from_computation source =
+let from_computation source =
   let request target to_result =
     let result () = to_result (Computation.peek_exn source) in
     if Computation.is_running source then begin
-      let propagator =
+      let[@alert "-handler"] propagator =
         Trigger.from_action result target @@ fun _ result target ->
         Computation.return target result
       in
       if Computation.try_attach source propagator then begin
-        let detacher =
+        let[@alert "-handler"] detacher =
           Trigger.from_action propagator source @@ fun _ propagator source ->
           Computation.detach source propagator
         in

@@ -393,23 +393,23 @@ let to_deadline ~seconds =
   | None -> seconds_out_of_range ()
   | Some span -> Mtime.Span.add (Mtime_clock.elapsed ()) span
 
-let[@alert "-handler"] cancel_after computation ~seconds exn bt =
+let cancel_after computation ~seconds exn bt =
   let time = to_deadline ~seconds in
   let entry = Cancel_at { time; exn; bt; computation } in
   let s = get () in
   let id = next_id s in
   add_timeout s id entry;
-  let remover = Trigger.from_action s id remove_action in
+  let[@alert "-handler"] remover = Trigger.from_action s id remove_action in
   if not (Computation.try_attach computation remover) then
     Trigger.signal remover
 
-let[@alert "-handler"] timeout ~seconds =
+let timeout ~seconds =
   let request outer to_result =
-    let inner =
+    let[@alert "-handler"] inner =
       Computation.with_action to_result outer @@ fun _ to_result outer ->
       Computation.return outer to_result
     in
-    let canceler =
+    let[@alert "-handler"] canceler =
       Trigger.from_action () inner @@ fun _ _ inner ->
       Computation.cancel inner Exit empty_bt
     in
@@ -422,14 +422,14 @@ let[@alert "-handler"] timeout ~seconds =
 
 let wakeup_action _trigger s (Return_on r) = if r.alive then wakeup s `Alive
 
-let[@alert "-handler"] rec insert_fd s fds (Return_on r as op) =
+let rec insert_fd s fds (Return_on r as op) =
   let before = !fds in
   if Computation.is_running r.computation then
     if Thread_atomic.compare_and_set fds before (Return_on r :: before) then
-      let _ : bool =
-        Computation.try_attach r.computation
-          (Trigger.from_action s op wakeup_action)
+      let[@alert "-handler"] wakeup_trigger =
+        Trigger.from_action s op wakeup_action
       in
+      let _ : bool = Computation.try_attach r.computation wakeup_trigger in
       wakeup s `Alive
     else insert_fd s fds op
   else Picos_io_fd.decr r.file_descr
@@ -496,7 +496,7 @@ module Intr = struct
 
   let nothing = R Nothing
 
-  let[@alert "-handler"] req ~seconds =
+  let req ~seconds =
     if Sys.win32 then invalid_arg "not supported on Windows"
     else begin
       let time = to_deadline ~seconds in
@@ -506,7 +506,9 @@ module Intr = struct
       let (Req r as req : [ `Req ] tdt) =
         Req { state; unused = true; computation = cleared }
       in
-      let computation = Computation.with_action req id intr_action in
+      let[@alert "-handler"] computation =
+        Computation.with_action req id intr_action
+      in
       r.computation <- computation;
       Picos_thread.TLS.set intr_key req;
       let entry = Cancel_at { time; exn = Exit; bt = empty_bt; computation } in
@@ -547,7 +549,7 @@ let rec insert return =
   let id = Random.bits () in
   if Htbl.try_add chld_awaiters id return then id else insert return
 
-let[@alert "-handler"] return_on_sigchld computation value =
+let return_on_sigchld computation value =
   if
     config.bits
     land (select_thread_running_on_main_domain_bit lor handle_sigchld_bit)
@@ -557,7 +559,7 @@ let[@alert "-handler"] return_on_sigchld computation value =
     get () |> ignore;
   let return = Return { value; computation; alive = true } in
   let id = insert return in
-  let remover =
+  let[@alert "-handler"] remover =
     Trigger.from_action id return @@ fun _trigger id (Return this_r as this) ->
     if this_r.alive then begin
       this_r.alive <- false;
