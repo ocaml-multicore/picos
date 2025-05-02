@@ -27,8 +27,8 @@ type t
 (** Represents a shared context for fifo runners. *)
 
 val context : ?quota:int -> ?fatal_exn_handler:(exn -> unit) -> unit -> t
-(** [context ()] creates a new context for randomized runners. The context
-    should be consumed by a call of {{!run} [run ~context ...]}.
+(** [context ()] creates a new context for randomized runners. The context must
+    always be consumed by a call of {{!run} [run ~context ...]}.
 
     The optional [quota] argument defaults to [Int.max_int] and determines the
     number of effects a fiber is allowed to perform before it is forced to

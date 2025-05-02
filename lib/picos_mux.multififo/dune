@@ -12,4 +12,5 @@
    (-> select.none.ml))
   multicore-magic
   picos.thread
-  picos_aux.mpmcq))
+  picos_aux.mpmcq
+  threads.posix))

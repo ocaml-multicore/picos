@@ -14,15 +14,19 @@ type ready =
       * ((exn * Printexc.raw_backtrace) option, unit) Effect.Deep.continuation
   | Return of Fiber.t * (unit, unit) Effect.Deep.continuation
 
+let state_running = 1 lsl 0
+let state_idlers = 1 lsl 1
+let state_arrhytmia = 1 lsl 2
+let state_killed = 1 lsl 3
+
 type t = {
-  mutable num_waiters_non_zero : bool;
-  num_waiters : int ref;
+  mutable state : int;
   num_started : int Atomic.t;
   mutex : Mutex.t;
-  condition : Condition.t;
+  worker_condition : Condition.t;
+  heartbeat_condition : Condition.t;
   handler : (unit, unit) Effect.Deep.handler;
   quota : int;
-  mutable run : bool;
   mutable threads : [ `Nothing | `Per_thread ] tdt array;
   mutable threads_num : int;
 }
@@ -100,11 +104,29 @@ let next_index t i =
   let i = i + 1 in
   if i < t.threads_num then i else 0
 
-let[@inline] relaxed_wakeup t ~known_not_empty ready =
-  if t.num_waiters_non_zero && (known_not_empty || Mpmcq.length ready != 0) then begin
-    Mutex.lock t.mutex;
+let[@inline never] wakeup_heartbeat t =
+  Mutex.lock t.mutex;
+  let state = t.state in
+  if state_arrhytmia <= state then begin
+    t.state <- state land lnot state_arrhytmia;
     Mutex.unlock t.mutex;
-    Condition.signal t.condition
+    Condition.broadcast t.heartbeat_condition
+  end
+  else begin
+    Mutex.unlock t.mutex
+  end
+
+let[@inline] wakeup_heartbeat t =
+  if state_arrhytmia <= t.state then wakeup_heartbeat t
+
+let kill t =
+  if t.state < state_killed then begin
+    Mutex.lock t.mutex;
+    let state = t.state in
+    if state != state lor state_killed then t.state <- state lor state_killed;
+    Mutex.unlock t.mutex;
+    Condition.broadcast t.heartbeat_condition;
+    Condition.broadcast t.worker_condition
   end
 
 let exec ready (Per_thread p : per_thread) t =
@@ -149,7 +171,6 @@ let rec next (Per_thread p as pt : per_thread) =
   match Mpmcq.pop_exn ready with
   | ready ->
       let t = p.context in
-      relaxed_wakeup t ~known_not_empty:false p.ready;
       exec ready pt t
   | exception Mpmcq.Empty ->
       p.fiber <- Fiber.Maybe.nothing;
@@ -162,9 +183,7 @@ and try_steal (Per_thread p as pt : per_thread) t i =
     | Nothing -> try_steal pt t (next_index t i)
     | Per_thread other_p -> begin
         match Mpmcq.pop_exn other_p.ready with
-        | ready ->
-            relaxed_wakeup t ~known_not_empty:false other_p.ready;
-            exec ready pt t
+        | ready -> exec ready pt t
         | exception Mpmcq.Empty -> try_steal pt t (next_index t i)
       end
   end
@@ -173,36 +192,32 @@ and try_steal (Per_thread p as pt : per_thread) t i =
 and wait (pt : per_thread) t =
   if any_fibers_alive t then begin
     Mutex.lock t.mutex;
-    let n = !(t.num_waiters) + 1 in
-    t.num_waiters := n;
-    if n = 1 then t.num_waiters_non_zero <- true;
-    if (not (any_fibers_ready t)) && any_fibers_alive t then begin
-      match Condition.wait t.condition t.mutex with
+    let state = t.state in
+    if state != state lor state_idlers land lnot state_arrhytmia then
+      t.state <- state lor state_idlers land lnot state_arrhytmia;
+    if state_arrhytmia <= state then Condition.broadcast t.heartbeat_condition;
+    if state < state_killed && not (any_fibers_ready t) then begin
+      match Condition.wait t.worker_condition t.mutex with
       | () ->
-          let n = !(t.num_waiters) - 1 in
-          t.num_waiters := n;
-          if n = 0 then t.num_waiters_non_zero <- false;
+          let state = t.state in
+          if state != state lor state_idlers then
+            t.state <- state lor state_idlers;
           Mutex.unlock t.mutex;
-          next pt
+          if state < state_killed then next pt
       | exception async_exn ->
-          let n = !(t.num_waiters) - 1 in
-          t.num_waiters := n;
-          if n = 0 then t.num_waiters_non_zero <- false;
+          let state = t.state in
+          if state != state lor state_idlers then
+            t.state <- state lor state_idlers;
           Mutex.unlock t.mutex;
           raise async_exn
     end
     else begin
-      let n = !(t.num_waiters) - 1 in
-      t.num_waiters := n;
-      if n = 0 then t.num_waiters_non_zero <- false;
       Mutex.unlock t.mutex;
-      next pt
+      if state < state_killed then next pt
     end
   end
   else begin
-    Mutex.lock t.mutex;
-    Mutex.unlock t.mutex;
-    Condition.broadcast t.condition
+    kill t
   end
 
 let default_fatal_exn_handler exn =
@@ -238,25 +253,19 @@ let per_thread context =
       match Picos_thread.TLS.get_exn per_thread_key with
       | Per_thread p_current when p_original.context == p_current.context ->
           (* We are running on a thread of this scheduler *)
-          if Fiber.unsuspend fiber trigger then
-            Mpmcq.push p_current.ready resume
-          else Mpmcq.push_head p_current.ready resume;
-          relaxed_wakeup p_current.context ~known_not_empty:true p_current.ready
+          let ready = p_current.ready in
+          if Fiber.unsuspend fiber trigger then Mpmcq.push ready resume
+          else Mpmcq.push_head ready resume;
+          let t = p_current.context in
+          wakeup_heartbeat t
       | _ | (exception Picos_thread.TLS.Not_set) ->
           (* We are running on a foreign thread *)
-          if Fiber.unsuspend fiber trigger then
-            Mpmcq.push p_original.ready resume
-          else Mpmcq.push_head p_original.ready resume;
+          let ready = p_original.ready in
+          if Fiber.unsuspend fiber trigger then Mpmcq.push ready resume
+          else Mpmcq.push_head ready resume;
           let t = p_original.context in
-          let non_zero =
-            match Mutex.lock t.mutex with
-            | () ->
-                let non_zero = t.num_waiters_non_zero in
-                Mutex.unlock t.mutex;
-                non_zero
-            | exception Sys_error _ -> false
-          in
-          if non_zero then Condition.signal t.condition);
+          wakeup_heartbeat t;
+          Condition.signal t.worker_condition);
   p.return <-
     Some
       (fun k ->
@@ -293,6 +302,43 @@ let[@inline never] with_per_thread new_pt fn old_p =
   | value -> returned value old_p
   | exception exn -> raised exn old_p
 
+let rec heartbeat_thread t nth =
+  if state_idlers lor state_running = t.state && any_fibers_ready t then begin
+    if Mutex.try_lock t.mutex then begin
+      t.state <- t.state land lnot state_idlers;
+      Mutex.unlock t.mutex;
+      Condition.signal t.worker_condition
+    end;
+    Thread.yield ();
+    heartbeat_thread t 0
+  end
+  else begin
+    if nth < 100 then begin
+      if t.state <= state_killed then begin
+        Thread.delay 0.0001;
+        heartbeat_thread t (nth + 1)
+      end
+    end
+    else begin
+      if Mutex.try_lock t.mutex then begin
+        let state = t.state in
+        if state < state_killed then begin
+          t.state <- state lor state_arrhytmia;
+          Condition.wait t.heartbeat_condition t.mutex
+        end;
+        Mutex.unlock t.mutex;
+        heartbeat_thread t 0
+      end
+      else heartbeat_thread t nth
+    end
+  end
+
+let heartbeat_thread t =
+  try heartbeat_thread t 0
+  with exn ->
+    kill t;
+    t.handler.exnc exn
+
 let with_per_thread t fn =
   let (Per_thread new_p as new_pt) = per_thread t in
   begin
@@ -308,7 +354,11 @@ let with_per_thread t fn =
       end;
       new_p.index <- t.threads_num;
       Array.unsafe_set t.threads t.threads_num new_pt;
-      if t.threads_num = 0 then Atomic.incr t.num_started
+      if t.threads_num = 0 then begin
+        Atomic.incr t.num_started;
+        let _ = Thread.create heartbeat_thread t in
+        ()
+      end
       else Multicore_magic.fence t.num_started;
       t.threads_num <- t.threads_num + 1
     with
@@ -351,8 +401,7 @@ let effc : type a. a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option =
         (* The queue [push] includes a full fence, which means the increment
            of [num_started] will happen before increment of [num_stopped]. *)
         Mpmcq.push p.ready (Spawn (r.fiber, r.main));
-        let t = p.context in
-        relaxed_wakeup t ~known_not_empty:true p.ready;
+        wakeup_heartbeat p.context;
         p.return
       end
   | Fiber.Yield -> yield
@@ -403,23 +452,24 @@ let context ?quota ?fatal_exn_handler () =
     | None -> default_fatal_exn_handler
     | Some handler ->
         fun exn ->
+          let (Per_thread p) = get_per_thread () in
+          kill p.context;
           handler exn;
           raise exn
   in
   Select.check_configured ();
   let mutex = Mutex.create ()
-  and condition = Condition.create ()
-  and num_waiters = ref 0 |> Multicore_magic.copy_as_padded
-  and num_started = Atomic.make 0 |> Multicore_magic.copy_as_padded in
+  and worker_condition = Condition.create ()
+  and heartbeat_condition = Condition.create ()
+  and num_started = Atomic.make 0 in
   {
-    num_waiters_non_zero = false;
-    num_waiters;
+    state = 0;
     num_started;
     mutex;
-    condition;
+    worker_condition;
+    heartbeat_condition;
     handler = { retc; exnc; effc };
     quota;
-    run = false;
     threads = Array.make 15 Nothing;
     threads_num = 0;
   }
@@ -432,12 +482,13 @@ let run_fiber ?context:t_opt fiber main =
   let t = match t_opt with None -> context () | Some t -> t in
   with_per_thread t @@ fun (Per_thread p) ->
   Mutex.lock t.mutex;
-  if t.run then begin
+  let state = t.state in
+  if state = state lor state_running then begin
     Mutex.unlock t.mutex;
     already_running ()
   end
   else begin
-    t.run <- true;
+    t.state <- state lor state_running;
     Mutex.unlock t.mutex;
     p.remaining_quota <- t.quota;
     p.fiber <- Fiber.Maybe.of_fiber fiber;
