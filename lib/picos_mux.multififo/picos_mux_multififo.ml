@@ -211,8 +211,8 @@ let per_thread context =
       {
         ready;
         resume = Obj.magic ();
-        return = Obj.magic ();
-        discontinue = Obj.magic ();
+        return = None;
+        discontinue = None;
         context;
         index = 0;
         num_started = 0;
