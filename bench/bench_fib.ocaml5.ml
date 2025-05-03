@@ -24,9 +24,11 @@ let run_one_randos ~budgetf ~n_domains ~n () =
 
   let before _ = context := Randos.context () in
   let init _ = !context in
+  let wrap i context action =
+    if i = 0 then Randos.run ~context action else action ()
+  in
   let work i context =
-    if i <> 0 then Randos.runner_on_this_thread context
-    else ignore @@ Randos.run ~context @@ fun () -> exp_fib n
+    if i <> 0 then Randos.runner_on_this_thread context else ignore @@ exp_fib n
   in
 
   let config =
@@ -34,7 +36,7 @@ let run_one_randos ~budgetf ~n_domains ~n () =
       (if n_domains = 1 then "" else "s")
       n
   in
-  Times.record ~budgetf ~n_domains ~before ~init ~work ()
+  Times.record ~budgetf ~n_domains ~before ~init ~wrap ~work ()
   |> Times.to_thruput_metrics
        ~n:(Float.to_int (Float.of_int (lin_fib n) *. ratio))
        ~singular:"spawn" ~config
@@ -46,9 +48,12 @@ let run_one_multififos ~budgetf ~n_domains ~n () =
 
   let before _ = context := Multififos.context () in
   let init _ = !context in
+  let wrap i context action =
+    if i = 0 then Multififos.run ~context action else action ()
+  in
   let work i context =
     if i <> 0 then Multififos.runner_on_this_thread context
-    else ignore @@ Multififos.run ~context @@ fun () -> exp_fib n
+    else ignore @@ exp_fib n
   in
 
   let config =
@@ -56,7 +61,7 @@ let run_one_multififos ~budgetf ~n_domains ~n () =
       (if n_domains = 1 then "" else "s")
       n
   in
-  Times.record ~budgetf ~n_domains ~before ~init ~work ()
+  Times.record ~budgetf ~n_domains ~before ~init ~wrap ~work ()
   |> Times.to_thruput_metrics
        ~n:(Float.to_int (Float.of_int (lin_fib n) *. ratio))
        ~singular:"spawn" ~config
