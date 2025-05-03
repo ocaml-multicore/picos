@@ -1,5 +1,11 @@
 open Picos
 
+let[@inline never] heartbeat_delay_out_of_range _ =
+  invalid_arg "heartbeat_delay should be between 0 and 1 seconds"
+
+let[@inline never] heartbeat_rounds_negative _ =
+  invalid_arg "heartbeat_rounds must be non-negative"
+
 let[@inline never] quota_non_positive _ = invalid_arg "quota must be positive"
 let[@inline never] already_running () = invalid_arg "already running"
 let[@inline never] not_worker _ = invalid_arg "not a worker thread"
@@ -25,6 +31,8 @@ type t = {
   mutex : Mutex.t;
   worker_condition : Condition.t;
   heartbeat_condition : Condition.t;
+  heartbeat_delay : float;
+  heartbeat_rounds : int;
   handler : (unit, unit) Effect.Deep.handler;
   quota : int;
   mutable threads : [ `Nothing | `Per_thread ] tdt array;
@@ -54,6 +62,16 @@ and _ tdt =
       -> [> `Per_thread ] tdt
 
 and per_thread = [ `Per_thread ] tdt
+
+let kill t =
+  if t.state < state_killed then begin
+    Mutex.lock t.mutex;
+    let state = t.state in
+    if state != state lor state_killed then t.state <- state lor state_killed;
+    Mutex.unlock t.mutex;
+    Condition.broadcast t.heartbeat_condition;
+    Condition.broadcast t.worker_condition
+  end
 
 let per_thread_key = Picos_thread.TLS.create ()
 
@@ -118,16 +136,6 @@ let[@inline never] wakeup_heartbeat t =
 
 let[@inline] wakeup_heartbeat t =
   if state_arrhytmia <= t.state then wakeup_heartbeat t
-
-let kill t =
-  if t.state < state_killed then begin
-    Mutex.lock t.mutex;
-    let state = t.state in
-    if state != state lor state_killed then t.state <- state lor state_killed;
-    Mutex.unlock t.mutex;
-    Condition.broadcast t.heartbeat_condition;
-    Condition.broadcast t.worker_condition
-  end
 
 let exec ready (Per_thread p : per_thread) t =
   p.remaining_quota <- t.quota;
@@ -302,7 +310,7 @@ let[@inline never] with_per_thread new_pt fn old_p =
   | value -> returned value old_p
   | exception exn -> raised exn old_p
 
-let rec heartbeat_thread t nth =
+let rec heartbeat_thread t rounds =
   if state_idlers lor state_running = t.state && any_fibers_ready t then begin
     if Mutex.try_lock t.mutex then begin
       t.state <- t.state land lnot state_idlers;
@@ -310,13 +318,13 @@ let rec heartbeat_thread t nth =
       Condition.signal t.worker_condition
     end;
     Thread.yield ();
-    heartbeat_thread t 0
+    heartbeat_thread t t.heartbeat_rounds
   end
   else begin
-    if nth < 100 then begin
+    if 0 < rounds then begin
       if t.state <= state_killed then begin
-        Thread.delay 0.0001;
-        heartbeat_thread t (nth + 1)
+        Thread.delay t.heartbeat_delay;
+        heartbeat_thread t (rounds - 1)
       end
     end
     else begin
@@ -327,14 +335,14 @@ let rec heartbeat_thread t nth =
           Condition.wait t.heartbeat_condition t.mutex
         end;
         Mutex.unlock t.mutex;
-        heartbeat_thread t 0
+        heartbeat_thread t t.heartbeat_rounds
       end
-      else heartbeat_thread t nth
+      else heartbeat_thread t 0
     end
   end
 
 let heartbeat_thread t =
-  try heartbeat_thread t 0
+  try heartbeat_thread t t.heartbeat_rounds
   with exn ->
     kill t;
     t.handler.exnc exn
@@ -441,7 +449,20 @@ let retc () =
   p.num_stopped <- p.num_stopped + 1;
   next pt
 
-let context ?quota ?fatal_exn_handler () =
+let context ?heartbeat_delay ?heartbeat_rounds ?quota ?fatal_exn_handler () =
+  let heartbeat_delay =
+    match heartbeat_delay with
+    | None -> 0.005
+    | Some delay ->
+        if not (0.0 <= delay && delay <= 1.0) then
+          heartbeat_delay_out_of_range ()
+        else delay
+  in
+  let heartbeat_rounds =
+    match heartbeat_rounds with
+    | None -> 100
+    | Some rounds -> if rounds < 0 then heartbeat_rounds_negative () else rounds
+  in
   let quota =
     match quota with
     | None -> Int.max_int
@@ -468,6 +489,8 @@ let context ?quota ?fatal_exn_handler () =
     mutex;
     worker_condition;
     heartbeat_condition;
+    heartbeat_delay;
+    heartbeat_rounds;
     handler = { retc; exnc; effc };
     quota;
     threads = Array.make 15 Nothing;
@@ -533,9 +556,12 @@ let rec run_fiber_on n fiber main runner_main context =
         end;
         Printexc.raise_with_backtrace exn bt
 
-let run_fiber_on ?quota ?fatal_exn_handler ~n_domains fiber main =
+let run_fiber_on ?heartbeat_delay ?heartbeat_rounds ?quota ?fatal_exn_handler
+    ~n_domains fiber main =
   if n_domains < 1 then invalid_arg "n_domains must be positive";
-  let context = context ?quota ?fatal_exn_handler () in
+  let context =
+    context ?heartbeat_delay ?heartbeat_rounds ?quota ?fatal_exn_handler ()
+  in
   let runner_main =
     if n_domains = 1 then fun () -> None
     else
@@ -550,14 +576,17 @@ let run_fiber_on ?quota ?fatal_exn_handler ~n_domains fiber main =
   in
   run_fiber_on n_domains fiber main runner_main context
 
-let[@inline never] run_on ?quota ?fatal_exn_handler ~n_domains fiber main
-    computation =
-  run_fiber_on ?quota ?fatal_exn_handler ~n_domains fiber main;
+let[@inline never] run_on ?heartbeat_delay ?heartbeat_rounds ?quota
+    ?fatal_exn_handler ~n_domains fiber main computation =
+  run_fiber_on ?heartbeat_delay ?heartbeat_rounds ?quota ?fatal_exn_handler
+    ~n_domains fiber main;
   Computation.peek_exn computation
 
-let run_on ?quota ?fatal_exn_handler ~n_domains ?forbid main =
+let run_on ?heartbeat_delay ?heartbeat_rounds ?quota ?fatal_exn_handler
+    ~n_domains ?forbid main =
   let forbid = match forbid with None -> false | Some forbid -> forbid in
   let computation = Computation.create ~mode:`LIFO () in
   let fiber = Fiber.create ~forbid computation in
   let main _ = Computation.capture computation main () in
-  run_on ?quota ?fatal_exn_handler ~n_domains fiber main computation
+  run_on ?heartbeat_delay ?heartbeat_rounds ?quota ?fatal_exn_handler ~n_domains
+    fiber main computation
