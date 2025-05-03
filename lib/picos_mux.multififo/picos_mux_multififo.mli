@@ -28,9 +28,21 @@ open Picos
 type t
 (** Represents a shared context for fifo runners. *)
 
-val context : ?quota:int -> ?fatal_exn_handler:(exn -> unit) -> unit -> t
+val context :
+  ?heartbeat_delay:float ->
+  ?heartbeat_rounds:int ->
+  ?quota:int ->
+  ?fatal_exn_handler:(exn -> unit) ->
+  unit ->
+  t
 (** [context ()] creates a new context for randomized runners. The context must
     always be consumed by a call of {{!run} [run ~context ...]}.
+
+    The optional [heartbeat_delay], with a default of [0.005], and
+    [heartbeat_rounds], with a default of [100], specify the delay between
+    heartbeats and the number of heartbeat rounds to perform when all the
+    threads appear busy or there doesn't seem to be enough fibers to
+    redistribute. Note that [heartbeat_delay] may delay program termination.
 
     The optional [quota] argument defaults to [Int.max_int] and determines the
     number of effects a fiber is allowed to perform before it is forced to
@@ -54,6 +66,8 @@ val run : ?context:t -> ?forbid:bool -> (unit -> 'a) -> 'a
     propagation of cancelation is initially allowed. *)
 
 val run_fiber_on :
+  ?heartbeat_delay:float ->
+  ?heartbeat_rounds:int ->
   ?quota:int ->
   ?fatal_exn_handler:(exn -> unit) ->
   n_domains:int ->
@@ -64,6 +78,8 @@ val run_fiber_on :
     runs the [main] on the current domain and those additional domains. *)
 
 val run_on :
+  ?heartbeat_delay:float ->
+  ?heartbeat_rounds:int ->
   ?quota:int ->
   ?fatal_exn_handler:(exn -> unit) ->
   n_domains:int ->
