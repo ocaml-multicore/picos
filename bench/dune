@@ -47,7 +47,7 @@
   (select
    scheduler.ml
    from
-   (picos_mux.fifo -> scheduler.ocaml5.ml)
+   (picos_mux.multififo -> scheduler.ocaml5.ml)
    (picos_mux.thread -> scheduler.ocaml4.ml))
   (select
    bench_fib.ml
