@@ -58,29 +58,32 @@ let[@inline] get_per_thread () : per_thread =
   | Nothing as any -> not_worker any
   | Per_thread _ as pt -> pt
 
-let get_thread t i : per_thread =
-  match Array.unsafe_get t.threads i with
-  | Nothing as any -> not_worker any
-  | Per_thread _ as pt -> pt
-
 let any_fibers_alive t =
   (* We read the number of stopped fibers first. *)
   let stopped = ref 0 in
-  for i = 0 to t.threads_num - 1 do
-    match Array.unsafe_get t.threads i with
-    | Nothing -> ()
-    | Per_thread p -> stopped := !stopped + p.num_stopped
-  done;
+  begin
+    let threads_num = t.threads_num in
+    let threads = t.threads in
+    for i = 0 to threads_num - 1 do
+      match Array.unsafe_get threads i with
+      | Nothing -> ()
+      | Per_thread p -> stopped := !stopped + p.num_stopped
+    done
+  end;
   (* Then we read the number of started fibers.
 
      The [Atomic.get] below provides a fence that ensures we really read the
      number of started fibers after reading the number of stopped fibers. *)
   let started = ref (Atomic.get t.num_started) in
-  for i = 0 to t.threads_num - 1 do
-    match Array.unsafe_get t.threads i with
-    | Nothing -> ()
-    | Per_thread p -> started := !started + p.num_started
-  done;
+  begin
+    let threads_num = t.threads_num in
+    let threads = t.threads in
+    for i = 0 to threads_num - 1 do
+      match Array.unsafe_get threads i with
+      | Nothing -> ()
+      | Per_thread p -> started := !started + p.num_started
+    done
+  end;
   (* Is the difference positive? *)
   0 < !started - !stopped
 
@@ -129,10 +132,13 @@ let rec next (Per_thread p as pt : per_thread) =
     else begin
       let t = p.context in
       if 1 < t.threads_num then begin
-        let (Per_thread v) = get_thread t (Random.int t.threads_num) in
+        let i = Random.int t.threads_num in
         p.countdown_to_steal <- Mpmcq.length p.ready + 1;
-        if p.countdown_to_steal <= Mpmcq.length v.ready then v.ready
-        else p.ready
+        match Array.unsafe_get t.threads i with
+        | Nothing -> p.ready
+        | Per_thread v ->
+            if p.countdown_to_steal <= Mpmcq.length v.ready then v.ready
+            else p.ready
       end
       else begin
         p.countdown_to_steal <- 1_000;
@@ -152,12 +158,15 @@ let rec next (Per_thread p as pt : per_thread) =
 
 and try_steal (Per_thread p as pt : per_thread) t i =
   if p.index <> i then begin
-    let (Per_thread other_p) = get_thread t i in
-    match Mpmcq.pop_exn other_p.ready with
-    | ready ->
-        relaxed_wakeup t ~known_not_empty:false other_p.ready;
-        exec ready pt t
-    | exception Mpmcq.Empty -> try_steal pt t (next_index t i)
+    match Array.unsafe_get t.threads i with
+    | Nothing -> try_steal pt t (next_index t i)
+    | Per_thread other_p -> begin
+        match Mpmcq.pop_exn other_p.ready with
+        | ready ->
+            relaxed_wakeup t ~known_not_empty:false other_p.ready;
+            exec ready pt t
+        | exception Mpmcq.Empty -> try_steal pt t (next_index t i)
+      end
   end
   else wait pt t
 
