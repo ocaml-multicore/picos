@@ -51,6 +51,9 @@ and _ tdt =
       mutable return : ((unit, unit) Effect.Deep.continuation -> unit) option;
       mutable discontinue :
         ((unit, unit) Effect.Deep.continuation -> unit) option;
+      mutable current :
+        ((Fiber.t, unit) Effect.Deep.continuation -> unit) option;
+      mutable yield : ((unit, unit) Effect.Deep.continuation -> unit) option;
       context : t;
       mutable index : int;
       mutable num_started : int;
@@ -139,18 +142,20 @@ let[@inline] wakeup_heartbeat t =
 
 let exec ready (Per_thread p : per_thread) t =
   p.remaining_quota <- t.quota;
-  p.fiber <-
-    (match ready with
+  let fiber =
+    match ready with
     | Spawn (fiber, _)
     | Return (fiber, _)
     | Continue (fiber, _)
     | Resume (fiber, _) ->
-        Fiber.Maybe.of_fiber fiber);
+        fiber
+  in
+  p.fiber <- Fiber.Maybe.of_fiber fiber;
   match ready with
-  | Spawn (fiber, main) -> Effect.Deep.match_with main fiber t.handler
+  | Spawn (_, main) -> Effect.Deep.match_with main fiber t.handler
   | Return (_, k) -> Effect.Deep.continue k ()
-  | Continue (fiber, k) -> Fiber.continue fiber k ()
-  | Resume (fiber, k) -> Fiber.resume fiber k
+  | Continue (_, k) -> Fiber.continue fiber k ()
+  | Resume (_, k) -> Fiber.resume fiber k
 
 let rec next (Per_thread p as pt : per_thread) =
   let ready =
@@ -245,6 +250,8 @@ let per_thread context =
         resume = Obj.magic ();
         return = None;
         discontinue = None;
+        current = None;
+        yield = None;
         context;
         index = 0;
         num_started = 0;
@@ -274,6 +281,19 @@ let per_thread context =
           let t = p_original.context in
           wakeup_heartbeat t;
           Condition.signal t.worker_condition);
+  p.current <-
+    Some
+      (fun k ->
+        let (Per_thread p) = (pt : per_thread) in
+        let fiber = Fiber.Maybe.to_fiber p.fiber in
+        Effect.Deep.continue k fiber);
+  p.yield <-
+    Some
+      (fun k ->
+        let (Per_thread p as pt) = (pt : per_thread) in
+        let fiber = Fiber.Maybe.to_fiber p.fiber in
+        Mpmcq.push p.ready (Continue (fiber, k));
+        next pt);
   p.return <-
     Some
       (fun k ->
@@ -382,26 +402,12 @@ let with_per_thread t fn =
   Picos_thread.TLS.set per_thread_key new_pt;
   with_per_thread new_pt fn old_p
 
-let current =
-  Some
-    (fun k ->
-      let (Per_thread p) = get_per_thread () in
-      let fiber = Fiber.Maybe.to_fiber p.fiber in
-      Effect.Deep.continue k fiber)
-
-let yield =
-  Some
-    (fun k ->
-      let (Per_thread p as pt) = get_per_thread () in
-      let fiber = Fiber.Maybe.to_fiber p.fiber in
-      Mpmcq.push p.ready (Continue (fiber, k));
-      next pt)
-
 let effc : type a. a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option =
-  function
-  | Fiber.Current -> current
+ fun e ->
+  let (Per_thread p as pt) = get_per_thread () in
+  match e with
+  | Fiber.Current -> p.current
   | Fiber.Spawn r ->
-      let (Per_thread p) = get_per_thread () in
       let fiber = Fiber.Maybe.to_fiber p.fiber in
       if Fiber.is_canceled fiber then p.discontinue
       else begin
@@ -412,9 +418,8 @@ let effc : type a. a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option =
         wakeup_heartbeat p.context;
         p.return
       end
-  | Fiber.Yield -> yield
+  | Fiber.Yield -> p.yield
   | Computation.Cancel_after r -> begin
-      let (Per_thread p) = get_per_thread () in
       let fiber = Fiber.Maybe.to_fiber p.fiber in
       if Fiber.is_canceled fiber then p.discontinue
       else
@@ -429,7 +434,6 @@ let effc : type a. a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option =
   | Trigger.Await trigger ->
       Some
         (fun k ->
-          let (Per_thread p as pt) = get_per_thread () in
           let fiber = Fiber.Maybe.to_fiber p.fiber in
           if Fiber.try_suspend fiber trigger fiber k p.resume then next pt
           else
