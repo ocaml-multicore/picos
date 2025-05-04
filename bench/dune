@@ -52,5 +52,5 @@
   (select
    bench_fib.ml
    from
-   (picos_mux.random picos_mux.multififo -> bench_fib.ocaml5.ml)
+   (picos_mux.multififo -> bench_fib.ocaml5.ml)
    (-> bench_fib.ocaml4.ml))))

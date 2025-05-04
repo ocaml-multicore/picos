@@ -17,30 +17,6 @@ let rec exp_fib i =
 
 let ratio = (1.0 +. Float.sqrt 5.0) *. 0.5
 
-module Randos = Picos_mux_random
-
-let run_one_randos ~budgetf ~n_domains ~n () =
-  let context = ref (Obj.magic ()) in
-
-  let before _ = context := Randos.context () in
-  let init _ = !context in
-  let wrap i context action =
-    if i = 0 then Randos.run ~context action else action ()
-  in
-  let work i context =
-    if i <> 0 then Randos.runner_on_this_thread context else ignore @@ exp_fib n
-  in
-
-  let config =
-    Printf.sprintf "%d rando%s, fib %d" n_domains
-      (if n_domains = 1 then "" else "s")
-      n
-  in
-  Times.record ~budgetf ~n_domains ~before ~init ~wrap ~work ()
-  |> Times.to_thruput_metrics
-       ~n:(Float.to_int (Float.of_int (lin_fib n) *. ratio))
-       ~singular:"spawn" ~config
-
 module Multififos = Picos_mux_multififo
 
 let run_one_multififos ~budgetf ~n_domains ~n () =
@@ -68,17 +44,15 @@ let run_one_multififos ~budgetf ~n_domains ~n () =
 
 let run_suite ~budgetf =
   let n_over_budget = ref 100 in
-  Util.cross
-    [ run_one_randos; run_one_multififos ]
-    (Util.cross [ 1; 2; 4; 8 ] [ 20; 24; 28 ])
-  |> List.concat_map @@ fun (run_one, (n_domains, n)) ->
+  Util.cross [ 1; 2; 4; 8 ] [ 20; 24; 28 ]
+  |> List.concat_map @@ fun (n_domains, n) ->
      if
        Picos_domain.recommended_domain_count () < n_domains
        || Sys.int_size <= 32 || Sys.backend_type <> Native || !n_over_budget < n
      then []
      else
        let start = Unix.gettimeofday () in
-       let results = run_one ~budgetf ~n_domains ~n () in
+       let results = run_one_multififos ~budgetf ~n_domains ~n () in
        if budgetf < 1.0 && budgetf *. 2.0 < Unix.gettimeofday () -. start then
          n_over_budget := Int.min n !n_over_budget;
        results
