@@ -35,26 +35,25 @@
 
 ;;
 
-(library
- (name picos_thread_ocaml4)
- (package picos)
- (modules)
+(rule
  (enabled_if
   (< %{ocaml_version} 5.0.0))
- (libraries
-  (re_export picos.thread)))
+ (action
+  (copy intf.ocaml4.ml intf.ml)))
+
+(rule
+ (enabled_if
+  (<= 5.0.0 %{ocaml_version}))
+ (action
+  (copy intf.ocaml5.ml intf.ml)))
+
+;;
 
 (library
  (name picos)
  (public_name picos)
  (modules picos intf)
- (libraries
-  backoff
-  (select
-   intf.ml
-   from
-   (picos_thread_ocaml4 -> intf.ocaml4.ml)
-   (-> intf.ocaml5.ml))))
+ (libraries backoff picos.thread))
 
 (mdx
  (package picos_meta)
