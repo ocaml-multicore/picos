@@ -168,9 +168,9 @@ let context ?fatal_exn_handler () =
       num_waiters = ref 0 |> Multicore_magic.copy_as_padded;
       condition = Condition.create ();
       mutex = Mutex.create ();
-      current = Obj.magic ();
-      yield = Obj.magic ();
-      return = Obj.magic ();
+      current = None;
+      yield = None;
+      return = None;
       handler = Obj.magic ();
       run = false;
     }
