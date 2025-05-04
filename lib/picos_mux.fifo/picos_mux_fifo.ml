@@ -37,18 +37,20 @@ let rec next t =
   match Mpscq.pop_exn t.ready with
   | ready -> begin
       t.remaining_quota <- t.quota;
-      t.fiber <-
-        (match ready with
+      let fiber =
+        match ready with
         | Spawn (fiber, _)
         | Continue (fiber, _)
         | Resume (fiber, _)
         | Return (fiber, _) ->
-            Fiber.Maybe.of_fiber fiber);
+            fiber
+      in
+      t.fiber <- Fiber.Maybe.of_fiber fiber;
       match ready with
-      | Spawn (fiber, main) -> Effect.Deep.match_with main fiber t.handler
+      | Spawn (_, main) -> Effect.Deep.match_with main fiber t.handler
       | Return (_, k) -> Effect.Deep.continue k ()
-      | Continue (fiber, k) -> Fiber.continue fiber k ()
-      | Resume (fiber, k) -> Fiber.resume fiber k
+      | Continue (_, k) -> Fiber.continue fiber k ()
+      | Resume (_, k) -> Fiber.resume fiber k
     end
   | exception Mpscq.Empty ->
       t.fiber <- Fiber.Maybe.nothing;
