@@ -81,10 +81,10 @@ let run_fiber ?quota ?fatal_exn_handler fiber main =
       mutex = Mutex.create ();
       condition = Condition.create ();
       resume = Obj.magic ();
-      current = Obj.magic ();
-      yield = Obj.magic ();
-      return = Obj.magic ();
-      discontinue = Obj.magic ();
+      current = None;
+      yield = None;
+      return = None;
+      discontinue = None;
       handler = Obj.magic ();
       quota;
       fiber = Fiber.Maybe.of_fiber fiber;
