@@ -265,22 +265,20 @@ let per_thread context =
     (fun trigger fiber k ->
       let resume = Resume (fiber, k) in
       let (Per_thread p_original) = (pt : per_thread) in
-      match Picos_thread.TLS.get_exn per_thread_key with
-      | Per_thread p_current when p_original.context == p_current.context ->
-          (* We are running on a thread of this scheduler *)
-          let ready = p_current.ready in
-          if Fiber.unsuspend fiber trigger then Mpmcq.push ready resume
-          else Mpmcq.push_head ready resume;
-          let t = p_current.context in
-          wakeup_heartbeat t
-      | _ | (exception Picos_thread.TLS.Not_set) ->
-          (* We are running on a foreign thread *)
-          let ready = p_original.ready in
-          if Fiber.unsuspend fiber trigger then Mpmcq.push ready resume
-          else Mpmcq.push_head ready resume;
-          let t = p_original.context in
-          wakeup_heartbeat t;
-          Condition.signal t.worker_condition);
+      let ready, signal =
+        match Picos_thread.TLS.get_exn per_thread_key with
+        | Per_thread p_current when p_original.context == p_current.context ->
+            (* We are running on a thread of this scheduler *)
+            (p_current.ready, false)
+        | _ | (exception Picos_thread.TLS.Not_set) ->
+            (* We are running on a foreign thread *)
+            (p_original.ready, true)
+      in
+      if Fiber.unsuspend fiber trigger then Mpmcq.push ready resume
+      else Mpmcq.push_head ready resume;
+      let t = p_original.context in
+      wakeup_heartbeat t;
+      if signal then Condition.signal t.worker_condition);
   p.current <-
     Some
       (fun k ->
