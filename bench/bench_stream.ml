@@ -7,7 +7,7 @@ let run_one_domain ~budgetf ?(n_msgs = 50 * Util.iter_factor) () =
   let cursor = ref (Stream.tap t) in
 
   let op push =
-    if push then Stream.push t 101
+    if push then Stream.push t (ref push)
     else
       match Stream.peek_opt !cursor with
       | None -> ()
@@ -44,7 +44,7 @@ let run_one ~budgetf ~n_pusher () =
         let n = Util.alloc n_msgs_to_add in
         if 0 < n then begin
           for i = 1 to n do
-            Stream.push t i
+            Stream.push t (ref i)
           done;
           work ()
         end

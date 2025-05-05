@@ -5,7 +5,7 @@ let run_one_domain ~budgetf ?(n_msgs = 50 * Util.iter_factor) () =
   let t = Mpscq.create ~padded:true () in
 
   let op push =
-    if push then Mpscq.push t 101
+    if push then Mpscq.push t (ref push)
     else match Mpscq.pop_exn t with _ -> () | exception Mpscq.Empty -> ()
   in
 
@@ -40,7 +40,7 @@ let run_one ~budgetf ~n_adders () =
         let n = Countdown.alloc n_msgs_to_add ~domain_index:i ~batch:1000 in
         if 0 < n then begin
           for i = 1 to n do
-            Mpscq.push t i
+            Mpscq.push t (ref i)
           done;
           work ()
         end
