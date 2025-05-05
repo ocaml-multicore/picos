@@ -86,7 +86,7 @@ let run_one_domain ~budgetf ?(n_msgs = 25 * Util.iter_factor) () =
   let t = Bounded_q.create () in
 
   let op push =
-    if push then Bounded_q.push t 101 else Bounded_q.pop_opt t |> ignore
+    if push then Bounded_q.push t (ref push) else Bounded_q.pop_opt t |> ignore
   in
 
   let init _ =
@@ -128,7 +128,7 @@ let run_one ~budgetf ~n_adders ~n_takers ?(n_msgs = 10 * Util.iter_factor) () =
         let n = Countdown.alloc n_msgs_to_add ~domain_index ~batch:100 in
         if 0 < n then begin
           for i = 1 to n do
-            Bounded_q.push t i
+            Bounded_q.push t (ref i)
           done;
           work ()
         end
