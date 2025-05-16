@@ -71,7 +71,11 @@ type return_on =
     }
       -> return_on
 
-type phase = Continue | Select | Waking_up | Process
+type phase =
+  | Processing
+  | Select
+  | Wakeup_during_processing
+  | Wakeup_during_select
 
 type state = {
   phase : phase Atomic.t;
@@ -79,7 +83,7 @@ type state = {
   mutable exn_bt : exn * Printexc.raw_backtrace;
   mutable pipe_inn : Unix.file_descr;
   mutable pipe_out : Unix.file_descr;
-  byte : Bytes.t;
+  bytes : Bytes.t;
   (* *)
   timeouts : Q.t Atomic.t;
   mutable next_id : int;
@@ -117,12 +121,12 @@ let intr_key : [ `Req ] tdt Picos_thread.TLS.t = Picos_thread.TLS.create ()
 let key =
   Picos_domain.DLS.new_key @@ fun () ->
   {
-    phase = Atomic.make Continue;
+    phase = Atomic.make Processing;
     state = `Initial;
     exn_bt = exit_bt;
     pipe_inn = Unix.stdin;
     pipe_out = Unix.stdin;
-    byte = Bytes.create 1;
+    bytes = Bytes.create (if 32 < Sys.int_size then 64 - 8 else 64 - 4);
     timeouts = Atomic.make Q.empty;
     next_id = 0;
     new_rd = ref [];
@@ -142,13 +146,26 @@ let[@poll error] [@inline never] transition s into =
   s.state <- into;
   from
 
+let prepare_select s = Atomic.compare_and_set s.phase Processing Select
+
+let rec start_processing s =
+  match Atomic.get s.phase with
+  | Processing -> ()
+  | Select ->
+      if not (Atomic.compare_and_set s.phase Select Processing) then
+        start_processing s
+  | Wakeup_during_processing -> Atomic.set s.phase Processing
+  | Wakeup_during_select ->
+      (* We may read more than a single byte in case [fork] has been called and
+         the child process ended up calling [wakeup]. *)
+      let n = Unix.read s.pipe_inn s.bytes 0 (Bytes.length s.bytes) in
+      assert (1 <= n);
+      Atomic.set s.phase Processing
+
 let rec wakeup s from =
   match Atomic.get s.phase with
-  | Process | Waking_up ->
-      (* The thread will process the fds and timeouts before next select. *)
-      ()
-  | Continue ->
-      if Atomic.compare_and_set s.phase Continue Process then
+  | Processing ->
+      if Atomic.compare_and_set s.phase Processing Wakeup_during_processing then
         (* We managed to signal the wakeup before the thread was ready to call
            select and the thread will notice this without us needing to write to
            the pipe. *)
@@ -158,12 +175,17 @@ let rec wakeup s from =
            need to retry. *)
         wakeup s from
   | Select ->
-      if Atomic.compare_and_set s.phase Select Waking_up then
+      (* A single domain application may end up here after [fork] in the child
+         process. *)
+      if Atomic.compare_and_set s.phase Select Wakeup_during_select then
         if s.state == from then
           (* We are now responsible for writing to the pipe to force the thread
              to exit the select. *)
-          let n = Unix.write s.pipe_out s.byte 0 1 in
+          let n = Unix.write_substring s.pipe_out " " 0 1 in
           assert (n = 1)
+  | Wakeup_during_processing | Wakeup_during_select ->
+      (* The thread will process the fds and timeouts before next select. *)
+      ()
 
 type fos = { n : int; unique_fds : Unix.file_descr list; ops : return_on list }
 
@@ -222,7 +244,7 @@ module Thread_atomic = Picos_io_thread_atomic
 let rec select_thread s timeout rd wr ex =
   if s.state == `Alive then begin
     let rd_fds, wr_fds, ex_fds =
-      if Atomic.compare_and_set s.phase Continue Select then begin
+      if prepare_select s then begin
         try
           Unix.select
             (s.pipe_inn :: rd.unique_fds)
@@ -231,13 +253,7 @@ let rec select_thread s timeout rd wr ex =
       end
       else ([], [], [])
     in
-    begin
-      match Atomic.exchange s.phase Continue with
-      | Select | Process | Continue -> ()
-      | Waking_up ->
-          let n = Unix.read s.pipe_inn s.byte 0 1 in
-          assert (n = 1)
-    end;
+    start_processing s;
     let rd = process_fds rd_fds rd (Thread_atomic.exchange s.new_rd []) in
     let wr = process_fds wr_fds wr (Thread_atomic.exchange s.new_wr []) in
     let ex = process_fds ex_fds ex (Thread_atomic.exchange s.new_ex []) in
