@@ -758,7 +758,7 @@ end
     {2 A simple bounded queue}
 
     Here is an example of a simple bounded (blocking) queue using a lock and
-    condition variables:
+    semaphores:
 
     {[
       module Bounded_q : sig
@@ -771,44 +771,48 @@ end
         type 'a t = {
           lock : Lock.t;
           queue : 'a Queue.t;
-          capacity : int;
-          not_empty : Lock.Condition.t;
-          not_full : Lock.Condition.t;
+          capacity : Sem.t;
+          length : Sem.t;
         }
 
         let create ~capacity =
           if capacity < 0 then invalid_arg "negative capacity"
           else
-            let lock = Lock.create ()
+            let lock = Lock.create ~padded:true ()
             and queue = Queue.create ()
-            and not_empty = Lock.Condition.create ()
-            and not_full = Lock.Condition.create () in
-            { lock; queue; capacity; not_empty; not_full }
+            and capacity = Sem.create ~padded:true capacity
+            and length = Sem.create ~padded:true 0 in
+            { lock; queue; capacity; length }
 
-        let is_full_unsafe t = t.capacity <= Queue.length t.queue
+        let is_empty t =
+          Lock.acquire t.lock;
+          let result = Queue.is_empty t.queue in
+          Lock.release t.lock;
+          result
+
+        let release_and_reraise s exn =
+          let bt = Printexc.get_raw_backtrace () in
+          Sem.release s;
+          Printexc.raise_with_backtrace exn bt
 
         let push t x =
-          let was_empty =
-            Lock.protect t.lock @@ fun () ->
-            while is_full_unsafe t do
-              Lock.Condition.wait t.not_full t.lock
-            done;
-            Queue.push x t.queue;
-            Queue.length t.queue = 1
-          in
-          if was_empty then Lock.Condition.broadcast t.not_empty
+          Sem.acquire t.capacity;
+          match Lock.acquire t.lock with
+          | () ->
+              Queue.push x t.queue;
+              Lock.release t.lock;
+              Sem.release t.length
+          | exception exn -> release_and_reraise t.capacity exn
 
         let pop t =
-          let elem, was_full =
-            Lock.protect t.lock @@ fun () ->
-            while Queue.length t.queue = 0 do
-              Lock.Condition.wait t.not_empty t.lock
-            done;
-            let was_full = is_full_unsafe t in
-            (Queue.pop t.queue, was_full)
-          in
-          if was_full then Lock.Condition.broadcast t.not_full;
-          elem
+          Sem.acquire t.length;
+          match Lock.acquire t.lock with
+          | () ->
+              let elem = Queue.pop t.queue in
+              Lock.release t.lock;
+              Sem.release t.capacity;
+              elem
+          | exception exn -> release_and_reraise t.length exn
       end
     ]}
 
