@@ -22,6 +22,7 @@ let benchmarks =
     ("Picos binaries", Bench_binaries.run_suite);
     ("Bounded_q with Picos_std_sync", Bench_bounded_q.run_suite);
     ("Memory usage", Bench_memory.run_suite);
+    ("Picos_std_structured.Run", Bench_run.run_suite);
   ]
 
 let () = Multicore_bench.Cmd.run ~benchmarks ()
