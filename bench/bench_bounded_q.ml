@@ -41,9 +41,11 @@ end = struct
   let is_full_unsafe t = t.capacity <= Queue.length t.queue
 
   let push t x =
+    let was_full = ref false in
     Lock.acquire t.lock;
     match
       while is_full_unsafe t do
+        was_full := true;
         Lock.Condition.wait t.not_full t.lock
       done
     with
@@ -51,15 +53,18 @@ end = struct
         Queue.push x t.queue;
         let n = Queue.length t.queue in
         Lock.release t.lock;
-        if n = 1 then Lock.Condition.broadcast t.not_empty
+        if n = 1 then Lock.Condition.signal t.not_empty;
+        if !was_full && n < t.capacity then Lock.Condition.signal t.not_full
     | exception exn ->
         Lock.release t.lock;
         raise exn
 
   let pop t =
+    let was_empty = ref false in
     Lock.acquire t.lock;
     match
       while Queue.length t.queue = 0 do
+        was_empty := true;
         Lock.Condition.wait t.not_empty t.lock
       done
     with
@@ -67,7 +72,8 @@ end = struct
         let n = Queue.length t.queue in
         let elem = Queue.pop t.queue in
         Lock.release t.lock;
-        if n = t.capacity then Lock.Condition.broadcast t.not_full;
+        if n = t.capacity then Lock.Condition.signal t.not_full;
+        if !was_empty && 1 < n then Lock.Condition.signal t.not_empty;
         elem
     | exception exn ->
         Lock.release t.lock;
@@ -78,7 +84,7 @@ end = struct
     let n = Queue.length t.queue in
     let elem_opt = Queue.take_opt t.queue in
     Lock.release t.lock;
-    if n = t.capacity then Lock.Condition.broadcast t.not_full;
+    if n = t.capacity then Lock.Condition.signal t.not_full;
     elem_opt
 end
 
