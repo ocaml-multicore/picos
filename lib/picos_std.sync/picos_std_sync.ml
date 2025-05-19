@@ -8,4 +8,5 @@ module Lazy = Lazy
 module Latch = Latch
 module Barrier = Barrier
 module Ivar = Ivar
+module Queue = Queue
 module Stream = Stream
