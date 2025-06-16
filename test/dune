@@ -81,6 +81,12 @@
  (modules test_rwlock)
  (libraries picos picos_std.sync stm_run stm_wrap))
 
+(test
+ (package picos_meta)
+ (name test_sync_queue)
+ (modules test_sync_queue)
+ (libraries picos_std.sync stm_run stm_wrap))
+
 ;;
 
 (test
