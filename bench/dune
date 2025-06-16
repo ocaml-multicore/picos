@@ -23,6 +23,7 @@
    (run %{test} -brief "Picos binaries")
    (run %{test} -brief "Bounded_q with Picos_std_sync")
    (run %{test} -brief "Memory usage")
+   (run %{test} -brief "Picos_std_structured.Run")
    ;;
    ))
  (foreign_stubs
@@ -49,6 +50,11 @@
    from
    (picos_mux.multififo -> scheduler.ocaml5.ml)
    (picos_mux.thread -> scheduler.ocaml4.ml))
+  (select
+   bench_run.ml
+   from
+   (picos_mux.multififo -> bench_run.ocaml5.ml)
+   (-> bench_run.ocaml4.ml))
   (select
    bench_fib.ml
    from

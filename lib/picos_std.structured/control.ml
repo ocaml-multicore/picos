@@ -41,13 +41,15 @@ module Errors = struct
     | [ (exn, bt) ] -> Printexc.raise_with_backtrace exn bt
     | exn_bts -> check exn_bts []
 
-  let rec push t exn bt backoff =
-    let before = Atomic.get t in
-    let after = (exn, bt) :: before in
-    if not (Atomic.compare_and_set t before after) then
-      push t exn bt (Backoff.once backoff)
-
-  let push t exn bt = push t exn bt Backoff.default
+  let push t exn bt =
+    let backoff = ref Backoff.default in
+    while
+      let before = Atomic.get t in
+      let after = (exn, bt) :: before in
+      not (Atomic.compare_and_set t before after)
+    do
+      backoff := Backoff.once !backoff
+    done
 end
 
 let raise_if_canceled () = Fiber.check (Fiber.current ())
