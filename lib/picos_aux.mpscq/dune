@@ -1,7 +1,7 @@
 (library
  (name picos_aux_mpscq)
  (public_name picos_aux.mpscq)
- (libraries backoff multicore-magic))
+ (libraries picos_aux.adaptive_backoff multicore-magic))
 
 (mdx
  (package picos_meta)

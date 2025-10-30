@@ -1,0 +1,13 @@
+(library
+ (name picos_aux_adaptive_backoff)
+ (public_name picos_aux.adaptive_backoff))
+
+(rule
+ (package picos_aux)
+ (targets domain.ml)
+ (deps domain.ocaml4.ml)
+ (enabled_if
+  (< %{ocaml_version} 5.0.0))
+ (action
+  (progn
+   (copy domain.ocaml4.ml domain.ml))))
