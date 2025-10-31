@@ -203,10 +203,9 @@ end) =
 struct
   let test_basics () =
     Test_scheduler.run @@ fun () ->
-    begin
-      match Counting.make (-1) with
-      | _ -> assert false
-      | exception Invalid_argument _ -> ()
+    begin match Counting.make (-1) with
+    | _ -> assert false
+    | exception Invalid_argument _ -> ()
     end;
     begin
       let s = Counting.make Counting.max_value in
@@ -355,13 +354,12 @@ let test_event_basics () =
     | () -> assert false
     | exception Not_found -> ()
   end;
-  begin
-    match
-      [ Event.guard (fun () -> raise Exit); Event.always 42 ]
-      |> Event.choose |> Event.sync
-    with
-    | _ -> assert false
-    | exception Exit -> ()
+  begin match
+    [ Event.guard (fun () -> raise Exit); Event.always 42 ]
+    |> Event.choose |> Event.sync
+  with
+  | _ -> assert false
+  | exception Exit -> ()
   end
 
 let test_non_cancelable_ops () =
@@ -430,16 +428,14 @@ module Make_lock_tests (Lock : module type of Lock) = struct
         | () -> assert false
         | exception Lock.Poisoned -> ()
       end;
-      begin
-        match Lock.holding lock @@ fun () -> raise Exit with
-        | () -> assert false
-        | exception Exit -> ()
+      begin match Lock.holding lock @@ fun () -> raise Exit with
+      | () -> assert false
+      | exception Exit -> ()
       end;
       Lock.Condition.broadcast condition;
-      begin
-        match Lock.acquire lock with
-        | () -> assert false
-        | exception Lock.Poisoned -> ()
+      begin match Lock.acquire lock with
+      | () -> assert false
+      | exception Lock.Poisoned -> ()
       end;
       assert (Lock.is_locked lock);
       assert (Lock.is_poisoned lock)
@@ -530,26 +526,23 @@ module Rwlock_and_condition_tests = struct
         | () -> assert false
         | exception Rwlock.Poisoned -> ()
       end;
-      begin
-        match Rwlock.holding lock @@ fun () -> raise Exit with
-        | () -> assert false
-        | exception Exit -> assert (Rwlock.is_poisoned lock)
+      begin match Rwlock.holding lock @@ fun () -> raise Exit with
+      | () -> assert false
+      | exception Exit -> assert (Rwlock.is_poisoned lock)
       end;
       Rwlock.Condition.broadcast condition;
-      begin
-        match Rwlock.acquire lock with
-        | () -> assert false
-        | exception Rwlock.Poisoned -> ()
+      begin match Rwlock.acquire lock with
+      | () -> assert false
+      | exception Rwlock.Poisoned -> ()
       end;
-      begin
-        match
-          Rwlock.sharing lock @@ fun () ->
-          while true do
-            Rwlock.Condition.wait_shared condition lock
-          done
-        with
-        | () -> assert false
-        | exception Rwlock.Poisoned -> ()
+      begin match
+        Rwlock.sharing lock @@ fun () ->
+        while true do
+          Rwlock.Condition.wait_shared condition lock
+        done
+      with
+      | () -> assert false
+      | exception Rwlock.Poisoned -> ()
       end;
       assert (not (Rwlock.is_locked_shared lock));
       assert (Rwlock.is_locked lock);

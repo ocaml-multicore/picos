@@ -11,10 +11,9 @@ let run_one ~budgetf ~block_or_nonblock ~n_domains () =
   in
   let wrap _ _ = Scheduler.run in
   let work _ (inn, out, block, byte) =
-    begin
-      match block_or_nonblock with
-      | `Block -> ()
-      | `Nonblock -> Unix.set_nonblock inn
+    begin match block_or_nonblock with
+    | `Block -> ()
+    | `Nonblock -> Unix.set_nonblock inn
     end;
     for _ = 1 to n_blocks do
       let n = Unix.write out block 0 block_size in

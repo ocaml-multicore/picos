@@ -4,16 +4,16 @@ let test_move_is_lazy () =
   Test_scheduler.run @@ fun () ->
   let@ moveable = instantiate Fun.id Fun.id in
   drop moveable;
-  begin
-    match (move moveable : _ -> _) with _ -> () | exception _ -> assert false
+  begin match (move moveable : _ -> _) with
+  | _ -> ()
+  | exception _ -> assert false
   end;
-  begin
-    match
-      let@ _ = move moveable in
-      ()
-    with
-    | () -> assert false
-    | exception Invalid_argument _ -> ()
+  begin match
+    let@ _ = move moveable in
+    ()
+  with
+  | () -> assert false
+  | exception Invalid_argument _ -> ()
   end
 
 let test_borrow_returns_resource () =

@@ -20,15 +20,14 @@ let test_completes () =
   let (Packed computation) = !packed in
   assert (not (Computation.is_running computation));
   assert (not (Computation.is_canceled computation));
-  begin
-    match
-      Test_scheduler.run (fun () ->
-          packed := Fiber.get_computation (Fiber.current ());
-          (failwith "42" : unit))
-    with
-    | () -> assert false
-    | exception Failure msg -> assert (msg = "42")
-    | exception _ -> assert false
+  begin match
+    Test_scheduler.run (fun () ->
+        packed := Fiber.get_computation (Fiber.current ());
+        (failwith "42" : unit))
+  with
+  | () -> assert false
+  | exception Failure msg -> assert (msg = "42")
+  | exception _ -> assert false
   end;
   let (Packed computation) = !packed in
   assert (not (Computation.is_running computation));
@@ -63,44 +62,38 @@ let test_op_raises_when_canceled () =
   let ivar = Ivar.create () in
   let wait () = Control.protect (fun () -> Ivar.read ivar) in
   [
-    begin
-      fun () ->
-        Flock.fork_as_promise @@ fun () ->
-        wait ();
-        match Trigger.await (Trigger.create ()) with
-        | None -> assert false
-        | Some _ -> ()
+    begin fun () ->
+      Flock.fork_as_promise @@ fun () ->
+      wait ();
+      match Trigger.await (Trigger.create ()) with
+      | None -> assert false
+      | Some _ -> ()
     end;
-    begin
-      fun () ->
-        Flock.fork_as_promise @@ fun () ->
-        wait ();
-        match
-          Computation.cancel_after (Computation.create ()) ~seconds:1.0 Exit
-            empty_bt
-        with
-        | () -> assert false
-        | exception Control.Terminate -> ()
+    begin fun () ->
+      Flock.fork_as_promise @@ fun () ->
+      wait ();
+      match
+        Computation.cancel_after (Computation.create ()) ~seconds:1.0 Exit
+          empty_bt
+      with
+      | () -> assert false
+      | exception Control.Terminate -> ()
     end;
-    begin
-      fun () ->
-        Flock.fork_as_promise @@ fun () ->
-        wait ();
-        match Fiber.yield () with
-        | () -> assert false
-        | exception Control.Terminate -> ()
+    begin fun () ->
+      Flock.fork_as_promise @@ fun () ->
+      wait ();
+      match Fiber.yield () with
+      | () -> assert false
+      | exception Control.Terminate -> ()
     end;
-    begin
-      fun () ->
-        Flock.fork_as_promise @@ fun () ->
-        wait ();
-        match
-          Fiber.spawn
-            (Fiber.create ~forbid:false (Computation.create ()))
-            ignore
-        with
-        | () -> assert false
-        | exception Control.Terminate -> ()
+    begin fun () ->
+      Flock.fork_as_promise @@ fun () ->
+      wait ();
+      match
+        Fiber.spawn (Fiber.create ~forbid:false (Computation.create ())) ignore
+      with
+      | () -> assert false
+      | exception Control.Terminate -> ()
     end;
   ]
   |> Test_util.shuffle

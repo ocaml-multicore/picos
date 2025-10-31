@@ -11,9 +11,9 @@ module DLS = struct
   let[@poll error] [@inline never] compare_and_set key before after =
     !key == before
     && begin
-         key := after;
-         true
-       end
+      key := after;
+      true
+    end
 
   let rec get key =
     match !key with

@@ -67,10 +67,9 @@ let rec run_fiber ?(verbose = false) ?(max_domains = 1) ?(allow_lwt = true)
           Some
             (fun () ->
               let old_hook = !Lwt.async_exception_hook in
-              begin
-                match fatal_exn_handler with
-                | None -> ()
-                | Some hook -> Lwt.async_exception_hook := hook
+              begin match fatal_exn_handler with
+              | None -> ()
+              | Some hook -> Lwt.async_exception_hook := hook
               end;
               match Lwt_main.run (Picos_lwt_unix.run_fiber fiber main) with
               | result ->

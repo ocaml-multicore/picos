@@ -156,10 +156,9 @@ let run_fiber ?quota ?fatal_exn_handler fiber main =
         Atomic.get t.needs_wakeup
         && Atomic.compare_and_set t.needs_wakeup true false
       then begin
-        begin
-          match Mutex.lock t.mutex with
-          | () -> Mutex.unlock t.mutex
-          | exception Sys_error _ -> ()
+        begin match Mutex.lock t.mutex with
+        | () -> Mutex.unlock t.mutex
+        | exception Sys_error _ -> ()
         end;
         Condition.broadcast t.condition
       end);

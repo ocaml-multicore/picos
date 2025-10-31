@@ -9,9 +9,9 @@ module Ref = struct
   let[@inline] compare_and_set x before after =
     !x == before
     && begin
-         x := after;
-         true
-       end
+      x := after;
+      true
+    end
 
   let[@inline] exchange x after =
     let before = !x in

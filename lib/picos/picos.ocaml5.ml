@@ -139,14 +139,13 @@ module Computation = struct
       let rec rollback tx = function
         | Nil -> true
         | Completion r -> begin
-            begin
-              match Atomic.get r.computation with
-              | ( S (Canceled { tx = previous_tx; _ })
-                | S (Returned { tx = previous_tx; _ }) ) as before ->
-                  if tx == previous_tx then
-                    Atomic.compare_and_set r.computation before (S r.before)
-                    |> ignore
-              | S (Continue _) -> ()
+            begin match Atomic.get r.computation with
+            | ( S (Canceled { tx = previous_tx; _ })
+              | S (Returned { tx = previous_tx; _ }) ) as before ->
+                if tx == previous_tx then
+                  Atomic.compare_and_set r.computation before (S r.before)
+                  |> ignore
+            | S (Continue _) -> ()
             end;
             rollback tx r.completions
           end
@@ -188,11 +187,10 @@ module Computation = struct
     let rec commit = function
       | Nil -> true
       | Completion r ->
-          begin
-            match Atomic.get r.computation with
-            | S (Canceled r) -> r.tx <- Stopped
-            | S (Returned r) -> r.tx <- Stopped
-            | S (Continue _) -> impossible ()
+          begin match Atomic.get r.computation with
+          | S (Canceled r) -> r.tx <- Stopped
+          | S (Returned r) -> r.tx <- Stopped
+          | S (Continue _) -> impossible ()
           end;
           signal r.before;
           commit r.completions
@@ -346,8 +344,8 @@ module Computation = struct
   let capture t fn x =
     (* Intentionally manually inlined [try_capture] to minimize stack usage *)
     (match fn x with
-    | y -> try_return t y
-    | exception exn -> try_capture_raised exn t)
+      | y -> try_return t y
+      | exception exn -> try_capture_raised exn t)
     |> ignore
 
   let[@inline never] raise (Canceled { exn; bt; _ } : (_, [ `Canceled ]) st) =

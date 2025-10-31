@@ -146,15 +146,14 @@ let rec copy_all r target i t step =
      [compare_and_set] below does not disrupt the next resize. *)
   Atomic.get t == r
   && begin
-       begin
-         match before with
-         | Resize _ ->
-             Atomic_array.unsafe_compare_and_set target i (B before) (B spine)
-             |> ignore
-         | Nil | Cons _ -> ()
-       end;
-       i = 0 || copy_all r target i t step
-     end
+    begin match before with
+    | Resize _ ->
+        Atomic_array.unsafe_compare_and_set target i (B before) (B spine)
+        |> ignore
+    | Nil | Cons _ -> ()
+    end;
+    i = 0 || copy_all r target i t step
+  end
 
 (* *)
 
@@ -179,24 +178,21 @@ let rec split_all r target i t step =
      resize. *)
   Atomic.get t == r
   && begin
-       begin
-         match before_lo with
-         | Resize _ ->
-             Atomic_array.unsafe_compare_and_set target i (B before_lo)
-               (B after_lo)
-             |> ignore
-         | Nil | Cons _ -> ()
-       end;
-       begin
-         match before_hi with
-         | Resize _ ->
-             Atomic_array.unsafe_compare_and_set target (i + high) (B before_hi)
-               (B after_hi)
-             |> ignore
-         | Nil | Cons _ -> ()
-       end;
-       i = 0 || split_all r target i t step
-     end
+    begin match before_lo with
+    | Resize _ ->
+        Atomic_array.unsafe_compare_and_set target i (B before_lo) (B after_lo)
+        |> ignore
+    | Nil | Cons _ -> ()
+    end;
+    begin match before_hi with
+    | Resize _ ->
+        Atomic_array.unsafe_compare_and_set target (i + high) (B before_hi)
+          (B after_hi)
+        |> ignore
+    | Nil | Cons _ -> ()
+    end;
+    i = 0 || split_all r target i t step
+  end
 
 (* *)
 
@@ -217,15 +213,14 @@ let rec merge_all r target i t step =
      [compare_and_set] below does not disrupt the next resize. *)
   Atomic.get t == r
   && begin
-       begin
-         match before with
-         | Resize _ ->
-             Atomic_array.unsafe_compare_and_set target i (B before) (B after)
-             |> ignore
-         | Nil | Cons _ -> ()
-       end;
-       i = 0 || merge_all r target i t step
-     end
+    begin match before with
+    | Resize _ ->
+        Atomic_array.unsafe_compare_and_set target i (B before) (B after)
+        |> ignore
+    | Nil | Cons _ -> ()
+    end;
+    i = 0 || merge_all r target i t step
+  end
 
 (* *)
 
@@ -277,9 +272,9 @@ let[@inline never] try_resize t r new_capacity ~clear =
   let new_r = { r with pending = Resize { buckets; non_linearizable_size } } in
   Atomic.compare_and_set t r new_r
   && begin
-       finish t new_r |> ignore;
-       true
-     end
+    finish t new_r |> ignore;
+    true
+  end
 
 (** This only gives an "estimate" of the size, which can be off by one or more
     and even be negative, so this must be used with care. *)
