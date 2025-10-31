@@ -21,10 +21,9 @@ let test_fls_basics =
     begin
       run_in_fiber @@ fun () ->
       let fiber = Fiber.current () in
-      begin
-        match Fiber.FLS.get_exn fiber float_key with
-        | _ -> assert false
-        | exception Fiber.FLS.Not_set -> ()
+      begin match Fiber.FLS.get_exn fiber float_key with
+      | _ -> assert false
+      | exception Fiber.FLS.Not_set -> ()
       end;
       Fiber.FLS.set fiber float_key 4.2;
       Fiber.FLS.set fiber counter_key (Atomic.fetch_and_add counter 1);
@@ -36,10 +35,9 @@ let test_fls_basics =
     begin
       run_in_fiber @@ fun () ->
       let fiber = Fiber.current () in
-      begin
-        match Fiber.FLS.get fiber counter_key ~default:101 with
-        | 101 -> ()
-        | _ -> assert false
+      begin match Fiber.FLS.get fiber counter_key ~default:101 with
+      | 101 -> ()
+      | _ -> assert false
       end;
       Fiber.FLS.set fiber counter_key (Atomic.fetch_and_add counter 1);
       Fiber.FLS.set fiber float_key 7.6;

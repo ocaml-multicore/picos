@@ -30,39 +30,38 @@ let run_one ~budgetf ~n_domains ?(n_ops = 100 * Util.iter_factor)
   let n_ops_todo = Countdown.create ~n_domains () in
 
   let before () =
-    begin
-      match lock_type with
-      | `Lock ->
-          Lock.holding lock @@ fun () ->
-          Hashtbl.clear t;
-          if prepopulate then begin
-            for _ = 1 to n_keys do
-              let value = Random.bits () in
-              let key = value mod n_keys in
-              Hashtbl.replace t key value
-            done
-          end
-      | `Rwlock ->
-          Rwlock.holding rwlock @@ fun () ->
-          Hashtbl.clear t;
-          if prepopulate then begin
-            for _ = 1 to n_keys do
-              let value = Random.bits () in
-              let key = value mod n_keys in
-              Hashtbl.replace t key value
-            done
-          end
-      | `Sem ->
-          Sem.acquire sem;
-          Hashtbl.clear t;
-          if prepopulate then begin
-            for _ = 1 to n_keys do
-              let value = Random.bits () in
-              let key = value mod n_keys in
-              Hashtbl.replace t key value
-            done
-          end;
-          Sem.release sem
+    begin match lock_type with
+    | `Lock ->
+        Lock.holding lock @@ fun () ->
+        Hashtbl.clear t;
+        if prepopulate then begin
+          for _ = 1 to n_keys do
+            let value = Random.bits () in
+            let key = value mod n_keys in
+            Hashtbl.replace t key value
+          done
+        end
+    | `Rwlock ->
+        Rwlock.holding rwlock @@ fun () ->
+        Hashtbl.clear t;
+        if prepopulate then begin
+          for _ = 1 to n_keys do
+            let value = Random.bits () in
+            let key = value mod n_keys in
+            Hashtbl.replace t key value
+          done
+        end
+    | `Sem ->
+        Sem.acquire sem;
+        Hashtbl.clear t;
+        if prepopulate then begin
+          for _ = 1 to n_keys do
+            let value = Random.bits () in
+            let key = value mod n_keys in
+            Hashtbl.replace t key value
+          done
+        end;
+        Sem.release sem
     end;
     Countdown.non_atomic_set n_ops_todo n_ops
   in

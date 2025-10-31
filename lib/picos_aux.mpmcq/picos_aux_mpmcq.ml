@@ -61,15 +61,14 @@ let rec push t value backoff = function
             let backoff = Backoff.once backoff in
             push t value backoff (Atomic.fenceless_get t.tail)
       | Snoc move_r as move ->
-          begin
-            match Atomic.get t.head with
-            | H (Head head_r as head) when head_r.counter < move_r.counter ->
-                let after = rev move in
-                if
-                  Atomic.fenceless_get t.head == H head
-                  && Atomic.compare_and_set t.head (H head) (H after)
-                then tail_r.move <- Used
-            | _ -> tail_r.move <- Used
+          begin match Atomic.get t.head with
+          | H (Head head_r as head) when head_r.counter < move_r.counter ->
+              let after = rev move in
+              if
+                Atomic.fenceless_get t.head == H head
+                && Atomic.compare_and_set t.head (H head) (H after)
+              then tail_r.move <- Used
+          | _ -> tail_r.move <- Used
           end;
           push t value backoff (Atomic.get t.tail)
     end
@@ -171,16 +170,14 @@ let rec push_head t value backoff =
               end
               else push_head t value backoff
           | Snoc move_r as move ->
-              begin
-                match Atomic.get t.head with
-                | H (Head head_r as head) when head_r.counter < move_r.counter
-                  ->
-                    let after = rev move in
-                    if
-                      Atomic.fenceless_get t.head == H head
-                      && Atomic.compare_and_set t.head (H head) (H after)
-                    then tail_r.move <- Used
-                | _ -> tail_r.move <- Used
+              begin match Atomic.get t.head with
+              | H (Head head_r as head) when head_r.counter < move_r.counter ->
+                  let after = rev move in
+                  if
+                    Atomic.fenceless_get t.head == H head
+                    && Atomic.compare_and_set t.head (H head) (H after)
+                  then tail_r.move <- Used
+              | _ -> tail_r.move <- Used
               end;
               push_head t value backoff
         end

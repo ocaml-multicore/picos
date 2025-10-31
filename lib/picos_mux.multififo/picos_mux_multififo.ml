@@ -543,18 +543,16 @@ let rec run_fiber_on n fiber main runner_main context =
     in
     match run_fiber_on (n - 1) fiber main runner_main context with
     | result ->
-        begin
-          match Domain.join runner with
-          | None -> ()
-          | Some (exn, bt) -> Printexc.raise_with_backtrace exn bt
+        begin match Domain.join runner with
+        | None -> ()
+        | Some (exn, bt) -> Printexc.raise_with_backtrace exn bt
         end;
         result
     | exception exn ->
         let bt = Printexc.get_raw_backtrace () in
-        begin
-          match Domain.join runner with
-          | None -> ()
-          | Some (exn, bt) -> Printexc.raise_with_backtrace exn bt
+        begin match Domain.join runner with
+        | None -> ()
+        | Some (exn, bt) -> Printexc.raise_with_backtrace exn bt
         end;
         Printexc.raise_with_backtrace exn bt
 

@@ -36,15 +36,14 @@ let resume trigger t _ =
   let _is_canceled : bool = Fiber.unsuspend t.fiber trigger in
   (* This will be called when the trigger is signaled.  We simply broadcast on
      the per thread condition variable. *)
-  begin
-    match Mutex.lock t.mutex with
-    | () -> Mutex.unlock t.mutex
-    | exception Sys_error _ ->
-        (* This should mean that [resume] was called from a signal handler
+  begin match Mutex.lock t.mutex with
+  | () -> Mutex.unlock t.mutex
+  | exception Sys_error _ ->
+      (* This should mean that [resume] was called from a signal handler
            running on the scheduler thread.  If the assumption about not having
            poll points holds, the [Condition.broadcast] should now be able to
            wake up the [Condition.wait] in the scheduler. *)
-        ()
+      ()
   end;
   Condition.broadcast t.condition
 

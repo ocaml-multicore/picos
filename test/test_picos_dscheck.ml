@@ -72,11 +72,10 @@ let test_computation_contract () =
        Atomic.check @@ fun () ->
        attached_total += !attached;
        unattached_total += !unattached;
-       begin
-         match Computation.peek computation with
-         | Some (Ok 101) when !returns = 1 && !cancels = 0 -> true
-         | Some (Error (Exit, _)) when !returns = 0 && !cancels = 1 -> true
-         | _ -> false
+       begin match Computation.peek computation with
+       | Some (Ok 101) when !returns = 1 && !cancels = 0 -> true
+       | Some (Error (Exit, _)) when !returns = 0 && !cancels = 1 -> true
+       | _ -> false
        end
        && !attached + !unattached = Array.length triggers
        && !attached
@@ -117,13 +116,12 @@ let test_computation_removes_triggers () =
          &&
          let trigger = Trigger.create () in
          Computation.try_attach computation trigger
-         && begin
-              match Atomic.get computation with
-              | S (Canceled _) | S (Returned _) -> false
-              | S (Continue { balance_and_mode; triggers }) ->
-                  balance_and_mode <= Computation.one + Computation.fifo_bit
-                  && triggers = [ trigger ]
-            end
+         && begin match Atomic.get computation with
+         | S (Canceled _) | S (Returned _) -> false
+         | S (Continue { balance_and_mode; triggers }) ->
+             balance_and_mode <= Computation.one + Computation.fifo_bit
+             && triggers = [ trigger ]
+         end
 
 let () =
   Alcotest.run "Picos DSCheck"

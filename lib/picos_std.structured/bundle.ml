@@ -125,8 +125,7 @@ let join_after_pass (type a) ?callstack ?on_return (fn : a -> _) (pass : a pass)
   in
   let fiber = Fiber.current () in
   let outer = Fiber.FLS.get fiber flock_key ~default:Nothing in
-  begin
-    match pass with FLS -> Fiber.FLS.reserve fiber flock_key | Arg -> ()
+  begin match pass with FLS -> Fiber.FLS.reserve fiber flock_key | Arg -> ()
   end;
   let (Packed parent as packed) = Fiber.get_computation fiber in
   let (Packed bundle) = r.bundle in

@@ -137,9 +137,9 @@ let key =
 let[@poll error] [@inline never] try_transition s from into =
   s.state == from
   && begin
-       s.state <- into;
-       true
-     end
+    s.state <- into;
+    true
+  end
 
 let[@poll error] [@inline never] transition s into =
   let from = s.state in
@@ -282,16 +282,15 @@ let select_thread s =
       [ Sys.sigchld ]
     |> ignore
   end;
-  begin
-    try
-      let pipe_inn, pipe_out = Unix.pipe ~cloexec:true () in
-      s.pipe_inn <- pipe_inn;
-      s.pipe_out <- pipe_out;
-      if try_transition s `Starting `Alive then
-        select_thread s (-1.0) fos_empty fos_empty fos_empty
-    with exn ->
-      let bt = Printexc.get_raw_backtrace () in
-      s.exn_bt <- (exn, bt)
+  begin try
+    let pipe_inn, pipe_out = Unix.pipe ~cloexec:true () in
+    s.pipe_inn <- pipe_inn;
+    s.pipe_out <- pipe_out;
+    if try_transition s `Starting `Alive then
+      select_thread s (-1.0) fos_empty fos_empty fos_empty
+  with exn ->
+    let bt = Printexc.get_raw_backtrace () in
+    s.exn_bt <- (exn, bt)
   end;
   transition s `Stopped |> ignore;
   if s.pipe_inn != Unix.stdin then Unix.close s.pipe_inn;
@@ -301,13 +300,13 @@ let[@poll error] [@inline never] try_configure ~intr_sig ~intr_sigs
     ~handle_sigchld ~ignore_sigpipe =
   config.intr_sigs == []
   && begin
-       config.bits <-
-         Bool.to_int handle_sigchld
-         lor (ignore_sigpipe_bit land -Bool.to_int ignore_sigpipe);
-       config.intr_sig <- intr_sig;
-       config.intr_sigs <- intr_sigs;
-       true
-     end
+    config.bits <-
+      Bool.to_int handle_sigchld
+      lor (ignore_sigpipe_bit land -Bool.to_int ignore_sigpipe);
+    config.intr_sig <- intr_sig;
+    config.intr_sigs <- intr_sigs;
+    true
+  end
 
 let is_intr_sig signum = signum = config.intr_sig
 
@@ -485,12 +484,11 @@ module Intr = struct
     (* [intr_pending] must be read before [r.unused]! *)
     r.unused && before.req != R req
     && begin
-         use before.req;
-         let after = { value = before.value + 1; req = R req } in
-         if Atomic.compare_and_set intr_pending before after then
-           after.value = 1
-         else incr_once req (Backoff.once backoff)
-       end
+      use before.req;
+      let after = { value = before.value + 1; req = R req } in
+      if Atomic.compare_and_set intr_pending before after then after.value = 1
+      else incr_once req (Backoff.once backoff)
+    end
 
   let intr_action trigger (Req r as req : [ `Req ] tdt) id =
     match Computation.peek_exn r.computation with

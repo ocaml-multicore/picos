@@ -110,8 +110,7 @@ let test_block_raises_sys_error () =
   let finished = Trigger.create () in
   let computation = Computation.create () in
   let main _ =
-    begin
-      try Control.block () with Sys_error _ -> success := true
+    begin try Control.block () with Sys_error _ -> success := true
     end;
     Trigger.signal finished
   in
