@@ -1,4 +1,4 @@
-FROM ocaml/opam:debian-ocaml-5.3
+FROM ocaml/opam:debian-ocaml-5.4
 WORKDIR /bench-dir
 RUN sudo apt-get update
 RUN sudo ln -sf /usr/bin/opam-2.1 /usr/bin/opam
