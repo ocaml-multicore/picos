@@ -56,9 +56,7 @@ let run_one ~budgetf ~n_adders ~n_takers () =
             if 0 < n then begin
               match Mpmcq.pop_exn t with
               | _ -> loop (n - 1)
-              | exception Mpmcq.Empty ->
-                  Backoff.once Backoff.default |> ignore;
-                  loop n
+              | exception Mpmcq.Empty -> loop n
             end
             else work ()
           in
