@@ -23,6 +23,7 @@
    (run %{test} -brief "Picos binaries")
    (run %{test} -brief "Bounded_q with Picos_std_sync")
    (run %{test} -brief "Memory usage")
+   (run %{test} -brief "Stack")
    ;;
    ))
  (foreign_stubs
