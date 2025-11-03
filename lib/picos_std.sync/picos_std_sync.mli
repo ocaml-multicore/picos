@@ -695,6 +695,81 @@ module Ivar : sig
       variable has either been assigned a value or has been poisoned. *)
 end
 
+module Queue : sig
+  (** A lock-free multi-producer, multi-consumer queue. *)
+
+  (** {1 API} *)
+
+  type !'a t
+  (** A multi-producer, multi-consumer queue. *)
+
+  val create : ?padded:bool -> unit -> 'a t
+  (** [create ()] returns a new empty multi-producer, multi-consumer queue. *)
+
+  val push : 'a t -> 'a -> unit
+  (** [push queue value] adds the [value] to the tail of the [queue]. *)
+
+  val push_head : 'a t -> 'a -> unit
+  (** [push_head queue value] adds the [value] to the head of the [queue]. *)
+
+  exception Empty
+  (** Raised by {!pop_exn} in case it finds the queue empty. *)
+
+  val pop_exn : 'a t -> 'a
+  (** [pop_exn queue] tries to remove the value at the head of the [queue].
+      Returns the removed value or raises {!Empty} in case the queue was empty.
+
+      @raise Empty in case the queue was empty. *)
+
+  val pop_opt : 'a t -> 'a option
+  (** [pop_opt queue] tries to remove the value at the head of the [queue].
+      Returns the removed value or [None] in case the queue was empty. *)
+
+  val pop : 'a t -> 'a
+  (** [pop queue] waits until the queue is not empty, removes the value at the
+      head of the [queue], and returns it. *)
+
+  val length : 'a t -> int
+  (** [length queue] returns the length or the number of values in the [queue].
+  *)
+
+  val is_empty : 'a t -> bool
+  (** [is_empty queue] is equivalent to {{!length} [length queue = 0]}. *)
+
+  (** {1 Examples}
+
+      An example top-level session:
+      {[
+        # let q : int Queue.t =
+            Queue.create ()
+        val q : int Picos_std_sync.Queue.t = <abstr>
+
+        # Queue.push q 42
+        - : unit = ()
+
+        # Queue.push_head q 76
+        - : unit = ()
+
+        # Queue.length q
+        - : int = 2
+
+        # Queue.push q 101
+        - : unit = ()
+
+        # Queue.pop_exn q
+        - : int = 76
+
+        # Queue.pop_exn q
+        - : int = 42
+
+        # Queue.pop_exn q
+        - : int = 101
+
+        # Queue.pop_exn q
+        Exception: Picos_std_sync__Queue.Empty.
+      ]} *)
+end
+
 module Stream : sig
   (** A lock-free, poisonable, many-to-many, stream.
 
@@ -768,6 +843,8 @@ end
         val push : 'a t -> 'a -> unit
         val pop : 'a t -> 'a
       end = struct
+        module Queue = Stdlib.Queue
+
         type 'a t = {
           lock : Lock.t;
           queue : 'a Queue.t;
