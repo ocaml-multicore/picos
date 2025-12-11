@@ -31,6 +31,12 @@ val pop_exn : 'a t -> 'a
 
     @raise Empty in case the queue was empty. *)
 
+val peek_exn : 'a t -> 'a
+(** [peek_exn queue] tries to return the value at the head of the [queue].
+    Returns the head value or raises {!Empty} in case the queue was empty.
+
+    @raise Empty in case the queue was empty. *)
+
 val length : 'a t -> int
 (** [length queue] returns the length or the number of values in the [queue]. *)
 
