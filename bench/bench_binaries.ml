@@ -22,6 +22,7 @@ let paths =
     lib "picos_lwt";
     lib "picos_lwt.unix";
     lib "picos_mux.fifo";
+    lib "picos_mux.fifothread";
     lib "picos_mux.multififo";
     lib "picos_mux.random";
     lib "picos_mux.thread";

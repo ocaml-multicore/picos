@@ -11,6 +11,7 @@
    (picos.thread
     picos_lwt.unix
     picos_mux.fifo
+    picos_mux.fifothread
     picos_mux.multififo
     picos_mux.random
     picos_mux.thread

@@ -6,6 +6,7 @@ This package contains schedulers provided as samples for {!Picos}.
 
 {!modules:
   Picos_mux_fifo
+  Picos_mux_fifothread
   Picos_mux_multififo
   Picos_mux_random
   Picos_mux_thread
