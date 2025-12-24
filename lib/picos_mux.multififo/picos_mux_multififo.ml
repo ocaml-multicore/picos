@@ -333,6 +333,7 @@ let per_thread context =
         remaining_quota = 0;
         countdown_to_steal = 1;
       }
+    |> Multicore_magic.copy_as_padded
   in
   p.resume <-
     (fun trigger fiber k ->
@@ -497,6 +498,7 @@ let context ?heartbeat_delay ?heartbeat_rounds ?quota ?fatal_exn_handler () =
     threads_num = 0;
     fatal_exn_handler;
   }
+  |> Multicore_magic.copy_as_padded
 
 let runner_on_this_thread t =
   Select.check_configured ();
