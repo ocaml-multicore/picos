@@ -64,6 +64,8 @@ let exnc exn =
   default_fatal_exn_handler t exn;
   t.fatal_exn_handler exn
 
+exception Finished
+
 let rec retc () =
   let (Per_thread p as pt) = get_per_thread () in
   let t = p.context in
@@ -157,7 +159,8 @@ and next (Per_thread p as pt : per_thread) =
           else Atomic.set t.needs_wakeup true;
           next pt
         end
-        else Computation.cancel t.computation Exit (Printexc.get_callstack 0)
+        else
+          Computation.cancel t.computation Finished (Printexc.get_callstack 0)
   end
 
 and yield : ((unit, _) Effect.Deep.continuation -> _) option =
@@ -241,7 +244,9 @@ let watcher t =
           seen_counter := t.counter;
           Picos.Fiber.sleep ~seconds:0.1
         done
-      with Exit -> ()
+      with
+      | Finished -> ()
+      | exn -> exnc exn
     end;
   Mutex.lock t.mutex;
   Mutex.unlock t.mutex;
