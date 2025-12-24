@@ -39,10 +39,10 @@ let resume trigger t _ =
   begin match Mutex.lock t.mutex with
   | () -> Mutex.unlock t.mutex
   | exception Sys_error _ ->
-      (* This should mean that [resume] was called from a signal handler
-           running on the scheduler thread.  If the assumption about not having
-           poll points holds, the [Condition.broadcast] should now be able to
-           wake up the [Condition.wait] in the scheduler. *)
+      (* This should mean that [resume] was called from a signal handler running
+         on the scheduler thread.  If the assumption about not having poll
+         points holds, the [Condition.broadcast] should now be able to wake up
+         the [Condition.wait] in the scheduler. *)
       ()
   end;
   Condition.broadcast t.condition
