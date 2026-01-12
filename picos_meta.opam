@@ -17,7 +17,7 @@ depends: [
   "picos_mux" {= version}
   "picos_lwt" {= version}
   "dscheck" {>= "0.4.0"}
-  "lwt" {>= "5.7.0"}
+  "lwt" {>= "6.0.0"}
   "qcheck-core" {>= "0.21.2"}
   "qcheck-stm" {>= "0.7"}
   "qcheck-multicoretests-util" {>= "0.7"}

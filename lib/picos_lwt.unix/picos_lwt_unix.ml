@@ -7,9 +7,12 @@ module Mpscq = Picos_aux_mpscq
 
 let ready = Mpscq.create ~padded:true ()
 
-type notification = { mutable ref_count : int; mutable id : int }
+type notification = {
+  mutable ref_count : int;
+  mutable id : Lwt_unix.notification option;
+}
 
-let notification = { ref_count = 0; id = 0 }
+let notification = { ref_count = 0; id = None }
 let state = Atomic.make `Not_running
 
 let notify_callback () =
@@ -37,7 +40,7 @@ let rec notify () =
   | (`Running | `Not_running) as before ->
       if Atomic.compare_and_set state before `Notified then begin
         if before == `Not_running then
-          Lwt_unix.send_notification notification.id
+          Option.iter Lwt_unix.send_notification notification.id
       end
       else notify ()
 
@@ -63,7 +66,12 @@ let system = (module System : Picos_lwt.System)
 let notification_decr _ =
   let ref_count = notification.ref_count - 1 in
   notification.ref_count <- ref_count;
-  if ref_count = 0 then Lwt_unix.stop_notification notification.id
+  if ref_count = 0 then
+    match notification.id with
+    | None -> ()
+    | Some id ->
+        notification.id <- None;
+        Lwt_unix.stop_notification id
 
 let run_fiber fiber main =
   if not (Picos_thread.is_main_thread ()) then not_main_thread ();
@@ -71,7 +79,7 @@ let run_fiber fiber main =
     let ref_count = notification.ref_count + 1 in
     notification.ref_count <- ref_count;
     if ref_count = 1 then
-      notification.id <- Lwt_unix.make_notification notify_callback
+      notification.id <- Some (Lwt_unix.make_notification notify_callback)
   end;
   let promise = Picos_lwt.run_fiber system fiber main in
   Lwt.on_any promise notification_decr notification_decr;
