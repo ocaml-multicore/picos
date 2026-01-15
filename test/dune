@@ -208,6 +208,12 @@
  (modules test_htbl)
  (libraries picos_aux.htbl stm_run))
 
+(test
+ (package picos_meta)
+ (name test_ihtbl)
+ (modules test_ihtbl)
+ (libraries picos_aux.ihtbl stm_run))
+
 ;;
 
 (test
