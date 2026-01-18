@@ -67,8 +67,39 @@ let run_one ~budgetf ~n_domains ?(n_ops = 400 * Util.iter_factor)
   Times.record ~budgetf ~n_domains ~before ~init ~work ()
   |> Times.to_thruput_metrics ~n:n_ops ~singular:"operation" ~config
 
+let run_fill1m ~budgetf ~n_domains () =
+  let n_ops = 250_000 * n_domains in
+  let t = Htbl.create ~hashed_type:(module Key) () in
+  let before () =
+    let _ : _ Seq.t = Htbl.remove_all t in
+    ()
+  in
+  let init i =
+    let k0 = i * n_ops / n_domains in
+    let k1 = ((i + 1) * n_ops / n_domains) - 1 in
+    (k0, k1)
+  in
+  let work _ (k0, k1) =
+    for k = k0 to k1 do
+      assert (Htbl.try_add t k ())
+    done
+  in
+  let after () = assert (n_ops = Htbl.non_linearizable_length t) in
+  let config =
+    Printf.sprintf "%d worker%s" n_domains (if n_domains = 1 then "" else "s")
+  in
+  Times.record ~n_runs_min:19 ~budgetf ~n_domains ~before ~init ~work ~after ()
+  |> Times.to_thruput_metrics ~n:n_ops ~singular:"add" ~config
+
 let run_suite ~budgetf =
-  Util.cross [ 1; 2; 4; 8 ] [ 10; 50; 90 ]
-  |> List.concat_map @@ fun (n_domains, percent_mem) ->
+  [ 1; 2; 4; 8 ]
+  |> List.concat_map @@ fun n_domains ->
      if Picos_domain.recommended_domain_count () < n_domains then []
-     else run_one ~budgetf ~n_domains ~percent_mem ()
+     else
+       let basic =
+         [ 10; 50; 90 ]
+         |> List.concat_map @@ fun percent_mem ->
+            run_one ~budgetf ~n_domains ~percent_mem ()
+       in
+       let fill1m = run_fill1m ~budgetf ~n_domains () in
+       basic @ fill1m
