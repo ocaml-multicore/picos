@@ -315,17 +315,24 @@ let rec adjust_size t r mask delta result =
     result
   end
   else
-    let new_cs =
-      (* We use [n + n + 1] as it keeps the length of the array as a power of 2
+    match r.pending with
+    | Resize _ ->
+        let r = finish t r in
+        adjust_size t r mask delta result
+    | Nothing ->
+        let new_cs =
+          (* We use [n + n + 1] as it keeps the length of the array as a power of 2
          minus 1 and so the size of the array/block including header word will
          be a power of 2. *)
-      Array.init (n + n + 1) @@ fun i ->
-      if i < n then Array.unsafe_get r.non_linearizable_size i
-      else Atomic.make_contended 0
-    in
-    let new_r = { r with non_linearizable_size = new_cs } in
-    let r = if Atomic.compare_and_set t r new_r then new_r else Atomic.get t in
-    adjust_size t r mask delta result
+          Array.init (n + n + 1) @@ fun i ->
+          if i < n then Array.unsafe_get r.non_linearizable_size i
+          else Atomic.make_contended 0
+        in
+        let new_r = { r with non_linearizable_size = new_cs } in
+        let r =
+          if Atomic.compare_and_set t r new_r then new_r else Atomic.get t
+        in
+        adjust_size t r mask delta result
 
 (* *)
 

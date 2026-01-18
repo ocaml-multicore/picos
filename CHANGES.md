@@ -7,6 +7,7 @@
 - Upgraded `picos_io_cohttp` to depend on `cohttp` version 6.0.0 (@polytypic)
 - Added a new low overhead `Lock` implementation to `picos_std.sync`
   (@polytypic)
+- Fixed `picos_aux.htbl` size adjustment during resize (@polytypic)
 
 ## 0.6.0
 
