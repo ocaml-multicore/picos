@@ -13,7 +13,7 @@ depends: [
   "picos_std" {= version}
   "backoff" {>= "0.1.1"}
   "mtime" {>= "2.0.0"}
-  "multicore-magic" {>= "2.3.0"}
+  "multicore-magic" {>= "2.3.2"}
   "psq" {>= "0.2.1"}
   "odoc" {with-doc}
 ]

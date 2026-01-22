@@ -31,7 +31,7 @@
   (backoff
    (>= 0.1.1))
   (multicore-magic
-   (>= 2.3.0))
+   (>= 2.3.2))
   ;;
   ))
 
@@ -60,7 +60,7 @@
   (backoff
    (>= 0.1.1))
   (multicore-magic
-   (>= 2.3.0))
+   (>= 2.3.2))
   ;;
   ))
 
@@ -78,7 +78,7 @@
   (mtime
    (>= 2.0.0))
   (multicore-magic
-   (>= 2.3.0))
+   (>= 2.3.2))
   (psq
    (>= 0.2.1))
   ;;
@@ -112,7 +112,7 @@
   (backoff
    (>= 0.1.1))
   (multicore-magic
-   (>= 2.3.0))
+   (>= 2.3.2))
   ;;
   )
  (depopts
@@ -213,11 +213,11 @@
     :with-test))
   (multicore-magic
    (and
-    (>= 2.3.0)
+    (>= 2.3.2)
     :with-test))
   (multicore-magic-dscheck
    (and
-    (>= 2.3.0)
+    (>= 2.3.2)
     :with-test))
   (ocaml-version
    (and
