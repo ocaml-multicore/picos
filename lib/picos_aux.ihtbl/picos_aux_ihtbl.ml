@@ -77,13 +77,13 @@ type ('k, 'v) t = ('k, 'v) state Atomic.t
 
 (* *)
 
-let lo_buckets = 1 lsl 3
+let lo_buckets = 1 lsl 4
 
 and hi_buckets =
   let mask = ceil_pow_2_minus_1 Sys.max_array_length in
   mask lxor (mask lsr 1)
 
-let min_buckets_default = 1 lsl 4
+let min_buckets_default = Int.max lo_buckets (1 lsl 4)
 and max_buckets_default = Int.min hi_buckets (1 lsl 30)
 
 let create (type k) ?hashed_type ?min_buckets ?max_buckets () =
@@ -147,8 +147,8 @@ let copy _s i live_bs past_bs =
 
 let rec split hash lo live_bs high past_lo past_hi = function
   | Nil ->
-      set_if_fresh live_bs lo past_lo;
-      set_if_fresh live_bs (lo + high) past_hi
+      set_if_fresh live_bs (lo + high) past_hi;
+      set_if_fresh live_bs lo past_lo
   | Cons r ->
       if hash r.key land high = high then
         split hash lo live_bs high past_lo
@@ -173,7 +173,7 @@ let merge _s lo live_bs high past_bs =
   let ((Nil | Cons _) as past) = merge past_lo past_hi in
   set_if_fresh live_bs lo past
 
-let resize s i =
+let resize s i_fresh =
   let past = s.past in
   if not (Past.is_size past) then
     let p = Past.unsafe_as_table past in
@@ -182,10 +182,23 @@ let resize s i =
     let past_bs = p.buckets in
     let past_n = Atomic_array.length past_bs in
     if live_n > past_n then
-      split s (i land (past_n - 1)) s.buckets past_n p.buckets
+      let lo = i_fresh land (past_n - lo_buckets) in
+      let hi = lo + (lo_buckets - 1) in
+      for i = lo to hi do
+        split s i live_bs past_n past_bs
+      done
     else if live_n < past_n then
-      merge s (i land (live_n - 1)) s.buckets live_n p.buckets
-    else copy s i s.buckets p.buckets
+      let lo = i_fresh land -lo_buckets in
+      let hi = lo + (lo_buckets - 1) in
+      for i = lo to hi do
+        merge s i live_bs live_n past_bs
+      done
+    else
+      let lo = i_fresh land -lo_buckets in
+      let hi = lo + (lo_buckets - 1) in
+      for i = lo to hi do
+        copy s i live_bs past_bs
+      done
 
 (* *)
 
@@ -251,18 +264,26 @@ let mark_resize_finished s (p : _ Past.table) =
   while 0 <= !i do
     begin match Atomic_array.unsafe_fenceless_get p.buckets !i with
     | B (Frozen r) -> size := length !size r.spine
-    | _ -> failwith "mark_resize_finished"
+    | B Fresh -> failwith "mark_resize_finished: Fresh"
+    | B Nil -> failwith "mark_resize_finished: Nil"
+    | B (Cons _) -> failwith "mark_resize_finished: Cons"
     end;
     if (Sys.opaque_identity s).past != Past.of_table p then i := -2 else decr i
   done;
   if !i = -1 then s.past <- Past.of_size !size
 
-let try_finish_resize (p : _ Past.table) s mask =
-  let stride = Int64.to_int (Random.bits64 ()) lor 1 land mask in
-  let fuel = ref 16 in
+let try_finish_resize (p : _ Past.table) s =
+  let mask =
+    Int.min (Atomic_array.length p.buckets) (Atomic_array.length s.buckets)
+    - lo_buckets
+  in
+  let stride = Int64.to_int (Random.bits64 ()) lor lo_buckets land mask in
+  let fuel = ref 8 in
   let i = ref stride in
   while !fuel > 0 do
-    match Atomic_array.unsafe_fenceless_get s.buckets !i with
+    match
+      Atomic_array.unsafe_fenceless_get s.buckets (!i + (lo_buckets - 1))
+    with
     | B (Nil | Cons _) ->
         i := (!i + stride) land mask;
         if !i = stride then fuel := -1
@@ -301,7 +322,7 @@ let rec adjust_size t s mask delta result =
       end
       else begin
         let p = Past.unsafe_as_table past in
-        try_finish_resize p s mask
+        try_finish_resize p s
       end
     end;
     result
@@ -325,16 +346,28 @@ let rec adjust_size t s mask delta result =
         in
         result
     else
-      let p = Past.unsafe_as_table past in
+      (* let p = Past.unsafe_as_table past in *)
       let _ : int =
         Atomic.fetch_and_add
           (Array.unsafe_get s.non_linearizable_size_delta 0)
           delta
       in
-      try_finish_resize p s mask;
+      (* try_finish_resize p s; *)
       result
 
 (* *)
+
+let finish_resize s (p : _ Past.table) =
+  let n =
+    Int.min (Atomic_array.length p.buckets) (Atomic_array.length s.buckets)
+  in
+  let i = ref (n - lo_buckets) in
+  while 0 <= !i do
+    (* TODO: early exit *)
+    resize s !i;
+    i := !i - lo_buckets
+  done;
+  mark_resize_finished s p
 
 let rec clear t =
   let s = Atomic.get t in
@@ -352,19 +385,10 @@ let rec clear t =
   end
   else
     let p = Past.unsafe_as_table past in
-    let mask = Atomic_array.length s.buckets - 1 in
-    try_finish_resize p s mask;
+    finish_resize s p;
     clear t
 
 (* *)
-
-let finish_resize s p =
-  let mask = Atomic_array.length s.buckets - 1 in
-  for i = 0 to mask do
-    (* TODO: early exit *)
-    resize s i
-  done;
-  mark_resize_finished s p
 
 let rec to_seq t =
   let s = Atomic.get t in
