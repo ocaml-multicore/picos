@@ -51,7 +51,7 @@ module Awaitable = struct
         let (One prev_r) = r.prev in
         if prev_r.next == Min0 Zero then prev_r.next <- Min0 r.tail
 
-    let[@inline] snoc t (One tail_r as tail) =
+    let[@inline] snoc t ((One tail_r : [ `One ] tdt) as tail) =
       match t with
       | Min1 (One head_r) ->
           tail_r.counter <- head_r.counter + 1;
