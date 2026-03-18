@@ -1,4 +1,10 @@
-type 'a t = { tail : 'a tail Atomic.t; head : 'a head Atomic.t }
+open Picos_aux_adaptive_backoff
+
+type 'a t = {
+  random_key : int;
+  tail : 'a tail Atomic.t;
+  head : 'a head Atomic.t;
+}
 
 and ('a, _) tdt =
   | Head : ('a, [> `Head ]) tdt
@@ -14,51 +20,57 @@ exception Empty
 let[@inline never] impossible () = invalid_arg "multiple consumers not allowed"
 
 let create ?padded () =
+  let random_key = Int64.to_int (Random.bits64 ()) in
   let tail = Multicore_magic.copy_as ?padded @@ Atomic.make (T Tail) in
   let head = Multicore_magic.copy_as ?padded @@ Atomic.make (H Head) in
-  Multicore_magic.copy_as ?padded { tail; head }
+  Multicore_magic.copy_as ?padded { random_key; tail; head }
 
-let rec push_head head (Cons r as after : (_, [< `Cons ]) tdt) backoff =
-  let before = Atomic.get head in
+let log_scale = 8
+
+let[@inline] backoff { random_key; _ } =
+  Adaptive_backoff.once ~random_key ~log_scale
+
+let[@inline] backoff_unless_alone { random_key; _ } =
+  Adaptive_backoff.once_unless_alone ~random_key ~log_scale
+
+let rec push_head t (Cons r as after : (_, [< `Cons ]) tdt) =
+  backoff t;
+  let before = Atomic.get t.head in
   r.next <- before;
-  if not (Atomic.compare_and_set head before (H after)) then
-    push_head head after (Backoff.once backoff)
+  if not (Atomic.compare_and_set t.head before (H after)) then push_head t after
 
 let push_head t value =
-  let head = t.head in
-  let before = Atomic.get head in
+  let before = Atomic.get t.head in
   let after = Cons { value; next = before } in
-  if not (Atomic.compare_and_set head before (H after)) then
-    push_head head after Backoff.default
+  if not (Atomic.compare_and_set t.head before (H after)) then push_head t after
 
 let rec append_to (Cons cons_r : (_, [< `Cons ]) tdt) tail =
   match cons_r.next with
   | H Head -> cons_r.next <- tail
   | H (Cons _ as head) -> append_to head tail
 
-let rec push tail (Snoc r as after : (_, [< `Snoc ]) tdt) backoff =
-  let before = Atomic.get tail in
+let rec push t (Snoc r as after : (_, [< `Snoc ]) tdt) =
+  backoff t;
+  let before = Atomic.get t.tail in
   r.prev <- before;
-  if not (Atomic.compare_and_set tail before (T after)) then
-    push tail after (Backoff.once backoff)
+  if not (Atomic.compare_and_set t.tail before (T after)) then push t after
 
 let push t value =
-  let tail = t.tail in
-  let before = Atomic.get tail in
+  let before = Atomic.get t.tail in
   let after = Snoc { prev = before; value } in
-  if not (Atomic.compare_and_set tail before (T after)) then
-    push tail after Backoff.default
+  if not (Atomic.compare_and_set t.tail before (T after)) then push t after
 
 let rec rev_to head (Snoc r : (_, [< `Snoc ]) tdt) =
   let head = Cons { value = r.value; next = H head } in
   match r.prev with T Tail -> head | T (Snoc _ as prev) -> rev_to head prev
 
-let rec pop_exn t backoff = function
+let rec pop_exn t = function
   | H (Cons head_r as head) ->
       if Atomic.compare_and_set t.head (H head) head_r.next then head_r.value
-      else
-        let backoff = Backoff.once backoff in
-        pop_exn t backoff (Atomic.get t.head)
+      else begin
+        backoff t;
+        pop_exn t (Atomic.get t.head)
+      end
   | H Head -> begin
       match Atomic.get t.tail with
       | T (Snoc tail_r) -> begin
@@ -79,8 +91,7 @@ let rec pop_exn t backoff = function
               | H Head -> snoc_r.value
               | H (Cons _ as head) ->
                   let next = Cons { value = snoc_r.value; next = H Head } in
-                  append_to head (H next);
-                  pop_head_exn t backoff head
+                  append_to_and_pop_head_exn t next head
             end
           | T (Snoc _ as prev) -> begin
               let next = Cons { value = snoc_r.value; next = H Head } in
@@ -92,25 +103,38 @@ let rec pop_exn t backoff = function
               else
                 match Atomic.get t.head with
                 | H Head -> impossible ()
-                | H (Cons _ as head) ->
-                    append_to head (H next);
-                    pop_head_exn t backoff head
+                | H (Cons _ as head) -> append_to_and_pop_head_exn t next head
             end
         end
       | T Tail -> begin
           match Atomic.get t.head with
-          | H Head -> raise_notrace Empty
-          | H (Cons _ as head) -> pop_head_exn t backoff head
+          | H Head ->
+              backoff_unless_alone t;
+              raise_notrace Empty
+          | H (Cons head_r as head) ->
+              (* We assume [push_head] is rare. *)
+              if Atomic.compare_and_set t.head (H head) head_r.next then
+                head_r.value
+              else begin
+                backoff t;
+                pop_exn t (Atomic.get t.head)
+              end
         end
     end
 
-and pop_head_exn t backoff (Cons head_r as head : (_, [< `Cons ]) tdt) =
-  if Atomic.compare_and_set t.head (H head) head_r.next then head_r.value
-  else
-    let backoff = Backoff.once backoff in
-    pop_exn t backoff (Atomic.get t.head)
+and append_to_and_pop_head_exn t next
+    (Cons head_r as head : (_, [< `Cons ]) tdt) =
+  append_to head (H next);
+  (* We assume [push_head] is rare. *)
+  let new_head = Atomic.get t.head in
+  if new_head != H head then pop_exn t new_head
+  else if Atomic.compare_and_set t.head (H head) head_r.next then head_r.value
+  else begin
+    backoff t;
+    pop_exn t (Atomic.get t.head)
+  end
 
-let[@inline] pop_exn t = pop_exn t Backoff.default (Atomic.get t.head)
+let[@inline] pop_exn t = pop_exn t (Atomic.get t.head)
 
 let rec prepend_to_seq t tl =
   match t with

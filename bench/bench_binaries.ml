@@ -15,6 +15,7 @@ let paths =
     lib "picos";
     lib "picos.domain";
     lib "picos.thread";
+    lib "picos_aux.adaptive_backoff";
     lib "picos_aux.htbl";
     lib "picos_aux.mpmcq";
     lib "picos_aux.mpscq";

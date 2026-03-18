@@ -198,7 +198,11 @@
  (modules test_mpmcq_dscheck picos_aux_mpmcq)
  (build_if
   (>= %{ocaml_version} 5))
- (libraries backoff multicore-magic-dscheck dscheck alcotest)
+ (libraries
+  picos_aux.adaptive_backoff
+  multicore-magic-dscheck
+  dscheck
+  alcotest)
  (flags
   (:standard -open Multicore_magic_dscheck)))
 

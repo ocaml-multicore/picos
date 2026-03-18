@@ -51,9 +51,7 @@ let run_one ~budgetf ~n_adders () =
         if 0 < n then
           match Mpscq.pop_exn t with
           | _ -> loop (n - 1)
-          | exception Mpscq.Empty ->
-              Backoff.once Backoff.default |> ignore;
-              loop n
+          | exception Mpscq.Empty -> loop n
       in
       loop n_msgs
   in
