@@ -1,3 +1,15 @@
+(rule
+ (enabled_if
+  (<= 5.0.0 %{ocaml_version}))
+ (action
+  (copy for.ocaml5.ml for.ml)))
+
+(rule
+ (enabled_if
+  (< %{ocaml_version} 5.0.0))
+ (action
+  (copy for.ocaml4.ml for.ml)))
+
 (library
  (name picos_std_structured)
  (public_name picos_std.structured)

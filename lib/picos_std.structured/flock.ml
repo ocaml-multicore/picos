@@ -10,5 +10,5 @@ let error ?callstack exn_bt = Bundle.error (get ()) ?callstack exn_bt
 let fork_as_promise thunk = Bundle.fork_as_promise_pass (get ()) thunk FLS
 let fork action = Bundle.fork_pass (get ()) action FLS
 
-let join_after ?callstack ?on_return fn =
-  Bundle.join_after_pass ?callstack ?on_return fn Bundle.FLS
+let join_after ?callstack ?on_return ?on_terminate fn =
+  Bundle.join_after_pass ?callstack ?on_return ?on_terminate fn Bundle.FLS

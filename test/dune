@@ -257,7 +257,10 @@
  (modules test_structured)
  (libraries
   alcotest
+  backoff
+  multicore-magic
   picos
+  picos.domain
   picos_aux.mpscq
   picos_std.finally
   picos_std.structured
