@@ -33,7 +33,7 @@ type t = {
   heartbeat_condition : Condition.t;
   heartbeat_delay : float;
   heartbeat_rounds : int;
-  handler : (unit, unit) Effect.Deep.handler;
+  fatal_exn_handler : (exn -> unit) option;
   quota : int;
   mutable threads : [ `Nothing | `Per_thread ] tdt array;
   mutable threads_num : int;
@@ -51,9 +51,6 @@ and _ tdt =
       mutable return : ((unit, unit) Effect.Deep.continuation -> unit) option;
       mutable discontinue :
         ((unit, unit) Effect.Deep.continuation -> unit) option;
-      mutable current :
-        ((Fiber.t, unit) Effect.Deep.continuation -> unit) option;
-      mutable yield : ((unit, unit) Effect.Deep.continuation -> unit) option;
       context : t;
       mutable index : int;
       mutable num_started : int;
@@ -140,7 +137,85 @@ let[@inline never] wakeup_heartbeat t =
 let[@inline] wakeup_heartbeat t =
   if state_arrhytmia <= t.state then wakeup_heartbeat t
 
-let exec ready (Per_thread p : per_thread) t =
+let default_fatal_exn_handler exn =
+  prerr_string "Fatal error: exception ";
+  prerr_string (Printexc.to_string exn);
+  prerr_char '\n';
+  Printexc.print_backtrace stderr;
+  flush stderr;
+  exit 2
+
+let current : ((Fiber.t, _) Effect.Deep.continuation -> _) option =
+  Some
+    (fun k ->
+      let (Per_thread p) = get_per_thread () in
+      let fiber = Fiber.Maybe.to_fiber p.fiber in
+      Effect.Deep.continue k fiber)
+
+let rec effc : type a.
+    a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option = function
+  | Fiber.Current -> current
+  | Fiber.Spawn r ->
+      let (Per_thread p) = get_per_thread () in
+      let fiber = Fiber.Maybe.to_fiber p.fiber in
+      if Fiber.is_canceled fiber then p.discontinue
+      else begin
+        p.num_started <- p.num_started + 1;
+        (* The queue [push] includes a full fence, which means the increment
+           of [num_started] will happen before increment of [num_stopped]. *)
+        Mpmcq.push p.ready (Spawn (r.fiber, r.main));
+        wakeup_heartbeat p.context;
+        p.return
+      end
+  | Fiber.Yield -> yield
+  | Computation.Cancel_after r -> begin
+      let (Per_thread p) = get_per_thread () in
+      let fiber = Fiber.Maybe.to_fiber p.fiber in
+      if Fiber.is_canceled fiber then p.discontinue
+      else
+        match
+          Select.cancel_after r.computation ~seconds:r.seconds r.exn r.bt
+        with
+        | () -> p.return
+        | exception exn ->
+            let bt = Printexc.get_raw_backtrace () in
+            Some (fun k -> Effect.Deep.discontinue_with_backtrace k exn bt)
+    end
+  | Trigger.Await trigger ->
+      Some
+        (fun k ->
+          let (Per_thread p as pt) = get_per_thread () in
+          let fiber = Fiber.Maybe.to_fiber p.fiber in
+          if Fiber.try_suspend fiber trigger fiber k p.resume then next pt
+          else
+            let remaining_quota = p.remaining_quota - 1 in
+            if 0 < remaining_quota then begin
+              p.remaining_quota <- remaining_quota;
+              Fiber.resume fiber k
+            end
+            else begin
+              Mpmcq.push p.ready (Resume (fiber, k));
+              next pt
+            end)
+  | _ -> None
+
+and retc () =
+  let (Per_thread p as pt) = get_per_thread () in
+  p.num_stopped <- p.num_stopped + 1;
+  next pt
+
+and exnc exn =
+  let (Per_thread p) = get_per_thread () in
+  match p.context.fatal_exn_handler with
+  | None -> default_fatal_exn_handler exn
+  | Some handler ->
+      kill p.context;
+      handler exn;
+      raise exn
+
+and handler = { Effect.Deep.effc; exnc; retc }
+
+and exec ready (Per_thread p : per_thread) t =
   p.remaining_quota <- t.quota;
   let fiber =
     match ready with
@@ -152,12 +227,12 @@ let exec ready (Per_thread p : per_thread) t =
   in
   p.fiber <- Fiber.Maybe.of_fiber fiber;
   match ready with
-  | Spawn (_, main) -> Effect.Deep.match_with main fiber t.handler
+  | Spawn (_, main) -> Effect.Deep.match_with main fiber handler
   | Return (_, k) -> Effect.Deep.continue k ()
   | Continue (_, k) -> Fiber.continue fiber k ()
   | Resume (_, k) -> Fiber.resume fiber k
 
-let rec next (Per_thread p as pt : per_thread) =
+and next (Per_thread p as pt : per_thread) =
   let ready =
     let c = p.countdown_to_steal in
     if 0 < c then begin
@@ -233,13 +308,13 @@ and wait (pt : per_thread) t =
     kill t
   end
 
-let default_fatal_exn_handler exn =
-  prerr_string "Fatal error: exception ";
-  prerr_string (Printexc.to_string exn);
-  prerr_char '\n';
-  Printexc.print_backtrace stderr;
-  flush stderr;
-  exit 2
+and yield : ((unit, _) Effect.Deep.continuation -> _) option =
+  Some
+    (fun k ->
+      let (Per_thread p as pt) = get_per_thread () in
+      let fiber = Fiber.Maybe.to_fiber p.fiber in
+      Mpmcq.push p.ready (Continue (fiber, k));
+      next pt)
 
 let per_thread context =
   let ready = Mpmcq.create ~padded:true () in
@@ -250,8 +325,6 @@ let per_thread context =
         resume = Obj.magic ();
         return = None;
         discontinue = None;
-        current = None;
-        yield = None;
         context;
         index = 0;
         num_started = 0;
@@ -260,6 +333,7 @@ let per_thread context =
         remaining_quota = 0;
         countdown_to_steal = 1;
       }
+    |> Multicore_magic.copy_as_padded
   in
   p.resume <-
     (fun trigger fiber k ->
@@ -279,19 +353,6 @@ let per_thread context =
       let t = p_original.context in
       wakeup_heartbeat t;
       if signal then Condition.signal t.worker_condition);
-  p.current <-
-    Some
-      (fun k ->
-        let (Per_thread p) = (pt : per_thread) in
-        let fiber = Fiber.Maybe.to_fiber p.fiber in
-        Effect.Deep.continue k fiber);
-  p.yield <-
-    Some
-      (fun k ->
-        let (Per_thread p as pt) = (pt : per_thread) in
-        let fiber = Fiber.Maybe.to_fiber p.fiber in
-        Mpmcq.push p.ready (Continue (fiber, k));
-        next pt);
   p.return <-
     Some
       (fun k ->
@@ -363,7 +424,7 @@ let heartbeat_thread t =
   try heartbeat_thread t t.heartbeat_rounds
   with exn ->
     kill t;
-    t.handler.exnc exn
+    exnc exn
 
 let with_per_thread t fn =
   let (Per_thread new_p as new_pt) = per_thread t in
@@ -400,57 +461,6 @@ let with_per_thread t fn =
   Picos_thread.TLS.set per_thread_key new_pt;
   with_per_thread new_pt fn old_p
 
-let effc : type a. a Effect.t -> ((a, _) Effect.Deep.continuation -> _) option =
- fun e ->
-  let (Per_thread p as pt) = get_per_thread () in
-  match e with
-  | Fiber.Current -> p.current
-  | Fiber.Spawn r ->
-      let fiber = Fiber.Maybe.to_fiber p.fiber in
-      if Fiber.is_canceled fiber then p.discontinue
-      else begin
-        p.num_started <- p.num_started + 1;
-        (* The queue [push] includes a full fence, which means the increment
-           of [num_started] will happen before increment of [num_stopped]. *)
-        Mpmcq.push p.ready (Spawn (r.fiber, r.main));
-        wakeup_heartbeat p.context;
-        p.return
-      end
-  | Fiber.Yield -> p.yield
-  | Computation.Cancel_after r -> begin
-      let fiber = Fiber.Maybe.to_fiber p.fiber in
-      if Fiber.is_canceled fiber then p.discontinue
-      else
-        match
-          Select.cancel_after r.computation ~seconds:r.seconds r.exn r.bt
-        with
-        | () -> p.return
-        | exception exn ->
-            let bt = Printexc.get_raw_backtrace () in
-            Some (fun k -> Effect.Deep.discontinue_with_backtrace k exn bt)
-    end
-  | Trigger.Await trigger ->
-      Some
-        (fun k ->
-          let fiber = Fiber.Maybe.to_fiber p.fiber in
-          if Fiber.try_suspend fiber trigger fiber k p.resume then next pt
-          else
-            let remaining_quota = p.remaining_quota - 1 in
-            if 0 < remaining_quota then begin
-              p.remaining_quota <- remaining_quota;
-              Fiber.resume fiber k
-            end
-            else begin
-              Mpmcq.push p.ready (Resume (fiber, k));
-              next pt
-            end)
-  | _ -> None
-
-let retc () =
-  let (Per_thread p as pt) = get_per_thread () in
-  p.num_stopped <- p.num_stopped + 1;
-  next pt
-
 let context ?heartbeat_delay ?heartbeat_rounds ?quota ?fatal_exn_handler () =
   let heartbeat_delay =
     match heartbeat_delay with
@@ -470,16 +480,6 @@ let context ?heartbeat_delay ?heartbeat_rounds ?quota ?fatal_exn_handler () =
     | None -> Int.max_int
     | Some quota -> if quota <= 0 then quota_non_positive quota else quota
   in
-  let exnc =
-    match fatal_exn_handler with
-    | None -> default_fatal_exn_handler
-    | Some handler ->
-        fun exn ->
-          let (Per_thread p) = get_per_thread () in
-          kill p.context;
-          handler exn;
-          raise exn
-  in
   Select.check_configured ();
   let mutex = Mutex.create ()
   and worker_condition = Condition.create ()
@@ -493,11 +493,12 @@ let context ?heartbeat_delay ?heartbeat_rounds ?quota ?fatal_exn_handler () =
     heartbeat_condition;
     heartbeat_delay;
     heartbeat_rounds;
-    handler = { retc; exnc; effc };
     quota;
     threads = Array.make 15 Nothing;
     threads_num = 0;
+    fatal_exn_handler;
   }
+  |> Multicore_magic.copy_as_padded
 
 let runner_on_this_thread t =
   Select.check_configured ();
@@ -517,7 +518,7 @@ let run_fiber ?context:t_opt fiber main =
     Mutex.unlock t.mutex;
     p.remaining_quota <- t.quota;
     p.fiber <- Fiber.Maybe.of_fiber fiber;
-    Effect.Deep.match_with main fiber t.handler
+    Effect.Deep.match_with main fiber handler
   end
 
 let[@inline never] run ?context fiber main computation =
