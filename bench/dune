@@ -16,6 +16,7 @@
    (run %{test} -brief "Picos_mpmcq")
    (run %{test} -brief "Picos_mpscq")
    (run %{test} -brief "Picos_htbl")
+   (run %{test} -brief "Picos_ihtbl")
    (run %{test} -brief "Hashtbl with Picos_std_sync")
    (run %{test} -brief "Picos_stdio")
    (run %{test} -brief "Picos_sync Stream")
@@ -36,6 +37,7 @@
   picos.domain
   picos.thread
   picos_aux.htbl
+  picos_aux.ihtbl
   picos_aux.mpmcq
   picos_aux.mpscq
   picos_io
