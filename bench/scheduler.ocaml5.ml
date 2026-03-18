@@ -1,1 +1,1 @@
-let run main = Picos_mux_multififo.run_on ~quota:100 ~n_domains:1 main
+let run main = Picos_mux_fifothread.run ~quota:100 main
